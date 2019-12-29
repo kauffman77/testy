@@ -1,0 +1,272 @@
+#!/bin/bash
+#
+# parse the test file into an array of text for each test first before
+# commencing with other processing
+
+#DEBUG=
+# IFS=''
+
+SDIFF="diff -bBy -W $COLUMNS"
+DIFF="diff -bB -W $COLUMNS"
+DIFF="diff --unchanged-line-format='' --old-line-format='EXPECT:%dn) %L' --new-line-format='ACTUAL:%dn) %L'"
+DEFAULT_PROGRAM="bash"
+DEFAULT_PROMPT=">"
+DEFAULT_ECHOS_INPUT="0"
+
+function reset_options(){
+    program=$DEFAULT_PROGRAM
+    prompt=$DEFAULT_PROMPT
+    echos_input=$DEFAULT_ECHOS_INPUT
+}    
+
+# DEFAULT_PROGRAM="bc -i"
+# DEFAULT_PROMPT=">"
+# DEFAULT_PROGRAM="hash_main"
+# DEFAULT_PROMPT="HM>"
+title_width=20
+
+function debug(){                                   # print a debug message
+    if [[ ! -z "$DEBUG" ]]; then
+        echo "==DBG== $1"
+    fi
+}
+
+function updateline(){                              # processes $line to set some other global variables
+    line="$REPLY"                                   # copy from REPLY to avoid losing whitespace
+    ((linenum++))                                   # update the current line number 
+    prefix="${line%% *}"                            # extracts the first word on the line as prefix
+    suffix="${line#* }"                             # extracts remainder of line
+}    
+
+function run_test_session(){                        # sets up a test session and runs through it
+    toprog_fifo=$(mktemp --tmpdir testy_to.XXXXXX)  # set up communication with the program being tested
+    fromprog_fifo=$(mktemp --tmpdir testy_from.XXXXXX)
+    debug "toprog_fifo: $toprog_fifo"
+    debug "fromprog_fifo: $fromprog_fifo"
+    rm -f ${toprog_fifo} ${fromprog_fifo}           # remove just in case
+
+    mkfifo $toprog_fifo                             # create the fifos
+    mkfifo $fromprog_fifo
+
+    debug "to fd: $to"
+    debug "from fd: $from"
+
+    debug "starting '$program <${toprog_fifo} >${fromprog_fifo} &'"
+
+    $program <${toprog_fifo} >${fromprog_fifo} &
+    pid=$!
+    debug "child pid: $pid"
+
+    exec {to}>${toprog_fifo}                        # open connection to fifo for writing
+    exec {from}<${fromprog_fifo}                    # and for reading
+
+    status="pass"
+    actual="==== ACTUAL ===="
+    expect="==== EXPECT ===="
+    while read; do                                  # BEGINNING of a test run
+        updateline
+        debug "$linenum: $line"
+        
+        if [[ "$prefix" == "#+END_SRC" ]]; then     # end of test
+            debug "$line: End Testing Session"
+            break
+        elif [[ "$prefix" = "$prompt" ]]; then               # test input
+            expect="$expect\n$line"
+            input="$suffix\n"
+            debug "Sending input: '$input'"
+            printf "$input" >&$to
+            if [[ "$echos_input" = "0" ]]; then
+                debug "no echo, appending '$line'"
+                actual="$actual\n$line"
+            else
+                debug "echos input, reading echo"
+                if ! read -t 0.5 0<&$from; then
+                    debug "TIMED OUT on read (echoed input)"
+                fi
+                actual="$actual\n$REPLY"
+            fi
+
+        else                                            # test output
+            debug "Expect: $line"
+            expect="$expect\n$line"
+            if ! read -t 0.5 0<&$from; then
+                debug "TIMED OUT on read"
+            fi
+            
+            response=$REPLY
+            debug "Actual: $response"
+            actual="$actual\n$response"
+
+            # use diff to check individual line
+            diffresult=$($SDIFF <(echo "$line") <(echo "$response"))
+            diffreturn="$?"
+            debug "diffresult: $diffresult"
+            debug "diffreturn: $diffreturn"
+
+            if [[ "$diffreturn" = "0" ]]; then
+                debug "Matches Expected"
+            else
+                status="FAIL"
+                break
+            fi
+        fi                                              # DONE with test input, either pass or fail
+    done;
+
+    debug "closing fifo fds ${to} ${from}"
+    exec {to}>&-                                    # closes to to fifo
+    exec {from}>&-                                  # closes to from fifo
+
+    if [[ "$status" = "pass" ]]; then                      # test failed
+        debug "NORMAL cleanup"                          # normal finish
+        debug "Checking child status with kill -0"
+        kill -0 $pid  >& /dev/null
+        debug "kill returned: $?"
+    else
+        debug "FAILURE cleanup"
+        actual_file=actual.tmp
+        expect_file=expect.tmp
+        result_file=$(printf "%02d-result.tmp" $testnum)
+        printf "$actual\n" > ${actual_file}
+        printf "$expect\n" > ${expect_file}
+
+        {  printf 'Test %d) %s' "$testnum" "$title"
+           printf "${comments}\n" 
+           printf "FAILURE: Output Mismatch at Last line of Input\n" >> ${result_file}
+           printf "\n%s\n" "---Side by Side Differences---"
+           printf "Differing lines have a character like '|' in the middle\n"
+           $SDIFF $expect_file $actual_file 
+           printf "\n" 
+           printf "%s\n" "---Line Differences---"
+           diffcmd="$DIFF <(sed '1s/.*//g' ${expect_file}) <(sed '1s/.*//g' ${actual_file})"
+           eval "$diffcmd"
+        } &> ${result_file}
+
+        status="FAIL -> results in file '$result_file'"
+        debug "Killing child process"
+        kill -KILL $pid &> /dev/null
+    fi
+
+
+    debug "waiting on finished child"
+    wait $pid &> /dev/null
+    debug "wait returned: $?"
+
+    return 0;
+}
+
+
+################################################################################
+# BEGIN main processing
+if [[ "$#" < 1 ]]; then
+    printf "usage: testy <testspec> [testnum]\n"
+    exit 1
+fi
+
+specfile=$1                                         # gather test file
+debug "Testing $specfile"
+shift
+
+
+##################################################
+# first loop: read whole file into testdata array which will contain
+# the text of each test
+testdata=()                                         # array of test data
+testline=()                                         # array of lines at which tests start
+testnum=0                                           # current test number
+linenum=0
+while read; do                                      # read all tests in from the file first
+    updateline
+    case "$prefix" in
+        "*")
+            if ((testnum > 0)); then                # if not the first test
+                testdata[$testnum]="$testtext"      # add to the array of tests
+            fi
+            ((testnum++))                           # reset and start collecting text for the new test
+            testtext="$line"                        # testtext hold all the text for the current test
+            testline[$testnum]="$linenum"
+            if (( ${#suffix} > $title_width )); then
+                title_width=${#suffix}
+            fi
+            ;;
+        "#+TYOPTS:")                                # global options
+            variable="${suffix%% *}"                # variable name is first word
+            value="${suffix#* }"                    # value is remainder of line
+            eval "$variable='$value'"
+            debug "option set: $variable='$value'"
+            testtext="$testtext\n$line"             # append line to current test text as it may be a local test option
+            ;;
+        *)
+            testtext="$testtext\n$line"             # append line to current test text
+            ;;
+    esac
+done < $specfile
+testdata[$testnum]="$testtext"                      # add last test to array
+
+for i in $(seq $testnum); do
+    debug "-----TEST $i-----"
+    debug "${testline[$i]}"                         # print entire test with line breaks escaped
+    debug "${testdata[$i]}"                         # print entire test with line breaks escaped
+    while read w; do                                # iterate over all lines of test
+        debug ":TEST $i: $w"
+    done <<< $(printf "${testdata[$i]}")            # printf needed to get line breaks back in 
+done
+
+totaltests=$testnum
+
+##################################################
+# second loop: run tests
+
+#printf "%s\n" "${testline[@]}"
+debug "================================="
+
+# set the tests to run here if only a single or subset of tests is to be run
+alltests=$(seq $totaltests)
+testcount=0
+failcount=0
+
+ntests=$(wc -w <<< "$alltests")
+
+printf "Running %d / %d tests\n" "$ntests" "$totaltests"
+
+for testnum in $alltests; do
+    ((testcount++))
+    reset_options
+    linenum=$((${testline[testnum]} -1))
+    comments=""
+    debug ":TEST $testnum: START at line $linenum"
+
+    while read; do                             # iterate over all lines of test
+        updateline
+        debug "$linenum: $line"
+
+        case "$prefix" in
+            "*")
+                title="$suffix"
+                debug "title: $title"
+                ;;
+            "#+TYOPTS:")
+                variable="${suffix%% *}"            # variable name is first word
+                value="${suffix#* }"                # value is remainder of line
+                eval "$variable='$value'"
+                debug "option set: $variable='$value'"
+                ;;
+            "#+BEGIN_SRC")
+                debug ":TEST $testnum: Begin testing session"
+                run_test_session
+                if [[ "$status" != "pass" ]]; then
+                    ((failcount++))
+                    break
+                fi
+                ;;
+            *)
+                debug "comment"
+                comments="$comments\n$line"
+                ;;
+        esac
+    done <<< $(printf "${testdata[$testnum]}")      # printf needed to get line breaks back in 
+    printf "%-3s %-${title_width}s : %s\n" "${testnum})" "$title" "$status"
+done    
+
+passcount=$((testcount-failcount))
+echo ""
+echo "RESULTS: $passcount / $testcount tests passed"
