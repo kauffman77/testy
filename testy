@@ -17,6 +17,7 @@ DEFAULT_PROGRAM="bash"                              # program to run if no optio
 DEFAULT_PROMPT=">"                                  # prompt to honor if none is specified
 DEFAULT_ECHOS_INPUT="0"                             # 0 for program NOT echoing input, insert it
 
+testdir="test-results"
 title_width=20                                      # initial width for test titles, set to widest during initial parsing
 
 function reset_options(){                           # reset options to defaults, run before each test session
@@ -132,13 +133,16 @@ function run_test_session(){
         debug "kill returned: $?"
     else
         debug "FAILURE cleanup"
-        actual_file=actual.tmp
-        expect_file=expect.tmp
-        result_file=$(printf "%02d-result.tmp" $testnum)
+        mkdir -p $testdir
+        # actual_file="$testdir/actual.tmp"
+        # expect_file="$testdir/expect.tmp"
+        actual_file=$(printf "%s/%02d-actual.tmp" "$testdir" "$testnum")
+        expect_file=$(printf "%s/%02d-expect.tmp" "$testdir" "$testnum")
+        result_file=$(printf "%s/%02d-result.tmp" "$testdir" "$testnum")
         printf "$actual\n" > ${actual_file}
         printf "$expect\n" > ${expect_file}
 
-        {  printf 'Test %d) %s' "$testnum" "$title"
+        {  printf '(TEST %d) %s' "$testnum" "$title"
            printf "${comments}\n" 
            printf "FAILURE: Output Mismatch at Last line of Input\n" >> ${result_file}
            printf "\n%s\n" "---Side by Side Differences---"
