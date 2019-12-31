@@ -6,24 +6,25 @@
 #DEBUG=
 # IFS=''
 
-SDIFF="diff -bBy -W $COLUMNS"
-DIFF="diff -bB -W $COLUMNS"
-DIFF="diff --unchanged-line-format='' --old-line-format='EXPECT:%dn) %L' --new-line-format='ACTUAL:%dn) %L'"
-DEFAULT_PROGRAM="bash"
-DEFAULT_PROMPT=">"
-DEFAULT_ECHOS_INPUT="0"
+STDBUF="stdbuf -i 0 -o 0 -e 0"                      # disables standard IO buffering for a program
+SDIFF="diff -bBy -W $COLUMNS"                       # side by side diff, need to work on how to set the columns dynamically
+DIFF="diff --unchanged-line-format='' \
+           --old-line-format='EXPECT:%dn) %L' \
+           --new-line-format='ACTUAL:%dn) %L'"      # diff which will show prepend EXPECT/ACTUAL to differing lines
+# DIFF="diff -bB -W $COLUMNS"
 
-function reset_options(){
+DEFAULT_PROGRAM="bash"                              # program to run if no option is specified
+DEFAULT_PROMPT=">"                                  # prompt to honor if none is specified
+DEFAULT_ECHOS_INPUT="0"                             # 0 for program NOT echoing input, insert it
+
+title_width=20                                      # initial width for test titles, set to widest during initial parsing
+
+function reset_options(){                           # reset options to defaults, run before each test session
     program=$DEFAULT_PROGRAM
     prompt=$DEFAULT_PROMPT
     echos_input=$DEFAULT_ECHOS_INPUT
 }    
 
-# DEFAULT_PROGRAM="bc -i"
-# DEFAULT_PROMPT=">"
-# DEFAULT_PROGRAM="hash_main"
-# DEFAULT_PROMPT="HM>"
-title_width=20
 
 function debug(){                                   # print a debug message
     if [[ ! -z "$DEBUG" ]]; then
@@ -38,7 +39,12 @@ function updateline(){                              # processes $line to set som
     suffix="${line#* }"                             # extracts remainder of line
 }    
 
-function run_test_session(){                        # sets up a test session and runs through it
+################################################################################
+# Run a Test Session
+#
+# Sets up a test session which is denoted by the #+BEGIN_SRC/#+END_SRC
+# tags in the input file. Will set the 'status' variable before exiting to indicate whether 
+function run_test_session(){
     toprog_fifo=$(mktemp --tmpdir testy_to.XXXXXX)  # set up communication with the program being tested
     fromprog_fifo=$(mktemp --tmpdir testy_from.XXXXXX)
     debug "toprog_fifo: $toprog_fifo"
@@ -53,40 +59,43 @@ function run_test_session(){                        # sets up a test session and
 
     debug "starting '$program <${toprog_fifo} >${fromprog_fifo} &'"
 
-    $program <${toprog_fifo} >${fromprog_fifo} &
+    # $program <${toprog_fifo} >${fromprog_fifo} &
+    $STDBUF $program <${toprog_fifo} >${fromprog_fifo} &
     pid=$!
     debug "child pid: $pid"
 
     exec {to}>${toprog_fifo}                        # open connection to fifo for writing
     exec {from}<${fromprog_fifo}                    # and for reading
 
-    status="pass"
-    actual="==== ACTUAL ===="
-    expect="==== EXPECT ===="
-    while read; do                                  # BEGINNING of a test run
+    status="pass"                                   # initial status, change to 'FAIL' if things go wrong
+    expect="==== EXPECT ===="                       # expected output from test file
+    actual="==== ACTUAL ===="                       # actual output read from program
+
+    # MAIN LOOP to read lines of input, feed program, check output
+    while read; do                                  
         updateline
         debug "$linenum: $line"
         
-        if [[ "$prefix" == "#+END_SRC" ]]; then     # end of test
+        if [[ "$prefix" == "#+END_SRC" ]]; then     # end of test, break out
             debug "$line: End Testing Session"
             break
-        elif [[ "$prefix" = "$prompt" ]]; then               # test input
-            expect="$expect\n$line"
-            input="$suffix\n"
-            debug "Sending input: '$input'"
-            printf "$input" >&$to
-            if [[ "$echos_input" = "0" ]]; then
-                debug "no echo, appending '$line'"
-                actual="$actual\n$line"
+        elif [[ "$prefix" = "$prompt" ]]; then      # test input, feed to program
+            expect="$expect\n$line"                 # append input to expected
+            input="$suffix"
+            debug "Sending input: '$suffix'"
+            printf "$input\n" >&$to                # send input after prompt to program
+            if [[ "$echos_input" = "0" ]]; then     
+                debug "no echo, appending '$line'"  # no echoing
+                actual="$actual\n$line"             # append prompt+input to actual to simulate typing
             else
-                debug "echos input, reading echo"
-                if ! read -t 0.5 0<&$from; then
+                debug "echos input, reading echo"   # program DOES echo 
+                if ! read -t 0.5 0<&$from; then     # read prompt and typed input from program
                     debug "TIMED OUT on read (echoed input)"
                 fi
-                actual="$actual\n$REPLY"
+                actual="$actual\n$REPLY"            # reply contains both prompt and echoed input
             fi
 
-        else                                            # test output
+        else                                        # test output
             debug "Expect: $line"
             expect="$expect\n$line"
             if ! read -t 0.5 0<&$from; then
