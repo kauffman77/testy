@@ -16,6 +16,7 @@ DIFF="diff --unchanged-line-format='' \
 DEFAULT_PROGRAM="bash"                              # program to run if no option is specified
 DEFAULT_PROMPT=">"                                  # prompt to honor if none is specified
 DEFAULT_ECHOS_INPUT="0"                             # 0 for program NOT echoing input, insert it
+DEFAULT_TAG="testy"
 
 testdir="test-results"
 title_width=20                                      # initial width for test titles, set to widest during initial parsing
@@ -24,6 +25,7 @@ function reset_options(){                           # reset options to defaults,
     program=$DEFAULT_PROGRAM
     prompt=$DEFAULT_PROMPT
     echos_input=$DEFAULT_ECHOS_INPUT
+    tag=$DEFAULT_TAG
 }    
 
 
@@ -136,9 +138,9 @@ function run_test_session(){
         mkdir -p $testdir
         # actual_file="$testdir/actual.tmp"
         # expect_file="$testdir/expect.tmp"
-        actual_file=$(printf "%s/%02d-actual.tmp" "$testdir" "$testnum")
-        expect_file=$(printf "%s/%02d-expect.tmp" "$testdir" "$testnum")
-        result_file=$(printf "%s/%02d-result.tmp" "$testdir" "$testnum")
+        actual_file=$(printf "%s/%s-%02d-actual.tmp" "$testdir" "$tag" "$testnum")
+        expect_file=$(printf "%s/%s-%02d-expect.tmp" "$testdir" "$tag" "$testnum")
+        result_file=$(printf "%s/%s-%02d-result.tmp" "$testdir" "$tag" "$testnum")
         printf "$actual\n" > ${actual_file}
         printf "$expect\n" > ${expect_file}
 

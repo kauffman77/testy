@@ -1,6 +1,7 @@
 #+TYOPTS: DEFAULT_PROGRAM ./hash/hash_main -echo
 #+TYOPTS: DEFAULT_PROMPT HM>
 #+TYOPTS: DEFAULT_ECHOS_INPUT 1
+#+TYOPTS: DEFAULT_TAG hash
 
 * Start Print Quit
 Tests that the prelude text appears, that 'print' shows nothing

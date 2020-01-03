@@ -1,3 +1,4 @@
+#+TYOPTS: DEFAULT_TAG bc
 * Addition and Multiplication
 Some add/multiply tests
 #+TYOPTS: program bc
