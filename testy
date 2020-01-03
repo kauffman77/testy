@@ -7,7 +7,8 @@
 # IFS=''
 
 STDBUF="stdbuf -i 0 -o 0 -e 0"                      # disables standard IO buffering for a program
-SDIFF="diff -bBy -W $COLUMNS"                       # side by side diff, need to work on how to set the columns dynamically
+SDIFF="diff -bBy"                                   # side by side diff, need to work on how to set the columns dynamically
+# SDIFF="diff -bBy -W $COLUMNS"                       # side by side diff, need to work on how to set the columns dynamically
 DIFF="diff --unchanged-line-format='' \
            --old-line-format='EXPECT:%dn) %L' \
            --new-line-format='ACTUAL:%dn) %L'"      # diff which will show prepend EXPECT/ACTUAL to differing lines
@@ -136,20 +137,23 @@ function run_test_session(){
     else
         debug "FAILURE cleanup"
         mkdir -p $testdir
-        # actual_file="$testdir/actual.tmp"
-        # expect_file="$testdir/expect.tmp"
         actual_file=$(printf "%s/%s-%02d-actual.tmp" "$testdir" "$tag" "$testnum")
         expect_file=$(printf "%s/%s-%02d-expect.tmp" "$testdir" "$tag" "$testnum")
         result_file=$(printf "%s/%s-%02d-result.tmp" "$testdir" "$tag" "$testnum")
         printf "$actual\n" > ${actual_file}
         printf "$expect\n" > ${expect_file}
-
+        actual_width=$(awk '{w=length; max=w>max?w:max}END{print max}' $actual_file)
+        expect_width=$(awk '{w=length; max=w>max?w:max}END{print max}' $expect_file)
+        width=$((actual_width + expect_width + 8))
+        debug "width $width"
         {  printf '(TEST %d) %s' "$testnum" "$title"
            printf "${comments}\n" 
            printf "FAILURE: Output Mismatch at Last line of Input\n" >> ${result_file}
            printf "\n%s\n" "---Side by Side Differences---"
            printf "Differing lines have a character like '|' in the middle\n"
-           $SDIFF $expect_file $actual_file 
+           echo $width
+           $SDIFF -W $width $expect_file $actual_file 
+
            printf "\n" 
            printf "%s\n" "---Line Differences---"
            diffcmd="$DIFF <(sed '1s/.*//g' ${expect_file}) <(sed '1s/.*//g' ${actual_file})"
