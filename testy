@@ -72,8 +72,10 @@ function run_test_session(){
     exec {from}<${fromprog_fifo}                    # and for reading
 
     status="pass"                                   # initial status, change to 'FAIL' if things go wrong
-    expect="==== EXPECT ===="                       # expected output from test file
-    actual="==== ACTUAL ===="                       # actual output read from program
+    expect=""                                       # expected output from test file
+    actual=""                                       # actual output read from program
+    # expect="==== EXPECT ===="                       # expected output from test file
+    # actual="==== ACTUAL ===="                       # actual output read from program
 
     # MAIN LOOP to read lines of input, feed program, check output
     while read; do                                  
@@ -84,50 +86,61 @@ function run_test_session(){
             debug "$line: End Testing Session"
             break
         elif [[ "$prefix" = "$prompt" ]]; then      # test input, feed to program
-            expect="$expect\n$line"                 # append input to expected
+            expect="${expect}${line}\n"                 # append input to expected
             input="$suffix"
             debug "Sending input: '$suffix'"
             printf "$input\n" >&$to                # send input after prompt to program
             if [[ "$echos_input" = "0" ]]; then     
                 debug "no echo, appending '$line'"  # no echoing
-                actual="$actual\n$line"             # append prompt+input to actual to simulate typing
+                actual="${actual}${line}\n"             # append prompt+input to actual to simulate typing
             else
                 debug "echos input, reading echo"   # program DOES echo 
                 if ! read -t 0.5 0<&$from; then     # read prompt and typed input from program
                     debug "TIMED OUT on read (echoed input)"
                 fi
-                actual="$actual\n$REPLY"            # reply contains both prompt and echoed input
+                actual="${actual}${REPLY}\n"            # reply contains both prompt and echoed input
             fi
 
         else                                        # test output
             debug "Expect: $line"
-            expect="$expect\n$line"
+            expect="${expect}${line}\n"
             if ! read -t 0.5 0<&$from; then
                 debug "TIMED OUT on read"
             fi
             
             response=$REPLY
             debug "Actual: $response"
-            actual="$actual\n$response"
+            actual="${actual}${response}\n"
 
-            # use diff to check individual line
-            diffresult=$($SDIFF <(echo "$line") <(echo "$response"))
-            diffreturn="$?"
-            debug "diffresult: $diffresult"
-            debug "diffreturn: $diffreturn"
-
-            if [[ "$diffreturn" = "0" ]]; then
-                debug "Matches Expected"
-            else
-                status="FAIL"
-                break
-            fi
         fi                                              # DONE with test input, either pass or fail
     done;
 
     debug "closing fifo fds ${to} ${from}"
     exec {to}>&-                                    # closes to to fifo
     exec {from}>&-                                  # closes to from fifo
+
+    mkdir -p $testdir
+    actual_file=$(printf "%s/%s-%02d-actual.tmp" "$testdir" "$tag" "$testnum")
+    expect_file=$(printf "%s/%s-%02d-expect.tmp" "$testdir" "$tag" "$testnum")
+    result_file=$(printf "%s/%s-%02d-result.tmp" "$testdir" "$tag" "$testnum")
+
+    printf "$actual\n" > ${actual_file}
+    printf "$expect\n" > ${expect_file}
+    actual_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' $actual_file)
+    expect_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' $expect_file)
+    total_width=$((actual_width + expect_width + 3))
+    debug "actual_width $actual_width"
+    debug "expect_width $expect_width"
+    debug "total_width $total_width"
+    
+    diffcmd="$DIFF ${expect_file} ${actual_file}"
+    diffresult=$(eval "$diffcmd")
+    diffreturn="$?"
+    debug "diffresult: $diffresult"
+    debug "diffreturn: $diffreturn"
+    if [[ "$diffreturn" != "0" ]]; then
+        status="FAIL"
+    fi
 
     if [[ "$status" = "pass" ]]; then                      # test failed
         debug "NORMAL cleanup"                          # normal finish
@@ -136,28 +149,16 @@ function run_test_session(){
         debug "kill returned: $?"
     else
         debug "FAILURE cleanup"
-        mkdir -p $testdir
-        actual_file=$(printf "%s/%s-%02d-actual.tmp" "$testdir" "$tag" "$testnum")
-        expect_file=$(printf "%s/%s-%02d-expect.tmp" "$testdir" "$tag" "$testnum")
-        result_file=$(printf "%s/%s-%02d-result.tmp" "$testdir" "$tag" "$testnum")
-        printf "$actual\n" > ${actual_file}
-        printf "$expect\n" > ${expect_file}
-        actual_width=$(awk '{w=length; max=w>max?w:max}END{print max}' $actual_file)
-        expect_width=$(awk '{w=length; max=w>max?w:max}END{print max}' $expect_file)
-        width=$((actual_width + expect_width + 8))
-        debug "width $width"
         {  printf '(TEST %d) %s' "$testnum" "$title"
            printf "${comments}\n" 
-           printf "FAILURE: Output Mismatch at Last line of Input\n" >> ${result_file}
+           printf "FAILURE: Output Mismatch at lines marked\n"
            printf "\n%s\n" "---Side by Side Differences---"
            printf "Differing lines have a character like '|' in the middle\n"
-           echo $width
-           $SDIFF -W $width $expect_file $actual_file 
-
-           printf "\n" 
+           printf "%-${expect_width}s   %-${actual_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
+           $SDIFF -t -W $total_width $expect_file $actual_file 
            printf "%s\n" "---Line Differences---"
-           diffcmd="$DIFF <(sed '1s/.*//g' ${expect_file}) <(sed '1s/.*//g' ${actual_file})"
-           eval "$diffcmd"
+           printf "%s\n" "$diffresult"
+           # -t for no tabs, -W for width
         } &> ${result_file}
 
         status="FAIL -> results in file '$result_file'"
