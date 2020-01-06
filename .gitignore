@@ -1,3 +1,5 @@
 hash/
 /hash_main
 test-results/
+*~
+*.bk

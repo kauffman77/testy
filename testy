@@ -16,7 +16,7 @@ DIFF="diff --unchanged-line-format='' \
 
 DEFAULT_PROGRAM="bash"                              # program to run if no option is specified
 DEFAULT_PROMPT=">"                                  # prompt to honor if none is specified
-DEFAULT_ECHOS_INPUT="0"                             # 0 for program NOT echoing input, insert it
+DEFAULT_ECHO_STYLE="none"                           # {none, prompt, input, both} for program input echoing style
 DEFAULT_TAG="testy"
 
 testdir="test-results"
@@ -25,7 +25,7 @@ title_width=20                                      # initial width for test tit
 function reset_options(){                           # reset options to defaults, run before each test session
     program=$DEFAULT_PROGRAM
     prompt=$DEFAULT_PROMPT
-    echos_input=$DEFAULT_ECHOS_INPUT
+    echo_style=$DEFAULT_ECHO_STYLE
     tag=$DEFAULT_TAG
 }    
 
@@ -91,38 +91,63 @@ function run_test_session(){
         updateline
         debug "$linenum: $line"
         
-        if [[ "$prefix" == "#+END_SRC" ]]; then     # end of test, break out
-            debug "$line: End Testing Session"
-            break
-        elif [[ "$prefix" = "$prompt" ]]; then      # test input, feed to program
-            expect="${expect}${line}\n"             # append input to expected
-            input="$suffix"
-            debug "Sending input: '$suffix'"
-            printf "$input\n" >&$to                # send input after prompt to program
-            if [[ "$echos_input" = "0" ]]; then     
-                debug "no echo, appending '$line'"  # no echoing
-                actual="${actual}${line}\n"         # append prompt+input to actual to simulate typing
-            else
-                debug "echos input, reading echo"   # program DOES echo 
-                if ! read -t 0.5 0<&$from; then     # read prompt and typed input from program
-                    actual+="testy: TIMED OUT reading echoed input"
-                    debug "TIMED OUT on read (echoed input)"
-                else
-                    actual="${actual}${REPLY}\n"        # reply contains both prompt and echoed input
-                fi
-            fi
-        else                                        # test output
-            debug "Expect: $line"
-            expect="${expect}${line}\n"
-            if ! read -t 0.5 0<&$from; then
-                actual+="testy: TIMED OUT reading program output"
-                debug "TIMED OUT on read"
-            fi
-            response=$REPLY
-            debug "Actual: $response"
-            actual="${actual}${response}\n"
+        case "$prefix" in
+            "#+END_SRC")                            # end of test, break out
+                debug "$line: End Testing Session"
+                break
+                ;;
+            "$prompt")                                  # test input, feed to program
+                expect+="${line}\n"                     # append input to expected
+                input="$suffix"
+                debug "Sending input: '$suffix'"
+                printf "$input\n" >&$to                 # send input after prompt to program
+                case "$echo_style" in
+                    "none")                             # no echoing, append prompt+input to actual to simulate typing
+                        debug "no echo, appending '$line'" 
+                        actual+="${line}\n"
+                        ;;
+                    "prompt")
+                        debug "echos prompt only"
+                        if ! read -t 0.5 -d ' ' 0<&$from; then # read echoed prompt
+                            actual+="testy: TIMED OUT reading echoed prompt\n"
+                            break
+                        else
+                            actual+="$REPLY $input\n"
+                        fi
+                        ;;
+                    "input")
+                        debug "echos input only"
+                        if ! read -t 0.5 0<&$from; then # read echoed input
+                            actual+="testy: TIMED OUT reading echoed input\n"
+                            break
+                        else
+                            actual+="$prompt $REPLY\n"
+                        fi
+                        ;;
+                    "both")
+                        if ! read -t 0.5 0<&$from; then # read echoed pompt+input
+                            actual+="testy: TIMED OUT reading echoed prompt/input\n"
+                            break
+                        else
+                            actual+="$REPLY\n"      # reply contains both prompt and echoed input
 
-        fi                                          # DONE with test input, either pass or fail
+                        fi
+                        ;;
+                esac
+                ;;
+            *)                                        # other lines are test output
+                debug "Expect: $line"
+                expect="${expect}${line}\n"
+                if ! read -t 0.5 0<&$from; then
+                    actual+="testy: TIMED OUT reading program output\n"
+                    debug "TIMED OUT on read"
+                    break
+                fi
+                response=$REPLY
+                debug "Actual: $response"
+                actual="${actual}${response}\n"
+                ;;
+        esac                                          # DONE with test input, either pass or fail
     done;
 
     debug "closing fifo fds ${to} ${from}"
