@@ -47,7 +47,15 @@ function updateline(){                              # processes $line to set som
 # Run a Test Session
 #
 # Sets up a test session which is denoted by the #+BEGIN_SRC/#+END_SRC
-# tags in the input file. Will set the 'status' variable before exiting to indicate whether 
+# tags in the input file. Will set the 'status' variable before
+# exiting to indicate whether the test passes or fails. Influenced by
+# many of the run variables including
+# - program
+# - tag
+# - prompt
+# 
+# The function is run in a context where 'read' will extract lines
+# from the test session.
 function run_test_session(){
     toprog_fifo=$(mktemp --tmpdir testy_to.XXXXXX)  # set up communication with the program being tested
     fromprog_fifo=$(mktemp --tmpdir testy_from.XXXXXX)
@@ -63,11 +71,12 @@ function run_test_session(){
 
     debug "starting '$program <${toprog_fifo} >${fromprog_fifo} &'"
 
-    # $program <${toprog_fifo} >${fromprog_fifo} &
-    $STDBUF $program <${toprog_fifo} >${fromprog_fifo} &
+    # run program under stdbuf to eliminate I/O buffering, I/O comes through fifos
+    $STDBUF $program <${toprog_fifo} >${fromprog_fifo} & 
     pid=$!
     debug "child pid: $pid"
 
+    # must open these after running the program or testy will stall 
     exec {to}>${toprog_fifo}                        # open connection to fifo for writing
     exec {from}<${fromprog_fifo}                    # and for reading
 
@@ -78,7 +87,7 @@ function run_test_session(){
     # actual="==== ACTUAL ===="                       # actual output read from program
 
     # MAIN LOOP to read lines of input, feed program, check output
-    while read; do                                  
+    while read; do                                  # read a line from the test session
         updateline
         debug "$linenum: $line"
         
@@ -86,33 +95,34 @@ function run_test_session(){
             debug "$line: End Testing Session"
             break
         elif [[ "$prefix" = "$prompt" ]]; then      # test input, feed to program
-            expect="${expect}${line}\n"                 # append input to expected
+            expect="${expect}${line}\n"             # append input to expected
             input="$suffix"
             debug "Sending input: '$suffix'"
             printf "$input\n" >&$to                # send input after prompt to program
             if [[ "$echos_input" = "0" ]]; then     
                 debug "no echo, appending '$line'"  # no echoing
-                actual="${actual}${line}\n"             # append prompt+input to actual to simulate typing
+                actual="${actual}${line}\n"         # append prompt+input to actual to simulate typing
             else
                 debug "echos input, reading echo"   # program DOES echo 
                 if ! read -t 0.5 0<&$from; then     # read prompt and typed input from program
+                    actual+="testy: TIMED OUT reading echoed input"
                     debug "TIMED OUT on read (echoed input)"
+                else
+                    actual="${actual}${REPLY}\n"        # reply contains both prompt and echoed input
                 fi
-                actual="${actual}${REPLY}\n"            # reply contains both prompt and echoed input
             fi
-
         else                                        # test output
             debug "Expect: $line"
             expect="${expect}${line}\n"
             if ! read -t 0.5 0<&$from; then
+                actual+="testy: TIMED OUT reading program output"
                 debug "TIMED OUT on read"
             fi
-            
             response=$REPLY
             debug "Actual: $response"
             actual="${actual}${response}\n"
 
-        fi                                              # DONE with test input, either pass or fail
+        fi                                          # DONE with test input, either pass or fail
     done;
 
     debug "closing fifo fds ${to} ${from}"
