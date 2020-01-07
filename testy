@@ -3,30 +3,74 @@
 # parse the test file into an array of text for each test first before
 # commencing with other processing
 
-#DEBUG=
-# IFS=''
+read -r -d '' usage <<EOF
+usage: testy <testfile.org>
+       testy --help
 
+Run tests for a shell program specified in an org-like file and report
+the results.
+
+--- Behavior Variables ---
+The following variables can be specified in test files via lines like
+  #+TESTY: var value
+They will change the behavior of how the test data is interpretted.
+
+Global variables that are usually specified at the beginning of a test
+file before any other tests.
+PROGRAM "bash"         : program to run/test if no option is specified
+PROMPT ">"             : prompt to honor if none is specified
+ECHO_STYLE "none"      : {none, prompt, input, both} for program input echoing style
+TAG "testy"            : prefix for output files
+TESTDIR "test-results" : directory where the resutls will be written
+
+
+Local variables that can be specified for a single test session in an
+individual test.
+program "bash"         : override PROGRAM for an individual test session
+prompt ">"             : override PROMPT for an individual test session
+echo_style "none"      : override ECHO_STYLE for an individual test session
+tag "testy"            : override TAG for an individual test session
+testdir "test-results" : override TESTDIR for an individual test session
+
+--- Environment Variables ---
+These variables can be changed either via a 
+  #+TESTY: var value
+line or via an environment variable during a program run as in
+  > VAR=value testy testfile.org
+
+They control other behaviors of the program
+DEBUG=0           : controls debugging
+dump_errors=0     : controls whether test error results are printed after completing all tests
+EOF
+
+if [[ "$1" = "--help" ]]; then
+    echo "$usage"
+    exit 1
+fi
+
+# some global options/programs
 STDBUF="stdbuf -i 0 -o 0 -e 0"                      # disables standard IO buffering for a program
 SDIFF="diff -bBy"                                   # side by side diff, need to work on how to set the columns dynamically
-# SDIFF="diff -bBy -W $COLUMNS"                       # side by side diff, need to work on how to set the columns dynamically
 DIFF="diff --unchanged-line-format='' \
            --old-line-format='EXPECT:%dn) %L' \
            --new-line-format='ACTUAL:%dn) %L'"      # diff which will show prepend EXPECT/ACTUAL to differing lines
-# DIFF="diff -bB -W $COLUMNS"
 
-DEFAULT_PROGRAM="bash"                              # program to run if no option is specified
-DEFAULT_PROMPT=">"                                  # prompt to honor if none is specified
-DEFAULT_ECHO_STYLE="none"                           # {none, prompt, input, both} for program input echoing style
-DEFAULT_TAG="testy"
+# default values for the program to be tested
+PROGRAM="bash"                                      # program to run if no option is specified
+PROMPT=">"                                          # prompt to honor if none is specified
+ECHO_STYLE="none"                                   # {none, prompt, input, both} for program input echoing style
+TAG="testy"                                         # prefix for the 
+TESTDIR="test-results"                              # directory where the resutls will be written
 
-testdir="test-results"
+# default values for where the results will be stored
 title_width=20                                      # initial width for test titles, set to widest during initial parsing
 
 function reset_options(){                           # reset options to defaults, run before each test session
-    program=$DEFAULT_PROGRAM
-    prompt=$DEFAULT_PROMPT
-    echo_style=$DEFAULT_ECHO_STYLE
-    tag=$DEFAULT_TAG
+    program=$PROGRAM
+    prompt=$PROMPT
+    echo_style=$ECHO_STYLE
+    tag=$TAG
+    testdir=$TESTDIR
 }    
 
 
@@ -196,6 +240,7 @@ function run_test_session(){
            # -t for no tabs, -W for width
         } &> ${result_file}
 
+        fail_files+="${result_file}"
         status="FAIL -> results in file '$result_file'"
         debug "Killing child process"
         kill -KILL $pid &> /dev/null
@@ -243,7 +288,7 @@ while read; do                                      # read all tests in from the
                 title_width=${#suffix}
             fi
             ;;
-        "#+TYOPTS:")                                # global options
+        "#+TESTY:")                                # global options
             variable="${suffix%% *}"                # variable name is first word
             value="${suffix#* }"                    # value is remainder of line
             eval "$variable='$value'"
@@ -299,7 +344,7 @@ for testnum in $alltests; do
                 title="$suffix"
                 debug "title: $title"
                 ;;
-            "#+TYOPTS:")
+            "#+TESTY:")
                 variable="${suffix%% *}"            # variable name is first word
                 value="${suffix#* }"                # value is remainder of line
                 eval "$variable='$value'"
@@ -325,3 +370,14 @@ done
 passcount=$((testcount-failcount))
 echo ""
 echo "RESULTS: $passcount / $testcount tests passed"
+
+debug "dump_errors: $dump_errors"
+
+if [[ "$dump_errors" = "1" ]]; then
+    printf "\n\nFAILURE RESULTS\n"
+    printf "%s\n" "----------------------------------------"
+    for f in $fail_files; do
+        cat $f
+        printf "%s\n" "----------------------------------------"
+    done
+fi

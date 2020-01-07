@@ -1,7 +1,9 @@
-#+TESTY: PROGRAM ./hash/hash_main -echo
+This file demonstrates tests for a program that only prints the
+prompt and does not echo input back.
+
+#+TESTY: PROGRAM ./hash/hash_main
 #+TESTY: PROMPT HM>
-#+TESTY: ECHO_STYLE both
-#+TESTY: TAG hash
+#+TESTY: ECHO_STYLE prompt
 
 * Start Print Quit
 Tests that the prelude text appears, that 'print' shows nothing

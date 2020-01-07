@@ -1,7 +1,7 @@
-#+TYOPTS: DEFAULT_TAG bc
+#+TESTY: TAG bc
 * Addition and Multiplication
 Some add/multiply tests
-#+TYOPTS: program bc
+#+TESTY: program bc
 #+BEGIN_SRC text
 > 1+1
 2
@@ -13,7 +13,7 @@ Some add/multiply tests
 
 * Subtraction
 Some subtraction tests
-#+TYOPTS: program bc
+#+TESTY: program bc
 #+BEGIN_SRC sh
 > 1-1
 0
@@ -28,7 +28,7 @@ Some subtraction tests
 * Subtraction Interactive
 Some subtraction tests
 Additional comments
-#+TYOPTS: program bc -i
+#+TESTY: program bc -i
 #+BEGIN_SRC sh
 bc 1.07.1
 Copyright 1991-1994, 1997, 1998, 2000, 2004, 2006, 2008, 2012-2017 Free Software Foundation, Inc.
@@ -51,7 +51,7 @@ For details type `warranty'.
 
 * Combined
 Subtraction first
-#+TYOPTS: program bc
+#+TESTY: program bc
 #+BEGIN_SRC sh
 > 1-1
 0

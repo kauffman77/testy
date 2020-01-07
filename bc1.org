@@ -1,7 +1,7 @@
 * Subtraction
 Some subtraction tests
 Additional comments
-#+TYOPTS: program bc -i
+#+TESTY: program bc -i
 #+BEGIN_SRC sh
 bc 1.07.1
 Copyright 1991-1994, 1997, 1998, 2000, 2004, 2006, 2008, 2012-2017 Free Software Foundation, Inc.
