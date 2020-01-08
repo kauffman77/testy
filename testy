@@ -262,10 +262,12 @@ if [[ "$#" < 1 ]]; then
     exit 1
 fi
 
+# Command line argument processing
 specfile=$1                                         # gather test file
 debug "Testing $specfile"
 shift
 
+alltests="$@"                                       # remaining args are tests to run
 
 ##################################################
 # first loop: read whole file into testdata array which will contain
@@ -319,8 +321,11 @@ totaltests=$testnum
 #printf "%s\n" "${testline[@]}"
 debug "================================="
 
-# set the tests to run here if only a single or subset of tests is to be run
-alltests=$(seq $totaltests)
+# if no individual tests have been specified on the command line, run
+# all tests.
+if [[ -z "$alltests" ]]; then
+    alltests=$(seq $totaltests)
+fi
 testcount=0
 failcount=0
 
