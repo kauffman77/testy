@@ -1,0 +1,11 @@
+* Testy
+A script to run tests for interactive terminal programs. Tests are
+specified Emacs Org-like files.
+
+* Plans
+- Add support for Valgrind: re-run previous test to check for valgrind
+  results
+- Add regeneration of test results
+- Improve documentation
+- Add version number reporting
+- Convert

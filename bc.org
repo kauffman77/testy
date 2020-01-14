@@ -3,11 +3,11 @@
 Some add/multiply tests
 #+TESTY: program bc
 #+BEGIN_SRC text
-> 1+1
+>> 1+1
 2
-> 3+4
+>> 3+4
 7
-> 9*2+3
+>> 9*2+3
 21
 #+END_SRC
 
@@ -15,13 +15,13 @@ Some add/multiply tests
 Some subtraction tests
 #+TESTY: program bc
 #+BEGIN_SRC sh
-> 1-1
+>> 1-1
 0
-> 6-3
+>> 6-3
 3
-> 9-3
+>> 9-3
 5
-> 10-8
+>> 10-8
 2
 #+END_SRC
 
@@ -34,16 +34,16 @@ bc 1.07.1
 Copyright 1991-1994, 1997, 1998, 2000, 2004, 2006, 2008, 2012-2017 Free Software Foundation, Inc.
 This is free software with ABSOLUTELY NO WARRANTY.
 For details type `warranty'. 
-> 1-1
+>> 1-1
 1-1
 0
-> 6-3
+>> 6-3
 6-3
 3
-> 9-3
+>> 9-3
 9-3
 6
-> 10-8
+>> 10-8
 10-8
 2
 #+END_SRC
@@ -53,22 +53,22 @@ For details type `warranty'.
 Subtraction first
 #+TESTY: program bc
 #+BEGIN_SRC sh
-> 1-1
+>> 1-1
 0
-> 6-3
+>> 6-3
 3
-> 9-3
+>> 9-3
 6
-> 10-8
+>> 10-8
 2
 #+END_SRC
 
 Then add multiply
 #+BEGIN_SRC sh
-> 1+1
+>> 1+1
 2
-> 3+4
+>> 3+4
 7
-> 9*2+3
+>> 9*2+3
 21
 #+END_SRC

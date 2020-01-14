@@ -18,7 +18,7 @@ They will change the behavior of how the test data is interpretted.
 Global variables that are usually specified at the beginning of a test
 file before any other tests.
 PROGRAM "bash"         : program to run/test if no option is specified
-PROMPT ">"             : prompt to honor if none is specified
+PROMPT ">>             : prompt to honor if none is specified
 ECHO_STYLE "none"      : {none, prompt, input, both} for program input echoing style
 TAG "testy"            : prefix for output files
 TESTDIR "test-results" : directory where the resutls will be written
@@ -27,7 +27,7 @@ TESTDIR "test-results" : directory where the resutls will be written
 Local variables that can be specified for a single test session in an
 individual test.
 program "bash"         : override PROGRAM for an individual test session
-prompt ">"             : override PROMPT for an individual test session
+prompt ">>"            : override PROMPT for an individual test session
 echo_style "none"      : override ECHO_STYLE for an individual test session
 tag "testy"            : override TAG for an individual test session
 testdir "test-results" : override TESTDIR for an individual test session
@@ -40,7 +40,7 @@ line or via an environment variable during a program run as in
 
 They control other behaviors of the program
 DEBUG=0           : controls debugging
-dump_errors=0     : controls whether test error results are printed after completing all tests
+show=0            : controls whether test error results are printed after completing all tests
 EOF
 
 if [[ "$1" = "--help" ]]; then
@@ -57,9 +57,9 @@ DIFF="diff --unchanged-line-format='' \
 
 # default values for the program to be tested
 PROGRAM="bash"                                      # program to run if no option is specified
-PROMPT=">"                                          # prompt to honor if none is specified
+PROMPT=">>"                                         # prompt to honor if none is specified
 ECHO_STYLE="none"                                   # {none, prompt, input, both} for program input echoing style
-TAG="testy"                                         # prefix for the 
+TAG="testy"                                         # prefix for the files that are produced by testy
 TESTDIR="test-results"                              # directory where the resutls will be written
 
 # default values for where the results will be stored
@@ -110,19 +110,19 @@ function run_test_session(){
     mkfifo $toprog_fifo                             # create the fifos
     mkfifo $fromprog_fifo
 
-    debug "to fd: $to"
-    debug "from fd: $from"
-
     debug "starting '$program <${toprog_fifo} >${fromprog_fifo} &'"
 
     # run program under stdbuf to eliminate I/O buffering, I/O comes through fifos
-    $STDBUF $program <${toprog_fifo} >${fromprog_fifo} & 
+    $STDBUF $program <${toprog_fifo} 1>${fromprog_fifo} 2>${fromprog_fifo} & 
     pid=$!
     debug "child pid: $pid"
 
     # must open these after running the program or testy will stall 
     exec {to}>${toprog_fifo}                        # open connection to fifo for writing
     exec {from}<${fromprog_fifo}                    # and for reading
+
+    debug "to fd: $to"
+    debug "from fd: $from"
 
     status="pass"                                   # initial status, change to 'FAIL' if things go wrong
     expect=""                                       # expected output from test file
@@ -194,14 +194,21 @@ function run_test_session(){
         esac                                          # DONE with test input, either pass or fail
     done;
 
+    # read remaining output from program
+    while read -t 0.1 -u $from; do
+        actual+="$REPLY\n"
+    done
+
     debug "closing fifo fds ${to} ${from}"
-    exec {to}>&-                                    # closes to to fifo
-    exec {from}>&-                                  # closes to from fifo
+    exec {to}>&-                                    # closes to fifo
+    exec {from}>&-                                  # closes from fifo
 
     mkdir -p $testdir
     actual_file=$(printf "%s/%s-%02d-actual.tmp" "$testdir" "$tag" "$testnum")
     expect_file=$(printf "%s/%s-%02d-expect.tmp" "$testdir" "$tag" "$testnum")
     result_file=$(printf "%s/%s-%02d-result.tmp" "$testdir" "$tag" "$testnum")
+
+    rm -f ${actual_file} ${expect_file} ${result_file}
 
     printf "$actual\n" > ${actual_file}
     printf "$expect\n" > ${expect_file}
@@ -250,6 +257,8 @@ function run_test_session(){
     debug "waiting on finished child"
     wait $pid &> /dev/null
     debug "wait returned: $?"
+
+    comments=""                                     # clear comments for next session
 
     return 0;
 }
@@ -376,9 +385,9 @@ passcount=$((testcount-failcount))
 echo ""
 echo "RESULTS: $passcount / $testcount tests passed"
 
-debug "dump_errors: $dump_errors"
+debug "show: $show"
 
-if [[ "$dump_errors" = "1" ]]; then
+if [[ "$show" = "1" ]]; then
     printf "\n\nFAILURE RESULTS\n"
     printf "%s\n" "----------------------------------------"
     for f in $fail_files; do
