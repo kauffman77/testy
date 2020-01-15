@@ -54,7 +54,8 @@ SDIFF="diff -bBy"                                   # side by side diff, need to
 DIFF="diff --unchanged-line-format='' \
            --old-line-format='EXPECT:%dn) %L' \
            --new-line-format='ACTUAL:%dn) %L'"      # diff which will show prepend EXPECT/ACTUAL to differing lines
-TIMEOUT="0.1"
+TIMEOUT="0.5"
+#TIMEOUT="1.0"
 
 # default values for the program to be tested
 PROGRAM="bash"                                      # program to run if no option is specified
@@ -87,6 +88,7 @@ function updateline(){                              # processes $line to set som
     prefix="${line%% *}"                            # extracts the first word on the line as prefix
     suffix="${line#* }"                             # extracts remainder of line
 }    
+
 
 ################################################################################
 # Run a Test Session
@@ -137,11 +139,25 @@ function run_test_session(){
         debug "$linenum: $line"
         
         case "$prefix" in
-            "#+END_SRC")                            # end of test, break out
+            "#+END_SRC")                                # end of test, break out
                 debug "$line: End Testing Session"
                 break
                 ;;
             "$prompt")                                  # test input, feed to program
+
+                debug "Checking for pending output"
+                while read -t 0 -u $from; do            # check fo remaining output, likely in error
+                    read -u $from
+                    actual+="$REPLY\n"                  # append remaining output to actual output
+                    debug "appending: '$REPLY'"
+                done
+
+                # if read -t 0 -u $from; then             # check for pending output, likely in error
+                #     while read -u $from; do             # read all pending output
+                #         actual+="$REPLY\n"              # appending to the actual output
+                #     done
+                # fi
+
                 expect+="${line}\n"                     # append input to expected
                 input="$suffix"
                 debug "Sending input: '$suffix'"
@@ -179,6 +195,9 @@ function run_test_session(){
                         fi
                         ;;
                 esac
+
+
+
                 ;;
             *)                                        # other lines are test output
                 debug "Expect: $line"
@@ -195,10 +214,14 @@ function run_test_session(){
         esac                                          # DONE with test input, either pass or fail
     done;
 
-    # read remaining output from program
-    while read -t $TIMEOUT -u $from; do
-        actual+="$REPLY\n"
+    debug "Checking for pending output"
+
+    while read -t 0 -u $from; do                        # check fo remaining output, likely in error
+        read -u $from
+        actual+="$REPLY\n"                              # append remaining output to actual output
+        debug "appending: '$REPLY'"
     done
+
 
     debug "closing fifo fds ${to} ${from}"
     exec {to}>&-                                    # closes to fifo
@@ -215,9 +238,12 @@ function run_test_session(){
     printf "$expect\n" > ${expect_file}
     actual_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' $actual_file)
     expect_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' $expect_file)
-    total_width=$((actual_width + expect_width + 3))
+    # total_width=$((actual_width + expect_width + 3))
+    col_width=$((actual_width > expect_width ? actual_width : expect_width))
+    total_width=$((col_width*2 + 3))
     debug "actual_width $actual_width"
     debug "expect_width $expect_width"
+    debug "col_width $col_width"
     debug "total_width $total_width"
     
     diffcmd="$DIFF ${expect_file} ${actual_file}"
@@ -239,14 +265,27 @@ function run_test_session(){
         {  printf '(TEST %d) %s' "$testnum" "$title"
            printf "${comments}\n" 
            printf "FAILURE: Output Mismatch at lines marked\n"
+           printf "%s\n" "- Expect results in $expect_file" 
+           printf "%s\n" "- Acutal results in $actual_file" 
            printf "\n%s\n" "---Side by Side Differences---"
            printf "Differing lines have a character like '|' in the middle\n"
-           printf "%-${expect_width}s   %-${actual_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
+           printf "%-${col_width}s   %-${col_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
            $SDIFF -t -W $total_width $expect_file $actual_file 
            printf "%s\n" "---Line Differences---"
            printf "%s\n" "$diffresult"
            # -t for no tabs, -W for width
         } &> ${result_file}
+
+        # eliminate extra spaces in diff results, this is a bit risky,
+        # could also simplify being that expect column is always on
+        # the left so really are looking for actual_width being much
+        # larger than expect_width.
+        if ((expect_width - actual_width > 10)) || ((actual_width - expect_width > 10)); then
+            extra_space_width=$((expect_width > actual_width ? expect_width-actual_width : actual_width-expect_width))
+            extra_space_width=$((extra_space_width-5))
+            debug "Eliminating $extra_space_width spaces from result file"
+            sed -i -E "s/[ ]{$extra_space_width}/ /" $result_file
+        fi
 
         fail_files+="${result_file}"
         status="FAIL -> results in file '$result_file'"
