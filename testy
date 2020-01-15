@@ -51,9 +51,10 @@ fi
 # some global options/programs
 STDBUF="stdbuf -i 0 -o 0 -e 0"                      # disables standard IO buffering for a program
 SDIFF="diff -bBy"                                   # side by side diff, need to work on how to set the columns dynamically
-DIFF="diff --unchanged-line-format='' \
-           --old-line-format='EXPECT:%dn) %L' \
-           --new-line-format='ACTUAL:%dn) %L'"      # diff which will show prepend EXPECT/ACTUAL to differing lines
+DIFF="diff -bB \
+           --unchanged-line-format='' \
+           --old-line-format='EXPECT:%4dn) %L' \
+           --new-line-format='ACTUAL:%4dn) %L'"      # diff which will show prepend EXPECT/ACTUAL to differing lines
 TIMEOUT="0.5"
 #TIMEOUT="1.0"
 
@@ -287,7 +288,7 @@ function run_test_session(){
             sed -i -E "s/[ ]{$extra_space_width}/ /" $result_file
         fi
 
-        fail_files+="${result_file}"
+        fail_files+="${result_file} "
         status="FAIL -> results in file '$result_file'"
         debug "Killing child process"
         kill -KILL $pid &> /dev/null
