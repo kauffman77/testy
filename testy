@@ -54,6 +54,7 @@ SDIFF="diff -bBy"                                   # side by side diff, need to
 DIFF="diff --unchanged-line-format='' \
            --old-line-format='EXPECT:%dn) %L' \
            --new-line-format='ACTUAL:%dn) %L'"      # diff which will show prepend EXPECT/ACTUAL to differing lines
+TIMEOUT="0.1"
 
 # default values for the program to be tested
 PROGRAM="bash"                                      # program to run if no option is specified
@@ -152,7 +153,7 @@ function run_test_session(){
                         ;;
                     "prompt")
                         debug "echos prompt only"
-                        if ! read -t 0.5 -d ' ' 0<&$from; then # read echoed prompt
+                        if ! read -t $TIMEOUT -d ' ' -u $from; then # read echoed prompt
                             actual+="testy: TIMED OUT reading echoed prompt\n"
                             break
                         else
@@ -161,7 +162,7 @@ function run_test_session(){
                         ;;
                     "input")
                         debug "echos input only"
-                        if ! read -t 0.5 0<&$from; then # read echoed input
+                        if ! read -t $TIMEOUT -u $from; then # read echoed input
                             actual+="testy: TIMED OUT reading echoed input\n"
                             break
                         else
@@ -169,7 +170,7 @@ function run_test_session(){
                         fi
                         ;;
                     "both")
-                        if ! read -t 0.5 0<&$from; then # read echoed pompt+input
+                        if ! read -t $TIMEOUT -u $from; then # read echoed pompt+input
                             actual+="testy: TIMED OUT reading echoed prompt/input\n"
                             break
                         else
@@ -182,7 +183,7 @@ function run_test_session(){
             *)                                        # other lines are test output
                 debug "Expect: $line"
                 expect="${expect}${line}\n"
-                if ! read -t 0.5 0<&$from; then
+                if ! read -t $TIMEOUT -u $from; then
                     actual+="testy: TIMED OUT reading program output\n"
                     debug "TIMED OUT on read"
                     break
@@ -195,7 +196,7 @@ function run_test_session(){
     done;
 
     # read remaining output from program
-    while read -t 0.1 -u $from; do
+    while read -t $TIMEOUT -u $from; do
         actual+="$REPLY\n"
     done
 
