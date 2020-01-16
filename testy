@@ -108,31 +108,31 @@ function updateline(){                              # processes $line to set som
 # from the test session.
 function run_test_session(){
     toprog_fifo=$(mktemp --tmpdir testy_to.XXXXXX)  # set up communication with the program being tested
-    fromprog_fifo=$(mktemp --tmpdir testy_from.XXXXXX)
+    fromprog_file=$(mktemp --tmpdir testy_from.XXXXXX)
     debug "toprog_fifo: $toprog_fifo"
     debug "fromprog_fifo: $fromprog_fifo"
-    rm -f ${toprog_fifo} ${fromprog_fifo}           # remove just in case
+    rm -f ${toprog_fifo} ${fromprog_file}           # remove just in case
 
     mkfifo $toprog_fifo                             # create the fifos
-    mkfifo $fromprog_fifo
+    # mkfifo $fromprog_fifo
 
-    debug "starting '$program <${toprog_fifo} >${fromprog_fifo} &'"
+    debug "starting '$program < ${toprog_fifo} &> ${fromprog_file} &'"
 
     # run program under stdbuf to eliminate I/O buffering, I/O comes through fifos
-    $STDBUF $program <${toprog_fifo} 1>${fromprog_fifo} 2>${fromprog_fifo} & 
+    $STDBUF $program <${toprog_fifo} &> ${fromprog_file} &
     pid=$!
     debug "child pid: $pid"
 
-    # must open these after running the program or testy will stall 
+    # open to after running the program or testy will stall 
     exec {to}>${toprog_fifo}                        # open connection to fifo for writing
-    exec {from}<${fromprog_fifo}                    # and for reading
+    # exec {from}<${fromprog_fifo}                    # and for reading
 
     debug "to fd: $to"
-    debug "from fd: $from"
+    # debug "from fd: $from"
 
     status="pass"                                   # initial status, change to 'FAIL' if things go wrong
     expect=""                                       # expected output from test file
-    actual=""                                       # actual output read from program
+    all_input=()
 
     # MAIN LOOP to read lines of input, feed program, check output
     while read; do                                  # read a line from the test session
@@ -145,95 +145,36 @@ function run_test_session(){
                 break
                 ;;
             "$prompt")                                  # test input, feed to program
-
-                debug "Checking for pending output"
-                while read -t $CHECK_TIMEOUT -u $from; do            # check fo remaining output, likely in error
-                    # read -u $from
-                    actual+="$REPLY\n"                  # append remaining output to actual output
-                    debug "appending: '$REPLY'"
-                done
-
-                # if read -t 0 -u $from; then             # check for pending output, likely in error
-                #     while read -u $from; do             # read all pending output
-                #         actual+="$REPLY\n"              # appending to the actual output
-                #     done
-                # fi
-
                 expect+="${line}\n"                     # append input to expected
                 input="$suffix"
+                all_input+=("$input")                   # append to all_input array for later processing
                 debug "Sending input: '$suffix'"
                 printf "$input\n" >&$to                 # send input after prompt to program
-                case "$echo_style" in
-                    "none")                             # no echoing, append prompt+input to actual to simulate typing
-                        debug "no echo, appending '$line'" 
-                        actual+="${line}\n"
-                        ;;
-                    "prompt")
-                        debug "echos prompt only"
-                        if ! read -t $STAND_TIMEOUT -d ' ' -u $from; then # read echoed prompt
-                            actual+="testy: TIMED OUT reading echoed prompt\n"
-                            break
-                        else
-                            actual+="$REPLY $input\n"
-                        fi
-                        ;;
-                    "input")
-                        debug "echos input only"
-                        if ! read -t $STAND_TIMEOUT -u $from; then # read echoed input
-                            actual+="testy: TIMED OUT reading echoed input\n"
-                            break
-                        else
-                            actual+="$prompt $REPLY\n"
-                        fi
-                        ;;
-                    "both")
-                        if ! read -t $STAND_TIMEOUT -u $from; then # read echoed pompt+input
-                            actual+="testy: TIMED OUT reading echoed prompt/input\n"
-                            break
-                        else
-                            actual+="$REPLY\n"      # reply contains both prompt and echoed input
-
-                        fi
-                        ;;
-                esac
-
-
-
                 ;;
             *)                                        # other lines are test output
                 debug "Expect: $line"
                 expect="${expect}${line}\n"
-                if ! read -t $STAND_TIMEOUT -u $from; then
-                    actual+="testy: TIMED OUT reading program output\n"
-                    debug "TIMED OUT on read"
-                    break
-                fi
-                response=$REPLY
-                debug "Actual: $response"
-                actual="${actual}${response}\n"
                 ;;
         esac                                          # DONE with test input, either pass or fail
     done;
 
-
-
-    debug "Checking for pending output"
-
-    while read -t $CHECK_TIMEOUT -u $from; do                        # check fo remaining output, likely in error
-        # read -u $from
-        actual+="$REPLY\n"                              # append remaining output to actual output
-        debug "appending: '$REPLY'"
-    done
-
-
-    debug "closing fifo fds ${to} ${from}"
+    debug "closing to fifo fd ${to}"
     exec {to}>&-                                    # closes to fifo
-    exec {from}>&-                                  # closes from fifo
+    # exec {from}>&-                                  # closes from fifo
 
     debug "waiting on finished child"
     wait $pid &> /dev/null
     debug "wait returned: $?"
 
+    # all output should be in fromprog_file, if the prompts need to be
+    # added back in, do so
+    
+    if [[ "$ECHO_STYLE" = "input" ]]; then
+        for input in "${all_input[@]}"; do              # iterate over collection of input lines which need the prompt added
+            debug "Adding prompt to input line '$input'"
+            sed -i "s/^$input/$prompt $input/" ${fromprog_file} # modify output file so to add back in the prompt on input lines
+        done
+    fi
 
     mkdir -p $testdir
     actual_file=$(printf "%s/%s-%02d-actual.tmp" "$testdir" "$tag" "$testnum")
@@ -242,8 +183,10 @@ function run_test_session(){
 
     rm -f ${actual_file} ${expect_file} ${result_file}
 
-    printf "$actual\n" > ${actual_file}
     printf "$expect\n" > ${expect_file}
+    # printf "$actual\n" > ${actual_file}
+    cp ${fromprog_file} ${actual_file}
+
     actual_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' $actual_file)
     expect_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' $expect_file)
     # total_width=$((actual_width + expect_width + 3))

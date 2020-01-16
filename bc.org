@@ -1,7 +1,8 @@
-#+TESTY: TAG bc
+#+TESTY: TAG bc 
+#+TESTY: ECHO_STYLE input
 * Addition and Multiplication
 Some add/multiply tests
-#+TESTY: program bc
+#+TESTY: program bc -i -q
 #+BEGIN_SRC text
 >> 1+1
 2
