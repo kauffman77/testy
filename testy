@@ -345,6 +345,10 @@ while read; do                                      # read all tests in from the
                 title_width=${#suffix}
             fi
             ;;
+        "#+TESTYX:")                                # global options
+            debug "Evaluating $suffix"
+            eval "$suffix"
+            ;;
         "#+TESTY:")                                # global options
             variable="${suffix%% *}"                # variable name is first word
             value="${suffix#* }"                    # value is remainder of line
