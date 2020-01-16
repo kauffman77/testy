@@ -55,8 +55,10 @@ DIFF="diff -bB \
            --unchanged-line-format='' \
            --old-line-format='EXPECT:%4dn) %L' \
            --new-line-format='ACTUAL:%4dn) %L'"      # diff which will show prepend EXPECT/ACTUAL to differing lines
-TIMEOUT="0.5"
+#TIMEOUT="0.5"
 #TIMEOUT="1.0"
+STAND_TIMEOUT="0.1"
+CHECK_TIMEOUT="0.1"
 
 # default values for the program to be tested
 PROGRAM="bash"                                      # program to run if no option is specified
@@ -131,8 +133,6 @@ function run_test_session(){
     status="pass"                                   # initial status, change to 'FAIL' if things go wrong
     expect=""                                       # expected output from test file
     actual=""                                       # actual output read from program
-    # expect="==== EXPECT ===="                       # expected output from test file
-    # actual="==== ACTUAL ===="                       # actual output read from program
 
     # MAIN LOOP to read lines of input, feed program, check output
     while read; do                                  # read a line from the test session
@@ -147,8 +147,8 @@ function run_test_session(){
             "$prompt")                                  # test input, feed to program
 
                 debug "Checking for pending output"
-                while read -t 0 -u $from; do            # check fo remaining output, likely in error
-                    read -u $from
+                while read -t $CHECK_TIMEOUT -u $from; do            # check fo remaining output, likely in error
+                    # read -u $from
                     actual+="$REPLY\n"                  # append remaining output to actual output
                     debug "appending: '$REPLY'"
                 done
@@ -170,7 +170,7 @@ function run_test_session(){
                         ;;
                     "prompt")
                         debug "echos prompt only"
-                        if ! read -t $TIMEOUT -d ' ' -u $from; then # read echoed prompt
+                        if ! read -t $STAND_TIMEOUT -d ' ' -u $from; then # read echoed prompt
                             actual+="testy: TIMED OUT reading echoed prompt\n"
                             break
                         else
@@ -179,7 +179,7 @@ function run_test_session(){
                         ;;
                     "input")
                         debug "echos input only"
-                        if ! read -t $TIMEOUT -u $from; then # read echoed input
+                        if ! read -t $STAND_TIMEOUT -u $from; then # read echoed input
                             actual+="testy: TIMED OUT reading echoed input\n"
                             break
                         else
@@ -187,7 +187,7 @@ function run_test_session(){
                         fi
                         ;;
                     "both")
-                        if ! read -t $TIMEOUT -u $from; then # read echoed pompt+input
+                        if ! read -t $STAND_TIMEOUT -u $from; then # read echoed pompt+input
                             actual+="testy: TIMED OUT reading echoed prompt/input\n"
                             break
                         else
@@ -203,7 +203,7 @@ function run_test_session(){
             *)                                        # other lines are test output
                 debug "Expect: $line"
                 expect="${expect}${line}\n"
-                if ! read -t $TIMEOUT -u $from; then
+                if ! read -t $STAND_TIMEOUT -u $from; then
                     actual+="testy: TIMED OUT reading program output\n"
                     debug "TIMED OUT on read"
                     break
@@ -215,10 +215,12 @@ function run_test_session(){
         esac                                          # DONE with test input, either pass or fail
     done;
 
+
+
     debug "Checking for pending output"
 
-    while read -t 0 -u $from; do                        # check fo remaining output, likely in error
-        read -u $from
+    while read -t $CHECK_TIMEOUT -u $from; do                        # check fo remaining output, likely in error
+        # read -u $from
         actual+="$REPLY\n"                              # append remaining output to actual output
         debug "appending: '$REPLY'"
     done
@@ -227,6 +229,11 @@ function run_test_session(){
     debug "closing fifo fds ${to} ${from}"
     exec {to}>&-                                    # closes to fifo
     exec {from}>&-                                  # closes from fifo
+
+    debug "waiting on finished child"
+    wait $pid &> /dev/null
+    debug "wait returned: $?"
+
 
     mkdir -p $testdir
     actual_file=$(printf "%s/%s-%02d-actual.tmp" "$testdir" "$tag" "$testnum")
@@ -295,9 +302,6 @@ function run_test_session(){
     fi
 
 
-    debug "waiting on finished child"
-    wait $pid &> /dev/null
-    debug "wait returned: $?"
 
     comments=""                                     # clear comments for next session
 
@@ -313,6 +317,7 @@ if [[ "$#" < 1 ]]; then
 fi
 
 # Command line argument processing
+
 specfile=$1                                         # gather test file
 debug "Testing $specfile"
 shift
@@ -368,9 +373,6 @@ totaltests=$testnum
 ##################################################
 # second loop: run tests
 
-#printf "%s\n" "${testline[@]}"
-debug "================================="
-
 # if no individual tests have been specified on the command line, run
 # all tests.
 if [[ -z "$alltests" ]]; then
@@ -381,7 +383,9 @@ failcount=0
 
 ntests=$(wc -w <<< "$alltests")
 
-printf "Running %d / %d tests\n" "$ntests" "$totaltests"
+printf "============================================================\n"
+printf "== testy: input file '$specfile' \n"
+printf "== Running %d / %d tests\n" "$ntests" "$totaltests"
 
 for testnum in $alltests; do
     ((testcount++))
@@ -405,6 +409,11 @@ for testnum in $alltests; do
                 eval "$variable='$value'"
                 debug "option set: $variable='$value'"
                 ;;
+            "#+TESTYX:")
+                expr="$suffix"
+                eval "$suffix"
+                debug "evaluated '$suffix'"
+                ;;
             "#+BEGIN_SRC")
                 debug ":TEST $testnum: Begin testing session"
                 run_test_session
@@ -423,7 +432,7 @@ for testnum in $alltests; do
 done    
 
 passcount=$((testcount-failcount))
-echo ""
+printf "============================================================\n"
 echo "RESULTS: $passcount / $testcount tests passed"
 
 debug "show: $show"
