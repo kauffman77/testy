@@ -1,7 +1,7 @@
-#+TESTY: PROGRAM ./hash/hash_main -echo
-#+TESTY: PROMPT HM>
-#+TESTY: ECHO_STYLE both
-#+TESTY: TAG hash
+#+TESTY: PROGRAM="./hash/hash_main -echo"
+#+TESTY: PROMPT="HM>"
+#+TESTY: ECHO_STYLE="both"
+#+TESTY: TAG="hash"
 
 * Start Print Quit
 Tests that the prelude text appears, that 'print' shows nothing

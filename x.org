@@ -1,0 +1,9 @@
+* Test printf
+#+BEGIN_SRC sh
+>> printf "Hello world\n"
+Hello world
+>> printf "Multi-line\noutput is expected\nhere\n"
+Multi-line
+output is expected
+here
+#+END_SRC

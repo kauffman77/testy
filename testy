@@ -4,49 +4,62 @@
 # commencing with other processing
 
 read -r -d '' usage <<EOF
-usage: testy <testfile.org>
-       testy --help
+usage:    testy <testfile.org> [test# test# ...]
+          testy --help
+
+examples: testy test_prob1.org        # runs all tests in file
+          testy test_prob1.org 3 5 7  # runs tests 3,5,7 in file
+          show=1 test_prob1.org       # runs tests and prints all failures to stdout
 
 Run tests for a shell program specified in an org-like file and report
 the results.
 
---- Behavior Variables ---
+--- INPUT FORMAT ---
+
+Tests are specified in org-like files. Each top-level section starts
+with a * with a test title, followed by comments and test sessions of
+input/output. Each test can have multiple sessions. As a session is
+found it is run. If the session fails, subsequent sessions for that
+test are not run.
+
+Sample input:
+
+===============
+================
+
+--- BEHAVIOR VARIABLES ---
 The following variables can be specified in test files via lines like
-  #+TESTY: var value
+  #+TESTY: var="value"
 They will change the behavior of how the test data is interpretted.
 
 Global variables that are usually specified at the beginning of a test
 file before any other tests.
-PROGRAM "bash"         : program to run/test if no option is specified
-PROMPT ">>             : prompt to honor if none is specified
-ECHO_STYLE "none"      : {none, prompt, input, both} for program input echoing style
-TAG "testy"            : prefix for output files
-TESTDIR "test-results" : directory where the resutls will be written
+PROGRAM="bash"           : program to run/test if no option is specified
+PROMPT=">>               : prompt to honor if none is specified
+ECHO_STYLE="input"       : {input, both} for program input echoing style
+TAG="testy"              : prefix for output files
+RESULTDIR="test-results" : directory where the resutls will be written
 
 
 Local variables that can be specified for a single test session in an
 individual test.
-program "bash"         : override PROGRAM for an individual test session
-prompt ">>"            : override PROMPT for an individual test session
-echo_style "none"      : override ECHO_STYLE for an individual test session
-tag "testy"            : override TAG for an individual test session
-testdir "test-results" : override TESTDIR for an individual test session
+program="bash"           : override PROGRAM for an individual test session
+prompt=">>"              : override PROMPT for an individual test session
+echo_style="input"       : override ECHO_STYLE for an individual test session
+tag="testy"              : override TAG for an individual test session
+resultdir="test-results" : override RESULTDIR for an individual test session
 
---- Environment Variables ---
+--- ENVIRONMENT VARIABLES ---
 These variables can be changed either via a 
-  #+TESTY: var value
+  #+TESTY: var="value"
 line or via an environment variable during a program run as in
-  > VAR=value testy testfile.org
+  > VAR="value" testy testfile.org
 
 They control other behaviors of the program
 DEBUG=0           : controls debugging
 show=0            : controls whether test error results are printed after completing all tests
 EOF
 
-if [[ "$1" = "--help" ]]; then
-    echo "$usage"
-    exit 1
-fi
 
 # some global options/programs
 STDBUF="stdbuf -i 0 -o 0 -e 0"                      # disables standard IO buffering for a program
@@ -61,27 +74,27 @@ STAND_TIMEOUT="0.1"
 CHECK_TIMEOUT="0.1"
 
 # default values for the program to be tested
-PROGRAM="bash"                                      # program to run if no option is specified
+PROGRAM="bash -v"                                   # program to run if no option is specified
 PROMPT=">>"                                         # prompt to honor if none is specified
-ECHO_STYLE="none"                                   # {none, prompt, input, both} for program input echoing style
+ECHO_STYLE="input"                                  # {input, both} for program input echoing style
 TAG="testy"                                         # prefix for the files that are produced by testy
-TESTDIR="test-results"                              # directory where the resutls will be written
+RESULTDIR="test-results"                              # directory where the resutls will be written
 
 # default values for where the results will be stored
-title_width=20                                      # initial width for test titles, set to widest during initial parsing
+test_title_width=20                                      # initial width for test test_titles, set to widest during initial parsing
 
 function reset_options(){                           # reset options to defaults, run before each test session
     program=$PROGRAM
     prompt=$PROMPT
     echo_style=$ECHO_STYLE
     tag=$TAG
-    testdir=$TESTDIR
+    resultdir=$RESULTDIR
 }    
 
 
 function debug(){                                   # print a debug message
     if [[ ! -z "$DEBUG" ]]; then
-        echo "==DBG== $1"
+        echo "==DBG== $1" > /dev/stderr
     fi
 }
 
@@ -135,51 +148,70 @@ function run_test_session(){
     all_input=()
 
     # MAIN LOOP to read lines of input, feed program, check output
-    while read; do                                  # read a line from the test session
+    while read; do                                    # read a line from the test session
         updateline
         debug "$linenum: $line"
         
         case "$prefix" in
-            "#+END_SRC")                                # end of test, break out
-                debug "$line: End Testing Session"
+            "#+END_SRC")                              # end of test, break out
+                debug "^^ end of testing session"
                 break
                 ;;
-            "$prompt")                                  # test input, feed to program
-                expect+="${line}\n"                     # append input to expected
+            "$prompt")                                # test input, feed to program
+                expect+="${line}\n"                   # append input to expected
                 input="$suffix"
-                all_input+=("$input")                   # append to all_input array for later processing
-                debug "Sending input: '$suffix'"
-                printf "$input\n" >&$to                 # send input after prompt to program
+                all_input+=("$input")                 # append to all_input array for later processing
+                debug "^^ sending input: '$input'"
+                printf "%s\n" "$input" >&$to          # send input after prompt to program
                 ;;
             *)                                        # other lines are test output
-                debug "Expect: $line"
+                debug "^^ adding expected line"
                 expect="${expect}${line}\n"
                 ;;
         esac                                          # DONE with test input, either pass or fail
     done;
 
     debug "closing to fifo fd ${to}"
-    exec {to}>&-                                    # closes to fifo
-    # exec {from}>&-                                  # closes from fifo
+    exec {to}>&-                                      # closes to fifo
 
-    debug "waiting on finished child"
-    wait $pid &> /dev/null
-    debug "wait returned: $?"
+    debug "waiting on finished child"                 
+    wait $pid &> /dev/null                            # wait on the child to finish
+    debug "wait returned: $?"                         # may want to add checks here for return code of child
 
-    # all output should be in fromprog_file, if the prompts need to be
-    # added back in, do so
-    
-    if [[ "$ECHO_STYLE" = "input" ]]; then
-        for input in "${all_input[@]}"; do              # iterate over collection of input lines which need the prompt added
-            debug "Adding prompt to input line '$input'"
-            sed -i "s/^$input/$prompt $input/" ${fromprog_file} # modify output file so to add back in the prompt on input lines
-        done
+    # NOTE: The code below handles adding prompts to input lines that
+    # are echoed without it.  Originally was trying to do this with
+    # sed or awk but the quoting becomes a huge mess: any input lines
+    # with special characters like $ or " need to be escaped leading
+    # to huge headaches.  The shell string equality = operator is
+    # actually cleaner here.  The below uses the shell
+    # directly. Output is redirected to an open FD to prevent needing
+    # constantly re-open the file for appending (could alternatively
+    # do this with { } construct).  This approach can be fooled: if an
+    # output line matches an input line, the prompt may be added at
+    # the wrong spot.
+
+    if [[ "$ECHO_STYLE" = "input" ]]; then            # program may only echo input necessitating adding prompts to output
+        idx=0                                         # index for input line
+        exec {mod}>${fromprog_file}.mod
+        while read; do                                # read from output file into default REPLY var
+            if (( idx < ${#all_input[@]} )) &&        # still in bounds for input lines
+               [[ "${all_input[idx]}" = "$REPLY" ]];  # input line matches the program output
+            then
+                REPLY="$prompt $REPLY";               # add the prompt to this line
+                ((idx++))                             # move to the next input to look for
+                debug "added prompt to input $idx: $REPLY"
+            fi;
+            printf '%s\n' "$REPLY" >&$mod             # output the (un)modified line into the modified file
+        done < ${fromprog_file}                       # reading from the original output file
+        exec {mod}>&-                                 # close the modified file
+        mv ${fromprog_file}.mod ${fromprog_file}      # copy modified file back to original
     fi
 
-    mkdir -p $testdir
-    actual_file=$(printf "%s/%s-%02d-actual.tmp" "$testdir" "$tag" "$testnum")
-    expect_file=$(printf "%s/%s-%02d-expect.tmp" "$testdir" "$tag" "$testnum")
-    result_file=$(printf "%s/%s-%02d-result.tmp" "$testdir" "$tag" "$testnum")
+
+    mkdir -p $resultdir                               # set up test results directory
+    actual_file=$(printf "%s/%s-%02d-actual.tmp" "$resultdir" "$tag" "$testnum")
+    expect_file=$(printf "%s/%s-%02d-expect.tmp" "$resultdir" "$tag" "$testnum")
+    result_file=$(printf "%s/%s-%02d-result.tmp" "$resultdir" "$tag" "$testnum")
 
     rm -f ${actual_file} ${expect_file} ${result_file}
 
@@ -213,7 +245,7 @@ function run_test_session(){
         debug "kill returned: $?"
     else
         debug "FAILURE cleanup"
-        {  printf '(TEST %d) %s' "$testnum" "$title"
+        {  printf '(TEST %d) %s' "$testnum" "$test_title"
            printf "${comments}\n" 
            printf "FAILURE: Output Mismatch at lines marked\n"
            printf "%s\n" "- Expect results in $expect_file" 
@@ -231,8 +263,8 @@ function run_test_session(){
         # could also simplify being that expect column is always on
         # the left so really are looking for actual_width being much
         # larger than expect_width.
-        if ((expect_width - actual_width > 10)) || ((actual_width - expect_width > 10)); then
-            extra_space_width=$((expect_width > actual_width ? expect_width-actual_width : actual_width-expect_width))
+        if ((actual_width - expect_width > 10)); then
+            extra_space_width=$((actual_width-expect_width))
             extra_space_width=$((extra_space_width-5))
             debug "Eliminating $extra_space_width spaces from result file"
             sed -i -E "s/[ ]{$extra_space_width}/ /" $result_file
@@ -254,137 +286,136 @@ function run_test_session(){
 
 ################################################################################
 # BEGIN main processing
-if [[ "$#" < 1 ]]; then
+
+if [[ "$#" < 1 ]]; then                             # check for presence of at least 1 argument
     printf "usage: testy <testspec> [testnum]\n"
+    printf "       testy --help\n"
     exit 1
 fi
 
 # Command line argument processing
-
 specfile=$1                                         # gather test file
 debug "Testing $specfile"
-shift
 
+if [[ "$specfile" = "--help" ]]; then               # check for --help option
+    printf "$usage\n"
+    exit 0
+fi
+
+shift
 alltests="$@"                                       # remaining args are tests to run
 
 ##################################################
 # first loop: read whole file into testdata array which will contain
 # the text of each test
+eval_testy_expr=1                                   # set to 0 after getting into the first test
 testdata=()                                         # array of test data
 testline=()                                         # array of lines at which tests start
 testnum=0                                           # current test number
 linenum=0
-while read; do                                      # read all tests in from the file first
+while read -r; do                                     # read from test file, -r to prevent \-escaped chars
     updateline
     case "$prefix" in
         "*")
+            eval_test_expr=0
             if ((testnum > 0)); then                # if not the first test
                 testdata[$testnum]="$testtext"      # add to the array of tests
             fi
             ((testnum++))                           # reset and start collecting text for the new test
             testtext="$line"                        # testtext hold all the text for the current test
             testline[$testnum]="$linenum"
-            if (( ${#suffix} > $title_width )); then
-                title_width=${#suffix}
+            if (( ${#suffix} > $test_title_width )); then
+                test_title_width=${#suffix}
             fi
             ;;
-        "#+TESTYX:")                                # global options
-            debug "Evaluating $suffix"
-            eval "$suffix"
-            ;;
         "#+TESTY:")                                # global options
-            variable="${suffix%% *}"                # variable name is first word
-            value="${suffix#* }"                    # value is remainder of line
-            eval "$variable='$value'"
-            debug "option set: $variable='$value'"
+            if [[ "$eval_testy_expr" = "1" ]]; then
+                debug "Evaluating $suffix"
+                eval "$suffix"
+            fi
             testtext="$testtext\n$line"             # append line to current test text as it may be a local test option
             ;;
         *)
             testtext="$testtext\n$line"             # append line to current test text
+            debug "Appending $line"
             ;;
     esac
 done < $specfile
 testdata[$testnum]="$testtext"                      # add last test to array
+totaltests=$testnum                                 # set the total number of tests read from the file
 
+# Debug output
 for i in $(seq $testnum); do
     debug "-----TEST $i-----"
     debug "${testline[$i]}"                         # print entire test with line breaks escaped
     debug "${testdata[$i]}"                         # print entire test with line breaks escaped
     while read w; do                                # iterate over all lines of test
         debug ":TEST $i: $w"
-    done <<< $(printf "${testdata[$i]}")            # printf needed to get line breaks back in 
+    done <<< $(printf "%b\n" "${testdata[$i]}")            # printf needed to get line breaks back in 
 done
 
-totaltests=$testnum
-
 ##################################################
-# second loop: run tests
+# Second loop: run tests
 
-# if no individual tests have been specified on the command line, run
-# all tests.
-if [[ -z "$alltests" ]]; then
-    alltests=$(seq $totaltests)
+
+if [[ -z "$alltests" ]]; then                       # no individual tests specified on the command line
+    alltests=$(seq $totaltests)                     # so run all tests
 fi
+ntests=$(wc -w <<< "$alltests")                     # count how many tests will be run
 testcount=0
 failcount=0
 
-ntests=$(wc -w <<< "$alltests")
-
+# Print header info 
 printf "============================================================\n"
 printf "== testy: input file '$specfile' \n"
 printf "== Running %d / %d tests\n" "$ntests" "$totaltests"
 
-for testnum in $alltests; do
-    ((testcount++))
+for testnum in $alltests; do                        # Iterate over all tests to be run
+    ((testcount++))                                 # increment # of tests attempted
     reset_options
-    linenum=$((${testline[testnum]} -1))
-    comments=""
+    linenum=$((${testline[testnum]} -1))            # set file line number to the line first line of the test
+    comments=""                                     # initialize comments
     debug ":TEST $testnum: START at line $linenum"
 
-    while read; do                             # iterate over all lines of test
+    while read; do                                  # iterate over all lines of test
         updateline
         debug "$linenum: $line"
 
         case "$prefix" in
-            "*")
-                title="$suffix"
-                debug "title: $title"
+            "*")                                    # usually first line with title of the test
+                test_title="$suffix"
+                debug "test_title: $test_title"
                 ;;
-            "#+TESTY:")
-                variable="${suffix%% *}"            # variable name is first word
-                value="${suffix#* }"                # value is remainder of line
-                eval "$variable='$value'"
-                debug "option set: $variable='$value'"
-                ;;
-            "#+TESTYX:")
-                expr="$suffix"
+            "#+TESTY:")                             # eval some code to set options
+                debug "evaluating '$suffix'"
                 eval "$suffix"
-                debug "evaluated '$suffix'"
                 ;;
-            "#+BEGIN_SRC")
+            "#+BEGIN_SRC")                          # test session starting
                 debug ":TEST $testnum: Begin testing session"
                 run_test_session
                 if [[ "$status" != "pass" ]]; then
-                    ((failcount++))
+                    ((failcount++))                 # test failed, bail out of this test
                     break
                 fi
                 ;;
-            *)
+            *)                                      # any other lines are comments associated with a session
                 debug "comment"
                 comments="$comments\n$line"
                 ;;
         esac
     done <<< $(printf "${testdata[$testnum]}")      # printf needed to get line breaks back in 
-    printf "%-3s %-${title_width}s : %s\n" "${testnum})" "$title" "$status"
+
+    # report the final status of this test
+    printf "%-3s %-${test_title_width}s : %s\n" "${testnum})" "$test_title" "$status"
 done    
 
-passcount=$((testcount-failcount))
+# Final Output
+passcount=$((testcount-failcount))                  # calculate number of tests passed
 printf "============================================================\n"
 echo "RESULTS: $passcount / $testcount tests passed"
 
 debug "show: $show"
-
-if [[ "$show" = "1" ]]; then
+if [[ "$show" = "1" ]]; then                        # show failure results if requested
     printf "\n\nFAILURE RESULTS\n"
     printf "%s\n" "----------------------------------------"
     for f in $fail_files; do

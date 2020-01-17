@@ -1,0 +1,47 @@
+* Test echo 
+Check that the 'echo' command in bash is working.
+
+The 'sh' is not honored in testy; it is for easy editing in Emacs.
+
+#+BEGIN_SRC sh
+>> echo 'hello'
+hello
+>> echo 'Hi there!'
+Hi there!
+#+END_SRC
+
+* Test printf
+Tests whether printf works.
+
+#+BEGIN_SRC sh
+>> printf "Hello world\n"
+Hello world
+>> printf "Multi-line\noutput is expected\nhere\n"
+Multi-line
+output is expected
+here
+>> printf "%s\n" "substitute
+#+END_SRC
+
+This second session below will fail and record the results of the
+failure in a file.
+#+BEGIN_SRC sh
+>> echo 'hi'
+hi
+>> printf 'INTENTIONAL fail\n'
+INTENTIONALly fails
+#+END_SRC
+
+* Test bc
+
+This test uses a different interpreter than the standard 'bash'. The
+'bc' program interprets standard mathematical expressions. Note the
+use of #+TESTY expression to change the program for this test.
+
+#+TESTY: program="bc -iq"
+#+BEGIN_SRC sh
+>> 1+1
+2
+>> 3*5+12
+27
+#+END_SRC
