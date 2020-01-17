@@ -20,7 +20,8 @@ Hello world
 Multi-line
 output is expected
 here
->> printf "%s\n" "substitute
+>> printf "%s\n" "substitute me"
+substitute me
 #+END_SRC
 
 This second session below will fail and record the results of the
