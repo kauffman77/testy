@@ -68,10 +68,7 @@ DIFF="diff -bB \
            --unchanged-line-format='' \
            --old-line-format='EXPECT:%4dn) %L' \
            --new-line-format='ACTUAL:%4dn) %L'"      # diff which will show prepend EXPECT/ACTUAL to differing lines
-#TIMEOUT="0.5"
-#TIMEOUT="1.0"
-STAND_TIMEOUT="0.1"
-CHECK_TIMEOUT="0.1"
+TIMEOUT="1s"                                        # time after which to kill a test, passed to 'timeout' command
 
 # default values for the program to be tested
 PROGRAM="bash -v"                                   # program to run if no option is specified
@@ -88,6 +85,7 @@ function reset_options(){                           # reset options to defaults,
     prompt=$PROMPT
     echo_style=$ECHO_STYLE
     tag=$TAG
+    timeout=$TIMEOUT                                # time after which to kill a test, passed to 'timeout' command
     resultdir=$RESULTDIR
 }    
 
@@ -132,7 +130,7 @@ function run_test_session(){
     debug "starting '$program < ${toprog_fifo} &> ${fromprog_file} &'"
 
     # run program under stdbuf to eliminate I/O buffering, I/O comes through fifos
-    $STDBUF $program <${toprog_fifo} &> ${fromprog_file} &
+    timeout --signal KILL $timeout $STDBUF $program <${toprog_fifo} &> ${fromprog_file} &
     pid=$!
     debug "child pid: $pid"
 
@@ -144,6 +142,7 @@ function run_test_session(){
     # debug "from fd: $from"
 
     status="pass"                                   # initial status, change to 'FAIL' if things go wrong
+    fail_messages=()
     all_input=()
 
     session_beg_line=$((linenum+1))
@@ -177,8 +176,21 @@ function run_test_session(){
 
     debug "waiting on finished child"                 
     wait $pid &> /dev/null                            # wait on the child to finish
-    debug "wait returned: $?"                         # may want to add checks here for return code of child
+    retcode="$?"
+    debug "wait returned: $retcode"                 # may want to add checks here for return code of child
 
+    case "$retcode" in
+        137)
+            status="FAIL"
+            fail_messages+=("FAILURE due to TIMEOUT: Runtime exceeded maximum of '$timeout'")
+            ;;
+        139)
+            status="FAIL"
+            fail_messages+=("FAILURE due to Kill Signal: likely killed by OS due to a segfault")
+            ;;
+    esac        
+
+    # ADDING IN PROMPTS TO ECHOED INPUT
     # NOTE: The code below handles adding prompts to input lines that
     # are echoed without it.  Originally was trying to do this with
     # sed or awk but the quoting becomes a huge mess: any input lines
@@ -190,7 +202,6 @@ function run_test_session(){
     # do this with { } construct).  This approach can be fooled: if an
     # output line matches an input line, the prompt may be added at
     # the wrong spot.
-
     if [[ "$ECHO_STYLE" = "input" ]]; then            # program may only echo input necessitating adding prompts to output
         idx=0                                         # index for input line
         exec {mod}>${fromprog_file}.mod
@@ -238,6 +249,7 @@ function run_test_session(){
     debug "diffreturn: $diffreturn"
     if [[ "$diffreturn" != "0" ]]; then
         status="FAIL"
+        fail_messages+=("FAILURE: Output Mismatch at lines marked")
     fi
 
     if [[ "$status" = "pass" ]]; then                      # test failed
@@ -249,7 +261,11 @@ function run_test_session(){
         debug "FAILURE cleanup"
         {  printf '(TEST %d) %s' "$testnum" "$test_title"
            printf "${comments}\n" 
-           printf "FAILURE: Output Mismatch at lines marked\n"
+           printf "Failure messages:\n"
+           for msg in "${fail_messages[@]}"; do
+               printf "%s\n" "- $msg"
+           done
+           printf "\n"
            printf "%s\n" "- Expect results in $expect_file" 
            printf "%s\n" "- Acutal results in $actual_file" 
            printf "\n%s\n" "---Side by Side Differences---"
