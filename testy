@@ -63,12 +63,15 @@ EOF
 
 # some global options/programs
 STDBUF="stdbuf -i 0 -o 0 -e 0"                      # disables standard IO buffering for a program
-SDIFF="diff -bBy"                                   # side by side diff, need to work on how to set the columns dynamically
+SDIFF="diff -ytbB"                                  # side by side diff, no tabs, ignore space changes, ignore blank lines
 DIFF="diff -bB \
            --unchanged-line-format='' \
            --old-line-format='EXPECT:%4dn) %L' \
            --new-line-format='ACTUAL:%4dn) %L'"      # diff which will show prepend EXPECT/ACTUAL to differing lines
 TIMEOUT="1s"                                        # time after which to kill a test, passed to 'timeout' command
+VALG_ERROR="13"                                      # error code that valgrind should return on detecting errors
+
+VALGRIND_PROG="valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=13"
 
 # default values for the program to be tested
 PROGRAM="bash -v"                                   # program to run if no option is specified
@@ -87,6 +90,7 @@ function reset_options(){                           # reset options to defaults,
     tag=$TAG
     timeout=$TIMEOUT                                # time after which to kill a test, passed to 'timeout' command
     resultdir=$RESULTDIR
+    use_valgrind=0
 }    
 
 
@@ -118,6 +122,21 @@ function updateline(){                              # processes $line to set som
 # The function is run in a context where 'read' will extract lines
 # from the test session.
 function run_test_session(){
+
+    mkdir -p $resultdir                               # set up test results directory
+    actual_file=$(printf "%s/%s-%02d-actual.tmp" "$resultdir" "$tag" "$testnum")
+    expect_file=$(printf "%s/%s-%02d-expect.tmp" "$resultdir" "$tag" "$testnum")
+    result_file=$(printf "%s/%s-%02d-result.tmp" "$resultdir" "$tag" "$testnum")
+    valgrd_file=$(printf "%s/%s-%02d-valgrd.tmp" "$resultdir" "$tag" "$testnum")
+    rm -f ${actual_file} ${expect_file} ${result_file} ${valgrd_file}
+
+    if [[ "$use_valgrind" = 1 ]]; then
+        VALGRIND="${VALGRIND_PROG} --log-file=${valgrd_file}"
+    else
+        VALGRIND=""
+    fi
+    
+
     toprog_fifo=$(mktemp --tmpdir testy_to.XXXXXX)  # set up communication with the program being tested
     fromprog_file=$(mktemp --tmpdir testy_from.XXXXXX)
     debug "toprog_fifo: $toprog_fifo"
@@ -130,7 +149,7 @@ function run_test_session(){
     debug "starting '$program < ${toprog_fifo} &> ${fromprog_file} &'"
 
     # run program under stdbuf to eliminate I/O buffering, I/O comes through fifos
-    timeout --signal KILL $timeout $STDBUF $program <${toprog_fifo} &> ${fromprog_file} &
+    timeout --signal KILL $timeout $STDBUF $VALGRIND $program <${toprog_fifo} &> ${fromprog_file} &
     pid=$!
     debug "child pid: $pid"
 
@@ -180,13 +199,17 @@ function run_test_session(){
     debug "wait returned: $retcode"                 # may want to add checks here for return code of child
 
     case "$retcode" in
+        "$VALG_ERROR")
+            status="FAIL"
+            fail_messages+=("FAILURE($retcode): Valgrind detected errors")
+            ;;
         137)
             status="FAIL"
-            fail_messages+=("FAILURE due to TIMEOUT: Runtime exceeded maximum of '$timeout'")
+            fail_messages+=("FAILURE($retcode) due to TIMEOUT: Runtime exceeded maximum of '$timeout'")
             ;;
         139)
             status="FAIL"
-            fail_messages+=("FAILURE due to Kill Signal: likely killed by OS due to a segfault")
+            fail_messages+=("FAILURE($retcode) due to Kill Signal from OS: likely a SEGFAULT occured")
             ;;
     esac        
 
@@ -218,14 +241,6 @@ function run_test_session(){
         exec {mod}>&-                                 # close the modified file
         mv ${fromprog_file}.mod ${fromprog_file}      # copy modified file back to original
     fi
-
-
-    mkdir -p $resultdir                               # set up test results directory
-    actual_file=$(printf "%s/%s-%02d-actual.tmp" "$resultdir" "$tag" "$testnum")
-    expect_file=$(printf "%s/%s-%02d-expect.tmp" "$resultdir" "$tag" "$testnum")
-    result_file=$(printf "%s/%s-%02d-result.tmp" "$resultdir" "$tag" "$testnum")
-
-    rm -f ${actual_file} ${expect_file} ${result_file}
 
     # printf "$expect\n" > ${expect_file}
     # printf "$actual\n" > ${actual_file}
@@ -259,22 +274,34 @@ function run_test_session(){
         debug "kill returned: $?"
     else
         debug "FAILURE cleanup"
-        {  printf '(TEST %d) %s' "$testnum" "$test_title"
+        {  printf '(TEST %d) %s\n' "$testnum" "$test_title"
+           printf 'Test Comments:\n'
            printf "${comments}\n" 
+           printf 'program: %s\n' "$program"
            printf "Failure messages:\n"
            for msg in "${fail_messages[@]}"; do
                printf "%s\n" "- $msg"
            done
+
            printf "\n"
-           printf "%s\n" "- Expect results in $expect_file" 
-           printf "%s\n" "- Acutal results in $actual_file" 
-           printf "\n%s\n" "---Side by Side Differences---"
-           printf "Differing lines have a character like '|' in the middle\n"
-           printf "%-${col_width}s   %-${col_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
-           $SDIFF -t -W $total_width $expect_file $actual_file 
-           printf "%s\n" "---Line Differences---"
-           printf "%s\n" "$diffresult"
-           # -t for no tabs, -W for width
+
+           if [[ "$diffreturn" != "0" ]]; then      # show differences between expect and actual
+               printf "%s\n" "--- Side by Side Differences ---"
+               printf "%s\n" "- Expect output in: $expect_file" 
+               printf "%s\n" "- Acutal output in: $actual_file" 
+               printf "%s\n" "- Differing lines have a character like '|' in the middle\n"
+               printf "%-${col_width}s   %-${col_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
+               $SDIFF -W $total_width $expect_file $actual_file 
+               printf "%s\n" "--- Line Differences ---"
+               printf "%s\n" "$diffresult"
+               printf "\n"
+           fi
+
+           if [[ "$use_valgrind" = "1" ]]; then     # show valgrind log
+               printf "%s\n" "--- Valgrind Log from: $valgrd_file ---"
+               cat $valgrd_file
+               printf "\n"
+           fi
         } &> ${result_file}
 
         # eliminate extra spaces in diff results, this is a bit risky,
