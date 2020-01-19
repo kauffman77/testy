@@ -88,7 +88,7 @@ file before any other tests.
 PROGRAM="bash"           : program to run/test if no option is specified
 PROMPT=">>               : prompt to honor if none is specified
 ECHOING="input"          : {input, both} for program input echoing style
-TAG="testy"              : prefix for output files
+PREFIX="testy"              : prefix for output files
 RESULTDIR="test-results" : directory where the resutls will be written
 
 Local variables that can be specified for a single test session in an
@@ -96,14 +96,13 @@ individual test.
 program="bash"           : override PROGRAM for an individual test session
 prompt=">>"              : override PROMPT for an individual test session
 echoing="input"          : override ECHOING for an individual test session
-tag="testy"              : override TAG for an individual test session
+prefix="testy"              : override PREFIX for an individual test session
 resultdir="test-results" : override RESULTDIR for an individual test session
 
 These variables control some global behavior of the testy.
 SHOW=0            : set to 1 to print test error results after completing
 DEBUG=0           : set to 1 to print LOTS of debugging messages
 EOF
-
 
 # some global options/programs
 STDBUF="stdbuf -i 0 -o 0 -e 0"                      # disables standard IO buffering for a program
@@ -119,12 +118,13 @@ VALG_ERROR="13"                                      # error code that valgrind 
 VALGRIND_PROG="valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=13"
 
 # default values for the program to be tested
-PROGRAM=${PROGRAM:-"bash -v"}                                   # program to run if no option is specified
-PROMPT=${PROMPT:-">>"}                                         # prompt to honor if none is specified
-ECHOING=${ECHOING:-"input"}                                  # {input, both} for program input echoing style
-TAG="testy"                                         # prefix for the files that are produced by testy
-RESULTDIR="test-results"                              # directory where the resutls will be written
-USE_VALGRIND="0"
+PROGRAM=${PROGRAM:-"bash -v"}                       # program to run if no option is specified
+PROMPT=${PROMPT:-">>"}                              # prompt to honor if none is specified
+ECHOING=${ECHOING:-"input"}                         # {input, both} for program input echoing style
+PREFIX=${PREFIX:-"testy"}                           # prefix for the files that are produced by testy
+RESULTDIR=${RESULTDIR:-"test-results"}              # directory where the resutls will be written
+USE_VALGRIND=${USE_VALGRIND:-"0"}                   # use valgrind while testing
+VALGRIND_REACHABLE=${VALGRIND_REACHABLE:-"1"}       # report valgrind errors if memory is still reachable
 
 # default values for where the results will be stored
 test_title_width=20                                      # initial width for test test_titles, set to widest during initial parsing
@@ -133,10 +133,12 @@ function reset_options(){                           # reset options to defaults,
     program=$PROGRAM
     prompt=$PROMPT
     echoing=$ECHOING
-    tag=$TAG
+    prefix=$PREFIX
     timeout=$TIMEOUT                                # time after which to kill a test, passed to 'timeout' command
     resultdir=$RESULTDIR
     use_valgrind=0
+    valgrind_reachable=$VALGRIND_REACHABLE
+
 }    
 
 
@@ -149,8 +151,8 @@ function debug(){                                   # print a debug message
 function updateline(){                              # processes $line to set some other global variables
     line="$REPLY"                                   # copy from REPLY to avoid losing whitespace
     ((linenum++))                                   # update the current line number 
-    prefix="${line%% *}"                            # extracts the first word on the line as prefix
-    suffix="${line#* }"                             # extracts remainder of line
+    first="${line%% *}"                             # extracts the first word on the line 
+    rest="${line#* }"                               # extracts remainder of line
 }    
 
 
@@ -172,10 +174,10 @@ debug "PROGRAM is $PROGRAM"
 function run_test_session(){
 
     mkdir -p $resultdir                               # set up test results directory
-    actual_file=$(printf "%s/%s-%02d-actual.tmp" "$resultdir" "$tag" "$testnum")
-    expect_file=$(printf "%s/%s-%02d-expect.tmp" "$resultdir" "$tag" "$testnum")
-    result_file=$(printf "%s/%s-%02d-result.tmp" "$resultdir" "$tag" "$testnum")
-    valgrd_file=$(printf "%s/%s-%02d-valgrd.tmp" "$resultdir" "$tag" "$testnum")
+    actual_file=$(printf "%s/%s-%02d-actual.tmp" "$resultdir" "$prefix" "$testnum")
+    expect_file=$(printf "%s/%s-%02d-expect.tmp" "$resultdir" "$prefix" "$testnum")
+    result_file=$(printf "%s/%s-%02d-result.tmp" "$resultdir" "$prefix" "$testnum")
+    valgrd_file=$(printf "%s/%s-%02d-valgrd.tmp" "$resultdir" "$prefix" "$testnum")
     rm -f ${actual_file} ${expect_file} ${result_file} ${valgrd_file}
 
     if [[ "$use_valgrind" = 1 ]]; then
@@ -222,13 +224,13 @@ function run_test_session(){
         updateline
         debug "$linenum: $line"
         
-        case "$prefix" in
+        case "$first" in
             "#+END_SRC")                              # end of test, break out
                 debug "^^ end of testing session"
                 break
                 ;;
             "$prompt")                                # test input, feed to program
-                input="$suffix"
+                input="$rest"
                 all_input+=("$input")                 # append to all_input array for later processing
                 debug "^^ sending input"
                 printf "%s\n" "$input" >&$to          # send input after prompt to program, printf in this way preserves embedded newlines
@@ -264,6 +266,14 @@ function run_test_session(){
             fail_messages+=("FAILURE($retcode) due to Kill Signal from OS: likely a SEGFAULT occured")
             ;;
     esac        
+
+    if [[ "$use_valgrind" = "1" ]] &&               # if valgrind is on
+       [[ "$valgrind_reachable" = "1" ]] &&         # and checking for reachable memory
+       ! gawk '/still reachable:/{if($4 != 0){exit 1;}}' ${valgrd_file};
+    then                                            # valgrind log does not contain 'reachable: 0 bytes'
+        status="FAIL"                               
+        fail_messages+=("FAILURE: Valgrind reports reachable memory, may need to add free() or fclose()")
+    fi
 
     # ADDING IN PROMPTS TO ECHOED INPUT
     # NOTE: The code below handles adding prompts to input lines that
@@ -413,7 +423,7 @@ linenum=0
 while read -r; do                                     # read from test file, -r to prevent \-escaped chars
     updateline
     debug "$linenum: $line\n"
-    case "$prefix" in
+    case "$first" in
         "*")
             debug "^^ Test Start"
             eval_test_expr=0                        # in a test, wait to evaluate #+TESTY: expr until during test
@@ -426,23 +436,23 @@ while read -r; do                                     # read from test file, -r 
             fi
             ((testnum++))                           # reset and start collecting text for the new test
             test_beg_line+=("$linenum")
-            if (( ${#suffix} > $test_title_width )); then # calculate maximum width of any title
-                test_title_width=${#suffix}
+            if (( ${#rest} > $test_title_width )); then # calculate maximum width of any title
+                test_title_width=${#rest}
             fi
             ;;
         "#+TESTY:")                                # evaluate global expressions
             if [[ "$eval_testy_expr" = "1" ]]; then
-                debug "Evaluating '$suffix'"
-                eval "$suffix"
+                debug "Evaluating '$rest'"
+                eval "$rest"
             fi
             testtext="$testtext\n$line"             # append line to current test text as it may be a local test option
             ;;
         "#+TITLE:")
-            global_title="$suffix"
+            global_title="$rest"
             debug "^^ setting global_title"
             ;;
         "#+title:")
-            global_title="$suffix"
+            global_title="$rest"
             debug "^^ setting global_title"
             ;;
         *)
@@ -479,6 +489,8 @@ testcount=0
 failcount=0
 
 # Print header info 
+
+
 printf "============================================================\n"
 if [[ "$global_title" = "" ]]; then
     printf "== testy $specfile\n"
@@ -498,14 +510,14 @@ for testnum in $alltests; do                        # Iterate over all tests to 
         updateline
         debug "$linenum: $line"
 
-        case "$prefix" in
+        case "$first" in
             "*")                                    # usually first line with title of the test
-                test_title="$suffix"
+                test_title="$rest"
                 debug "test_title: $test_title"
                 ;;
             "#+TESTY:")                             # eval some code to set options
-                debug "evaluating '$suffix'"
-                eval "$suffix"
+                debug "evaluating '$rest'"
+                eval "$rest"
                 ;;
             "#+BEGIN_SRC")                          # test session starting
                 debug ":TEST $testnum: Begin testing session"
@@ -524,10 +536,11 @@ for testnum in $alltests; do                        # Iterate over all tests to 
                 # debug "sed -n '${beg},${end}p' $specfile"
                 run_test_session <<< "$(sed -n "${beg},${end}p" $specfile)"
                 debug "Done re-running session on lines $beg to $end"
+                linenum=$old_linenum
                 ;;
             *)                                      # any other lines are comments associated with a session
                 if [[ "$comments" != "" ]] || [[ "$line" != "" ]]; then
-                    debug "comment"                 # ignore leading blank lines in comments
+                    debug "^^ comment"              # ignore leading blank lines in comments
                     comments="${comments}${line}\n"
                 fi
                 ;;
