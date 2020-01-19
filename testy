@@ -112,7 +112,8 @@ DIFF="diff -bB \
            --unchanged-line-format='' \
            --old-line-format='EXPECT:%4dn) %L' \
            --new-line-format='ACTUAL:%4dn) %L'"      # diff which will show prepend EXPECT/ACTUAL to differing lines
-TIMEOUT="1s"                                        # time after which to kill a test, passed to 'timeout' command
+TIMEOUTCMD="timeout --signal KILL"                   # kills user programs after a certain duration  of 'timeout'  
+TIMEOUT="10s"                                        # time after which to kill a test, passed to 'timeout' command
 VALG_ERROR="13"                                      # error code that valgrind should return on detecting errors
 
 VALGRIND_PROG="valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=13"
@@ -182,7 +183,6 @@ function run_test_session(){
     else
         VALGRIND=""
     fi
-    
 
     toprog_fifo=$(mktemp --tmpdir testy_to.XXXXXX)  # set up communication with the program being tested
     fromprog_file=$(mktemp --tmpdir testy_from.XXXXXX)
@@ -193,10 +193,15 @@ function run_test_session(){
     mkfifo $toprog_fifo                             # create the fifos
     # mkfifo $fromprog_fifo
 
-    debug "starting '$program < ${toprog_fifo} &> ${fromprog_file} &'"
-
-    # run program under stdbuf to eliminate I/O buffering, I/O comes through fifos
-    timeout --signal KILL $timeout $STDBUF $VALGRIND $program <${toprog_fifo} &> ${fromprog_file} &
+    # RUN THE PROGRAM
+    #
+    # - timeout will kill the program after a certain duration
+    # - stdbuf disables buffering and prevents stalled output problems
+    # - valgrind may be turned on to check for memory errors
+    # - input is read from a fifo from the specfile
+    # - output is directed to a file
+    debug "running: '$TIMEOUTCMD $timeout $STDBUF $VALGRIND $program <${toprog_fifo} &> ${fromprog_file} &'"
+    $TIMEOUTCMD $timeout $STDBUF $VALGRIND $program <${toprog_fifo} &> ${fromprog_file} &
     pid=$!
     debug "child pid: $pid"
 
@@ -225,11 +230,11 @@ function run_test_session(){
             "$prompt")                                # test input, feed to program
                 input="$suffix"
                 all_input+=("$input")                 # append to all_input array for later processing
-                debug "^^ sending input: '$input'"
-                printf "%s\n" "$input" >&$to          # send input after prompt to program
+                debug "^^ sending input"
+                printf "%s\n" "$input" >&$to          # send input after prompt to program, printf in this way preserves embedded newlines
                 ;;
             *)                                        # other lines are test output
-                debug "^^ expected outpu"
+                debug "^^ expected output"
                 ;;
         esac                                          # DONE with test input, either pass or fail
     done;
@@ -322,7 +327,7 @@ function run_test_session(){
     else
         debug "FAILURE cleanup"
         {  printf '(TEST %d) %s\n' "$testnum" "$test_title"
-           printf 'Test Comments:\n'
+           printf 'COMMENTS:\n'
            printf "${comments}\n" 
            printf 'program: %s\n' "$program"
            printf "Failure messages:\n"
@@ -368,10 +373,7 @@ function run_test_session(){
         kill -KILL $pid &> /dev/null
     fi
 
-
-
     comments=""                                     # clear comments for next session
-
     return 0;
 }
 
@@ -513,9 +515,21 @@ for testnum in $alltests; do                        # Iterate over all tests to 
                     break
                 fi
                 ;;
+            "#+TESTY_RERUN:")                       # eval some code to set options
+                old_linenum=$linenum
+                beg=$((session_beg_line))           # #+BEGIN_SRC line
+                end=$((session_end_line+1))         # #+END_SRC line
+                linenum=$((beg-1))
+                debug "^^ Re-running session on lines $beg to $end"
+                # debug "sed -n '${beg},${end}p' $specfile"
+                run_test_session <<< "$(sed -n "${beg},${end}p" $specfile)"
+                debug "Done re-running session on lines $beg to $end"
+                ;;
             *)                                      # any other lines are comments associated with a session
-                debug "comment"
-                comments="$comments\n$line"
+                if [[ "$comments" != "" ]] || [[ "$line" != "" ]]; then
+                    debug "comment"                 # ignore leading blank lines in comments
+                    comments="${comments}${line}\n"
+                fi
                 ;;
         esac
     done <<< "$(sed -n "${test_beg_line[testnum]},${test_end_line[testnum]}p" $specfile)"

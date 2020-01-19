@@ -2,7 +2,7 @@
 
 #+TESTY: TAG="bc" 
 #+TESTY: PROGRAM="bc -iq" 
-#+TESTY: ECHO_STYLE="input"
+#+TESTY: ECHOING="input"
 * Addition and Multiplication
 Some add/multiply tests
 #+BEGIN_SRC text
