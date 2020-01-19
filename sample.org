@@ -1,4 +1,6 @@
-* Test echo 
+#+TITLE: Sample Tests
+
+* Test echo
 Check that the 'echo' command in bash is working.
 
 The 'sh' is not honored in testy; it is for easy editing in Emacs.

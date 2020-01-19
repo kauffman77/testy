@@ -23,9 +23,56 @@ found it is run. If the session fails, subsequent sessions for that
 test are not run.
 
 Sample input:
-
 ================
+#+TITLE: Sample Tests
 
+* Test echo
+Check that the 'echo' command in bash is working.
+
+The 'sh' is not honored in testy; it is for easy editing in Emacs.
+
+#+BEGIN_SRC sh
+>> echo 'hello'
+hello
+>> echo 'Hi there!'
+Hi there!
+#+END_SRC
+
+* Test printf
+Tests whether printf works.
+
+#+BEGIN_SRC sh
+>> printf "Hello world\n"
+Hello world
+>> printf "Multi-line\noutput is expected\nhere\n"
+Multi-line
+output is expected
+here
+>> printf "%s\n" "substitute me"
+substitute me
+#+END_SRC
+
+This second session below will fail and record the results of the
+failure in a file.
+#+BEGIN_SRC sh
+>> echo 'hi'
+hi
+>> printf 'INTENTIONAL fail\n'
+INTENTIONALly fails
+#+END_SRC
+
+* Test bc
+This test uses a different interpreter than the standard 'bash'. The
+'bc' program interprets standard mathematical expressions. Note the
+use of #+TESTY expression to change the program for this test.
+
+#+TESTY: program="bc -iq"
+#+BEGIN_SRC sh
+>> 1+1
+2
+>> 3*5+12
+27
+#+END_SRC
 ================
 
 --- BEHAVIOR / ENVIRONMENT VARIABLES ---
@@ -388,6 +435,14 @@ while read -r; do                                     # read from test file, -r 
             fi
             testtext="$testtext\n$line"             # append line to current test text as it may be a local test option
             ;;
+        "#+TITLE:")
+            global_title="$suffix"
+            debug "^^ setting global_title"
+            ;;
+        "#+title:")
+            global_title="$suffix"
+            debug "^^ setting global_title"
+            ;;
         *)
             debug "^^ Ignoring line in first pass"
             ;;
@@ -423,7 +478,11 @@ failcount=0
 
 # Print header info 
 printf "============================================================\n"
-printf "== testy: input file '$specfile' \n"
+if [[ "$global_title" = "" ]]; then
+    printf "== testy $specfile\n"
+else
+    printf "== testy $specfile : %s\n" "$global_title"
+fi    
 printf "== Running %d / %d tests\n" "$ntests" "$totaltests"
 
 for testnum in $alltests; do                        # Iterate over all tests to be run

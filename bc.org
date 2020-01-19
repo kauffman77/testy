@@ -1,3 +1,5 @@
+#+TITLE: Tests of the bc program
+
 #+TESTY: TAG="bc" 
 #+TESTY: PROGRAM="bc -iq" 
 #+TESTY: ECHO_STYLE="input"
