@@ -298,6 +298,10 @@ function run_test_session(){
         mv ${fromprog_file}.mod ${fromprog_file}      # copy modified file back to original
     fi
 
+    # To avoid confusion, replace message from timeout program with
+    # easier to interpret Segfault Message
+    sed -i 's/timeout: the monitored command dumped core/Segmentation Fault/' ${fromprog_file}
+
     cp ${fromprog_file} ${actual_file}                # copy temp file to final destination
 
     sedscript="${session_beg_line},${session_end_line}p"
@@ -371,12 +375,14 @@ function run_test_session(){
         # The below eliminate extra spaces in diff results mostly for
         # the left EXPECT column that would make the output very wide.
         # This is a bit risky as it may eliminate some real expected
-        # output so take care if the output is very wide.
+        # output so take care if the output is very wide. This is
+        # mitigated by NOT changing anything in the first
+        # $actual_width columns of the output file.
         if ((actual_width - expect_width > 10)); then
             extra_space_width=$((actual_width-expect_width))
             extra_space_width=$((extra_space_width-5))
             debug "Eliminating $extra_space_width spaces from result file"
-            sed -i -E "s/[ ]{$extra_space_width}/ /" $result_file
+            sed -i -E "s/(.{$expect_width})[ ]{$extra_space_width}/\1 /" $result_file
         fi
 
         fail_files+=("${result_file}")                # test failed, add to files to show later
