@@ -9,7 +9,7 @@ usage:    testy <testfile.org> [test# test# ...]
 
 examples: testy test_prob1.org        # runs all tests in file
           testy test_prob1.org 3 5 7  # runs tests 3,5,7 in file
-          show=1 test_prob1.org       # runs tests and prints all failures to stdout
+          SHOW=1 test_prob1.org       # runs tests and prints all failures to stdout
 
 Run tests for a shell program specified in an org-like file and report
 the results.
@@ -24,40 +24,37 @@ test are not run.
 
 Sample input:
 
-===============
 ================
 
---- BEHAVIOR VARIABLES ---
+================
+
+--- BEHAVIOR / ENVIRONMENT VARIABLES ---
 The following variables can be specified in test files via lines like
   #+TESTY: var="value"
+or on via an environment variable during a program run as in
+  > VAR="value" testy testfile.org
+
 They will change the behavior of how the test data is interpretted.
 
 Global variables that are usually specified at the beginning of a test
 file before any other tests.
 PROGRAM="bash"           : program to run/test if no option is specified
 PROMPT=">>               : prompt to honor if none is specified
-ECHO_STYLE="input"       : {input, both} for program input echoing style
+ECHOING="input"          : {input, both} for program input echoing style
 TAG="testy"              : prefix for output files
 RESULTDIR="test-results" : directory where the resutls will be written
-
 
 Local variables that can be specified for a single test session in an
 individual test.
 program="bash"           : override PROGRAM for an individual test session
 prompt=">>"              : override PROMPT for an individual test session
-echo_style="input"       : override ECHO_STYLE for an individual test session
+echoing="input"          : override ECHOING for an individual test session
 tag="testy"              : override TAG for an individual test session
 resultdir="test-results" : override RESULTDIR for an individual test session
 
---- ENVIRONMENT VARIABLES ---
-These variables can be changed either via a 
-  #+TESTY: var="value"
-line or via an environment variable during a program run as in
-  > VAR="value" testy testfile.org
-
-They control other behaviors of the program
-DEBUG=0           : controls debugging
-show=0            : controls whether test error results are printed after completing all tests
+These variables control some global behavior of the testy.
+SHOW=0            : set to 1 to print test error results after completing
+DEBUG=0           : set to 1 to print LOTS of debugging messages
 EOF
 
 
@@ -74,11 +71,12 @@ VALG_ERROR="13"                                      # error code that valgrind 
 VALGRIND_PROG="valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=13"
 
 # default values for the program to be tested
-PROGRAM="bash -v"                                   # program to run if no option is specified
-PROMPT=">>"                                         # prompt to honor if none is specified
-ECHO_STYLE="input"                                  # {input, both} for program input echoing style
+PROGRAM=${PROGRAM:-"bash -v"}                                   # program to run if no option is specified
+PROMPT=${PROMPT:-">>"}                                         # prompt to honor if none is specified
+ECHOING=${ECHOING:-"input"}                                  # {input, both} for program input echoing style
 TAG="testy"                                         # prefix for the files that are produced by testy
 RESULTDIR="test-results"                              # directory where the resutls will be written
+USE_VALGRIND="0"
 
 # default values for where the results will be stored
 test_title_width=20                                      # initial width for test test_titles, set to widest during initial parsing
@@ -86,7 +84,7 @@ test_title_width=20                                      # initial width for tes
 function reset_options(){                           # reset options to defaults, run before each test session
     program=$PROGRAM
     prompt=$PROMPT
-    echo_style=$ECHO_STYLE
+    echoing=$ECHOING
     tag=$TAG
     timeout=$TIMEOUT                                # time after which to kill a test, passed to 'timeout' command
     resultdir=$RESULTDIR
@@ -107,6 +105,8 @@ function updateline(){                              # processes $line to set som
     suffix="${line#* }"                             # extracts remainder of line
 }    
 
+
+debug "PROGRAM is $PROGRAM"
 
 ################################################################################
 # Run a Test Session
@@ -225,7 +225,7 @@ function run_test_session(){
     # do this with { } construct).  This approach can be fooled: if an
     # output line matches an input line, the prompt may be added at
     # the wrong spot.
-    if [[ "$ECHO_STYLE" = "input" ]]; then            # program may only echo input necessitating adding prompts to output
+    if [[ "$ECHOING" = "input" ]]; then            # program may only echo input necessitating adding prompts to output
         idx=0                                         # index for input line
         exec {mod}>${fromprog_file}.mod
         while read -r; do                             # read from output file into default REPLY var
@@ -315,7 +315,7 @@ function run_test_session(){
             sed -i -E "s/[ ]{$extra_space_width}/ /" $result_file
         fi
 
-        fail_files+="${result_file} "
+        fail_files+=("${result_file}")
         status="FAIL -> results in file '$result_file'"
         debug "Killing child process"
         kill -KILL $pid &> /dev/null
@@ -352,23 +352,25 @@ alltests="$@"                                       # remaining args are tests t
 
 ##################################################
 # first loop: read whole file into testdata array which will contain
-# the text of each test
+# the text of each test. Record ONLY the start/end lines of each test
+# to be used later.  Other side effects: evaluate any global #+TESTY:
+# expressions, calculate the widest test title width for nice display
+# later.
 eval_testy_expr=1                                   # set to 0 after getting into the first test
-# testdata=()                                         # array of test data
-# testline=()                                         # array of lines at which tests start
 test_beg_line=(-1)
 test_end_line=(-1)
 testnum=0                                           # current test number
 linenum=0
 while read -r; do                                     # read from test file, -r to prevent \-escaped chars
     updateline
+    debug "$linenum: $line\n"
     case "$prefix" in
         "*")
+            debug "^^ Test Start"
             eval_test_expr=0                        # in a test, wait to evaluate #+TESTY: expr until during test
             if (( testnum > 0 )); then                # if not the first test
                 endline=$(( linenum-1 ))
                 test_end_line+=("$endline")
-
                 beg=${test_beg_line[testnum]}
                 end=${test_end_line[testnum]}
                 debug "Test $testnum beg $beg end $end"
@@ -381,14 +383,13 @@ while read -r; do                                     # read from test file, -r 
             ;;
         "#+TESTY:")                                # evaluate global expressions
             if [[ "$eval_testy_expr" = "1" ]]; then
-                debug "Evaluating $suffix"
+                debug "Evaluating '$suffix'"
                 eval "$suffix"
             fi
             testtext="$testtext\n$line"             # append line to current test text as it may be a local test option
             ;;
         *)
-            # testtext="$testtext\n$line"             # append line to current test text
-            debug "Ignoring $line"
+            debug "^^ Ignoring line in first pass"
             ;;
     esac
 done < $specfile
@@ -470,11 +471,11 @@ passcount=$((testcount-failcount))                  # calculate number of tests 
 printf "============================================================\n"
 echo "RESULTS: $passcount / $testcount tests passed"
 
-debug "show: $show"
-if [[ "$show" = "1" ]]; then                        # show failure results if requested
+debug "SHOW: $SHOW"
+if [[ "$SHOW" = "1" ]]; then                        # show failure results if requested
     printf "\n\nFAILURE RESULTS\n"
     printf "%s\n" "----------------------------------------"
-    for f in $fail_files; do
+    for f in "${fail_files[@]}"; do
         cat $f
         printf "%s\n" "----------------------------------------"
     done

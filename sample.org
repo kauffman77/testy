@@ -34,7 +34,6 @@ INTENTIONALly fails
 #+END_SRC
 
 * Test bc
-
 This test uses a different interpreter than the standard 'bash'. The
 'bc' program interprets standard mathematical expressions. Note the
 use of #+TESTY expression to change the program for this test.
