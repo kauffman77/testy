@@ -88,7 +88,7 @@ file before any other tests.
 PROGRAM="bash"           : program to run/test if no option is specified
 PROMPT=">>               : prompt to honor if none is specified
 ECHOING="input"          : {input, both} for program input echoing style
-PREFIX="testy"              : prefix for output files
+PREFIX="test"            : prefix for output files
 RESULTDIR="test-results" : directory where the resutls will be written
 
 Local variables that can be specified for a single test session in an
@@ -96,7 +96,7 @@ individual test.
 program="bash"           : override PROGRAM for an individual test session
 prompt=">>"              : override PROMPT for an individual test session
 echoing="input"          : override ECHOING for an individual test session
-prefix="testy"              : override PREFIX for an individual test session
+prefix="test"            : override PREFIX for an individual test session
 resultdir="test-results" : override RESULTDIR for an individual test session
 
 These variables control some global behavior of the testy.
@@ -120,11 +120,12 @@ VALGRIND_PROG="valgrind --leak-check=full --show-leak-kinds=all --error-exitcode
 PROGRAM=${PROGRAM:-"bash -v"}                         # program to run if no option is specified
 PROMPT=${PROMPT:-">>"}                                # prompt to honor if none is specified
 ECHOING=${ECHOING:-"input"}                           # {input, both} for program input echoing style
-PREFIX=${PREFIX:-"testy"}                             # prefix for the files that are produced by testy
+PREFIX=${PREFIX:-"test"}                              # prefix for the files that are produced by testy
 RESULTDIR=${RESULTDIR:-"test-results"}                # directory where the resutls will be written
 USE_VALGRIND=${USE_VALGRIND:-"0"}                     # use valgrind while testing
 VALGRIND_REACHABLE=${VALGRIND_REACHABLE:-"1"}         # report valgrind errors if memory is still reachable
 TIMEOUT="5s"                                          # time after which to kill a test, passed to 'timeout' command
+PASS_STATUS="ok"                                      # status message associated with passing
 
 test_title_width=20                                   # initial width for test test_titles, set to widest during initial parsing
 
@@ -207,7 +208,7 @@ function run_test_session(){
     exec {to}>${toprog_fifo}                          # open connection to fifo for writing
     debug "to fd: $to"
 
-    status="pass"                                     # initial status, change to 'FAIL' if things go wrong
+    status="$PASS_STATUS"                             # initial status, change to 'FAIL' if things go wrong
     fail_messages=()                                  # array accumulating failure messages
     all_input=()                                      # array accumulating input fed to program
     session_beg_line=$((linenum+1))
@@ -335,7 +336,7 @@ function run_test_session(){
         fail_messages+=("FAILURE: Output Mismatch at lines marked")
     fi
 
-    if [[ "$status" = "pass" ]]; then                 # test passed
+    if [[ "$status" = "$PASS_STATUS" ]]; then         # test passed
         debug "NORMAL cleanup"                        # normal finish
         debug "Checking child status with kill -0"
         kill -0 $pid  >& /dev/null                    # check that the child is dead, return value 1
@@ -525,7 +526,7 @@ for testnum in $alltests; do                          # Iterate over all tests t
             "#+BEGIN_SRC")                            # test session starting
                 debug ":TEST $testnum: Begin testing session"
                 run_test_session
-                if [[ "$status" != "pass" ]]; then
+                if [[ "$status" != "$PASS_STATUS" ]]; then
                     ((failcount++))                   # test failed, bail out of this test
                     break
                 fi
