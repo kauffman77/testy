@@ -137,7 +137,7 @@ function reset_options(){                             # reset options to default
     prefix=$PREFIX
     timeout=$TIMEOUT
     resultdir=$RESULTDIR
-    use_valgrind=0
+    use_valgrind=$USE_VALGRIND
     valgrind_reachable=$VALGRIND_REACHABLE
 }    
 
