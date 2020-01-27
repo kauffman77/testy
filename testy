@@ -86,21 +86,27 @@ They will change the behavior of how the test data is interpretted.
 
 Global variables that are usually specified at the beginning of a test
 file before any other tests.
+
 PROGRAM="bash"           : program to run/test if no option is specified
 PROMPT=">>               : prompt to honor if none is specified
 ECHOING="input"          : {input, both} for program input echoing style
 PREFIX="test"            : prefix for output files
 RESULTDIR="test-results" : directory where the resutls will be written
+TIMEOUT="5s"             : maximum time for the test before it is failed due to timeout
+USE_VALGRIND="0"         : set to 1 to run programs under Valgrind which checks for memory errors
+VALGRIND_REACHABLE="1"   : under valgrind, report errors if memory is still reachable at the end of the program
 
-Local variables that can be specified for a single test session in an
-individual test.
-program="bash"           : override PROGRAM for an individual test session
-prompt=">>"              : override PROMPT for an individual test session
-echoing="input"          : override ECHOING for an individual test session
-prefix="test"            : override PREFIX for an individual test session
-resultdir="test-results" : override RESULTDIR for an individual test session
+Each of the above Global variables can be set Locally during a single
+test by setting their lower-case version. For exaxmple:
 
-These variables control some global behavior of the testy.
+  * Test 5: A test of bc
+  #+TESTY: program="bc -i" 
+
+will send input to the program "bc -i" and check output rather than
+the default PROGRAM. The lower case options are reset during each test
+run but NOT in between sessions in single test.
+
+Finally, these variables control some global behavior of the testy.
 SHOW=0            : set to 1 to print test error results after completing
 DEBUG=0           : set to 1 to print LOTS of debugging messages
 EOF
@@ -123,20 +129,20 @@ PROMPT=${PROMPT:-">>"}                                # prompt to honor if none 
 ECHOING=${ECHOING:-"input"}                           # {input, both} for program input echoing style
 PREFIX=${PREFIX:-"test"}                              # prefix for the files that are produced by testy
 RESULTDIR=${RESULTDIR:-"test-results"}                # directory where the resutls will be written
+TIMEOUT=${TIMEOUT:-"5s"}                              # time after which to kill a test, passed to 'timeout' command
 USE_VALGRIND=${USE_VALGRIND:-"0"}                     # use valgrind while testing
 VALGRIND_REACHABLE=${VALGRIND_REACHABLE:-"1"}         # report valgrind errors if memory is still reachable
-TIMEOUT="5s"                                          # time after which to kill a test, passed to 'timeout' command
-PASS_STATUS="ok"                                      # status message associated with passing
 
-test_title_width=20                                   # initial width for test test_titles, set to widest during initial parsing
+PASS_STATUS="ok"                                      # status message associated with passing
+TEST_TITLE_WIDTH=20                                   # initial width for test test_titles, set to widest during initial parsing
 
 function reset_options(){                             # reset options to defaults, run before each test session
     program=$PROGRAM
     prompt=$PROMPT
     echoing=$ECHOING
     prefix=$PREFIX
-    timeout=$TIMEOUT
     resultdir=$RESULTDIR
+    timeout=$TIMEOUT
     use_valgrind=$USE_VALGRIND
     valgrind_reachable=$VALGRIND_REACHABLE
 }    
@@ -444,9 +450,9 @@ while read -r; do                                     # read from test file, -r 
             fi
             ((testnum++))                             # reset and start collecting text for the new test
             test_beg_line+=("$linenum")
-            if (( ${#rest} > $test_title_width ));    # calculate maximum width of any title
+            if (( ${#rest} > $TEST_TITLE_WIDTH ));    # calculate maximum width of any title
             then
-                test_title_width=${#rest}
+                TEST_TITLE_WIDTH=${#rest}
             fi
             ;;
         "#+TESTY:")                                   # evaluate global expressions
@@ -552,7 +558,7 @@ for testnum in $alltests; do                          # Iterate over all tests t
     done <<< "$(sed -n "${test_beg_line[testnum]},${test_end_line[testnum]}p" $specfile)"
 
     # report the final status of this test
-    printf "%-3s %-${test_title_width}s : %s\n" "${testnum})" "$test_title" "$status"
+    printf "%-3s %-${TEST_TITLE_WIDTH}s : %s\n" "${testnum})" "$test_title" "$status"
 done    
 
 ########################################
