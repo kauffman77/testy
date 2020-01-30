@@ -93,6 +93,7 @@ ECHOING="input"          : {input, both} for program input echoing style
 PREFIX="test"            : prefix for output files
 RESULTDIR="test-results" : directory where the resutls will be written
 TIMEOUT="5s"             : maximum time for the test before it is failed due to timeout
+POST_FILTER=""           : program to adjust output from test before evaluating, run as 'cat output | post_filter > actual.tmp'
 USE_VALGRIND="0"         : set to 1 to run programs under Valgrind which checks for memory errors
 VALGRIND_REACHABLE="1"   : under valgrind, report errors if memory is still reachable at the end of the program
 
@@ -130,6 +131,7 @@ ECHOING=${ECHOING:-"input"}                           # {input, both} for progra
 PREFIX=${PREFIX:-"test"}                              # prefix for the files that are produced by testy
 RESULTDIR=${RESULTDIR:-"test-results"}                # directory where the resutls will be written
 TIMEOUT=${TIMEOUT:-"5s"}                              # time after which to kill a test, passed to 'timeout' command
+POST_FILTER=${POST_FILTER:-""}                        # run this progam on output to adjust it if needed
 USE_VALGRIND=${USE_VALGRIND:-"0"}                     # use valgrind while testing
 VALGRIND_REACHABLE=${VALGRIND_REACHABLE:-"1"}         # report valgrind errors if memory is still reachable
 
@@ -143,6 +145,7 @@ function reset_options(){                             # reset options to default
     prefix=$PREFIX
     resultdir=$RESULTDIR
     timeout=$TIMEOUT
+    post_filter=$POST_FILTER
     use_valgrind=$USE_VALGRIND
     valgrind_reachable=$VALGRIND_REACHABLE
 }    
@@ -304,6 +307,11 @@ function run_test_session(){
         done < ${fromprog_file}                       # reading from the original output file
         exec {mod}>&-                                 # close the modified file
         mv ${fromprog_file}.mod ${fromprog_file}      # copy modified file back to original
+    fi
+
+    if [[ ! -z "$post_filter" ]]; then                # use a filter to post-process the output
+        cat ${fromprog_file} | ${post_filter} > ${fromprog_file}.tmp
+        mv ${fromprog_file}.tmp ${fromprog_file}
     fi
 
     # To avoid confusion, replace message from timeout program with
