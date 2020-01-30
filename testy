@@ -506,7 +506,7 @@ printf "============================================================\n"
 if [[ "$global_title" = "" ]]; then
     printf "== testy $specfile\n"
 else
-    printf "== testy $specfile : %s\n" "$global_title"
+    printf "== $specfile : %s\n" "$global_title"
 fi    
 printf "== Running %d / %d tests\n" "$ntests" "$totaltests"
 
