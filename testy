@@ -163,8 +163,6 @@ function updateline(){                                # processes $line to set s
     rest="${line#* }"                                 # extracts remainder of line
 }    
 
-debug "PROGRAM is $PROGRAM"
-
 ################################################################################
 # Run a Test Session
 #
@@ -282,7 +280,7 @@ function run_test_session(){
 
     if [[ "$use_valgrind" = "1" ]] &&                 # if valgrind is on
        [[ "$valgrind_reachable" = "1" ]] &&           # and checking for reachable memory
-       ! gawk '/still reachable:/{if($4 != 0){exit 1;}}' ${valgrd_file};
+       ! awk '/still reachable:/{if($4 != 0){exit 1;}}' ${valgrd_file};
     then                                              # valgrind log does not contain 'reachable: 0 bytes'
         status="FAIL"                               
         fail_messages+=("FAILURE: Valgrind reports reachable memory, may need to add free() or fclose()")
@@ -442,6 +440,18 @@ if [[ "$specfile" = "--help" ]]; then                 # check for --help option
     printf "$usage\n"                                 # print usage and exit
     exit 0
 fi
+
+# check for necessary tools
+deps="valgrind timeout stdbuf awk sed grep diff"
+for dep in $deps; do
+    if ! which $dep >& /dev/null ; then
+        echo "ERROR: testy requires the program '$dep' which does not appear to be installed"
+        echo "Consult your OS docs and install '$dep' before proceeding"
+        echo "If '$dep' is installed, adjust your PATH variable so '$dep' can be found using 'which $dep'"
+        which $dep
+        exit 1
+    fi
+done
 
 ##################################################
 # first procesing loop: read whole file into testdata array which will
