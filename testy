@@ -222,6 +222,7 @@ function run_test_session(){
     fail_messages=()                                  # array accumulating failure messages
     all_input=()                                      # array accumulating input fed to program
     session_beg_line=$((linenum+1))
+    eof_set=0
 
     # LOOP to feed lines of input to the program, output is fed to a
     # file, modified later if needed to re-add the prompt
@@ -233,11 +234,19 @@ function run_test_session(){
                 debug "^^ end of testing session"
                 break
                 ;;
+            "#+TESTY_EOF:")                           # end of input, remaining session is output
+                eof_set=1
+                debug "^^ eof_set=1"
+                ;;
             "$prompt")                                # test input, feed to program
-                input="$rest"
-                all_input+=("$input")                 # append to all_input array for later processing
-                debug "^^ sending input"
-                printf "%s\n" "$input" >&$to          # send input after prompt to program, printf in this way preserves embedded newlines
+                if [[ "$eof_set" = "0" ]]; then
+                    input="$rest"
+                    all_input+=("$input")                 # append to all_input array for later processing
+                    debug "^^ sending input"
+                    printf "%s\n" "$input" >&$to          # send input after prompt to program, printf in this way preserves embedded newlines
+                else
+                    debug "^^ ignoring prompt after EOF"
+                fi
                 ;;
             *)                                        # other lines are test output
                 debug "^^ expected output"
@@ -320,8 +329,11 @@ function run_test_session(){
 
     cp ${fromprog_file} ${actual_file}                # copy temp file to final destination
 
-    sedscript="${session_beg_line},${session_end_line}p"
-    sed -n "$sedscript"  $specfile > ${expect_file}   # extract expected output from test file
+    # extract expected output from test file, filter #+TESTY_ , store result in expect_file
+    cat $specfile | \
+        sed -n "${session_beg_line},${session_end_line}p" | \
+        grep -v '^#+TESTY_' \
+        > ${expect_file}
 
     # Try to compute the width of expected/actual outputs to make the
     # side-by-side diff as narrow as possible. 'diff -y -W' is a bit
