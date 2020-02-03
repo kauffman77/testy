@@ -423,6 +423,14 @@ function run_test_session(){
 ################################################################################
 # BEGIN main processing
 
+unset BASH_ENV                                        # ensure subshells don't spit out extra gunk
+
+funcs=$(declare -x -F | awk '{print $3}')             # eliminate any exported functions in bash
+for f in $funcs; do                                   # as these are output with the -v option
+    unset -f $f;
+done
+
+
 if [[ "$#" < 1 ]]; then                               # check for presence of at least 1 argument
     printf "usage: testy <testspec> [testnum]\n"
     printf "       testy --help\n"
