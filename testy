@@ -2,7 +2,7 @@
 #
 # A script to automate testing programs on the command line.
 # author:  Chris Kauffman <kauffman@umn.edu>
-# release: Mon 20 Jan 2020 08:38:50 PM CST 
+# release: Thu 06 Feb 2020 08:55:53 AM CST 
 
 read -r -d '' usage <<EOF
 usage:    testy <testfile.org> [test# test# ...]
@@ -89,7 +89,9 @@ file before any other tests.
 
 PROGRAM="bash"           : program to run/test if no option is specified
 PROMPT=">>               : prompt to honor if none is specified
-ECHOING="input"          : {input, both} for program input echoing style
+ECHOING="input"          : {input, both} for program input echoing style, 
+                           "input" means the program echoes only input provided by testy, testy will add back in prompts
+                           "both" echoes both prompt and input so testy won't add back anything
 PREFIX="test"            : prefix for output files
 RESULTDIR="test-results" : directory where the resutls will be written
 TIMEOUT="5s"             : maximum time for the test before it is failed due to timeout
@@ -286,6 +288,8 @@ function run_test_session(){
         fail_messages+=("FAILURE: Valgrind reports reachable memory, may need to add free() or fclose()")
     fi
 
+    cp ${fromprog_file} ~/fromprog.tmp
+
     # ADDING IN PROMPTS TO ECHOED INPUT
     # 
     # NOTE: The code below handles adding prompts to input lines that
@@ -302,7 +306,7 @@ function run_test_session(){
     if [[ "$ECHOING" = "input" ]]; then               # program may only echo input necessitating adding prompts to output
         idx=0                                         # index for input line
         exec {mod}>${fromprog_file}.mod
-        while read -r; do                             # read from output file into default REPLY var
+        while read -r || [ "$REPLY" != "" ]; do       # read from output file into default REPLY var, second condition catches last line which may not end with a newline char
             if (( idx < ${#all_input[@]} )) &&        # still in bounds for input lines
                [[ "${all_input[idx]}" = "$REPLY" ]];  # input line matches the program output
             then
