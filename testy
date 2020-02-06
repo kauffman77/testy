@@ -619,7 +619,7 @@ printf "============================================================\n"
 printf "RESULTS: $passcount / $testcount tests passed\n"
 
 debug "SHOW: $SHOW"
-if [[ "$SHOW" = "1" ]]; then                          # show failure results if requested
+if [[ "$SHOW" == "1" && "${#fail_files[@]}" > "0" ]]; then # show failure results if requested
     printf "\n\n"
     printf "FAILURE RESULTS\n"
     printf "%s\n" "----------------------------------------"
