@@ -10,6 +10,7 @@ usage:    testy <testfile.org> [test# test# ...]
 
 examples: testy test_prob1.org        # runs all tests in file
           testy test_prob1.org 3 5 7  # runs tests 3,5,7 in file
+          testy test_prob1.org 5      # runs only test 5 and shows failures to stdout
           SHOW=1 test_prob1.org       # runs tests and prints all failures to stdout
 
 Run tests for a shell program specified in an org-like file and report
@@ -306,7 +307,7 @@ function run_test_session(){
     if [[ "$ECHOING" = "input" ]]; then               # program may only echo input necessitating adding prompts to output
         idx=0                                         # index for input line
         exec {mod}>${fromprog_file}.mod
-        while read -r || [ "$REPLY" != "" ]; do       # read from output file into default REPLY var, second condition catches last line which may not end with a newline char
+        while read -r || [[ "$REPLY" != "" ]]; do     # read from output file into default REPLY var, second condition catches last line which may not end with a newline char
             if (( idx < ${#all_input[@]} )) &&        # still in bounds for input lines
                [[ "${all_input[idx]}" = "$REPLY" ]];  # input line matches the program output
             then
@@ -448,6 +449,8 @@ alltests="$@"                                         # remaining args are tests
 debug "Testing $specfile"
 debug "alltests='$alltests"                           
 
+
+
 if [[ "$specfile" = "--help" ]]; then                 # check for --help option
     printf "$usage\n"                                 # print usage and exit
     exit 0
@@ -538,6 +541,12 @@ if [[ -z "$alltests" ]]; then                         # no individual tests spec
     alltests=$(seq $totaltests)                       # so run all tests
 fi
 ntests=$(wc -w <<< "$alltests")                       # count how many tests will be run
+
+if [[ "$ntests" == "1" && "$SHOW" == "" ]]; then
+    debug "Running single test, setting SHOW=1 to display single test results"
+    SHOW=1
+fi
+
 testcount=0
 failcount=0
 
