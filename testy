@@ -2,7 +2,7 @@
 #
 # A script to automate testing programs on the command line.
 # author:  Chris Kauffman <kauffman@umn.edu>
-# release: Thu 06 Feb 2020 09:32:47 AM CST 
+# RELEASE: Thu 13 Feb 2020 05:16:50 PM CST 
 
 read -r -d '' usage <<EOF
 usage:    testy <testfile.org> [test# test# ...]
@@ -266,6 +266,9 @@ function run_test_session(){
     retcode="$?"                                      # capture return code from program run
     debug "wait returned: $retcode"                   
 
+    debug "removing to fifo"
+    rm ${toprog_fifo}                                 # ${toprog_fifo}
+
     case "$retcode" in                                # inspect return code for errors
         "$VALG_ERROR")
             status="FAIL"
@@ -321,7 +324,8 @@ function run_test_session(){
         mv ${fromprog_file}.mod ${fromprog_file}      # copy modified file back to original
     fi
 
-    if [[ ! -z "$post_filter" ]]; then                # use a filter to post-process the output
+    if [[ "$post_filter" != "" ]]; then               # use a filter to post-process the output
+        debug "running post filter '$post_filter'"
         cat ${fromprog_file} | ${post_filter} > ${fromprog_file}.tmp
         mv ${fromprog_file}.tmp ${fromprog_file}
     fi
@@ -330,7 +334,7 @@ function run_test_session(){
     # easier to interpret Segfault Message
     sed -i 's/timeout: the monitored command dumped core/Segmentation Fault/' ${fromprog_file}
 
-    cp ${fromprog_file} ${actual_file}                # copy temp file to final destination
+    mv ${fromprog_file} ${actual_file}                # copy temp file to final destination
 
     # extract expected output from test file, filter #+TESTY_ , store result in expect_file
     cat $specfile | \
