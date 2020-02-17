@@ -2,7 +2,7 @@
 #
 # A script to automate testing programs on the command line.
 # author:  Chris Kauffman <kauffman@umn.edu>
-# RELEASE: Thu 13 Feb 2020 05:16:50 PM CST 
+# RELEASE: Mon 17 Feb 2020 09:42:58 PM CST 
 
 read -r -d '' usage <<EOF
 usage:    testy <testfile.org> [test# test# ...]
@@ -133,6 +133,7 @@ PROMPT=${PROMPT:-">>"}                                # prompt to honor if none 
 ECHOING=${ECHOING:-"input"}                           # {input, both} for program input echoing style
 PREFIX=${PREFIX:-"test"}                              # prefix for the files that are produced by testy
 RESULTDIR=${RESULTDIR:-"test-results"}                # directory where the resutls will be written
+RESULTRAW=${RESULTRAW:-"$RESULTDIR/raw"}              # directory where actual / expect / valgrind results are stored
 TIMEOUT=${TIMEOUT:-"5s"}                              # time after which to kill a test, passed to 'timeout' command
 POST_FILTER=${POST_FILTER:-""}                        # run this progam on output to adjust it if needed
 USE_VALGRIND=${USE_VALGRIND:-"0"}                     # use valgrind while testing
@@ -147,6 +148,7 @@ function reset_options(){                             # reset options to default
     echoing=$ECHOING
     prefix=$PREFIX
     resultdir=$RESULTDIR
+    resultraw=$RESULTRAW
     timeout=$TIMEOUT
     post_filter=$POST_FILTER
     use_valgrind=$USE_VALGRIND
@@ -182,10 +184,11 @@ function updateline(){                                # processes $line to set s
 function run_test_session(){
 
     mkdir -p $resultdir                               # set up test results directory
-    actual_file=$(printf "%s/%s-%02d-actual.tmp" "$resultdir" "$prefix" "$testnum")
-    expect_file=$(printf "%s/%s-%02d-expect.tmp" "$resultdir" "$prefix" "$testnum")
+    mkdir -p $resultraw
     result_file=$(printf "%s/%s-%02d-result.tmp" "$resultdir" "$prefix" "$testnum")
-    valgrd_file=$(printf "%s/%s-%02d-valgrd.tmp" "$resultdir" "$prefix" "$testnum")
+    actual_file=$(printf "%s/%s-%02d-actual.tmp" "$resultraw" "$prefix" "$testnum")
+    expect_file=$(printf "%s/%s-%02d-expect.tmp" "$resultraw" "$prefix" "$testnum")
+    valgrd_file=$(printf "%s/%s-%02d-valgrd.tmp" "$resultraw" "$prefix" "$testnum")
     rm -f ${actual_file} ${expect_file} ${result_file} ${valgrd_file}
 
     if [[ "$use_valgrind" = 1 ]]; then
@@ -332,7 +335,7 @@ function run_test_session(){
 
     # To avoid confusion, replace message from timeout program with
     # easier to interpret Segfault Message
-    sed -i 's/timeout: the monitored command dumped core/Segmentation Fault/' ${fromprog_file}
+    sed -i'' 's/timeout: the monitored command dumped core/Segmentation Fault/' ${fromprog_file}
 
     mv ${fromprog_file} ${actual_file}                # copy temp file to final destination
 
