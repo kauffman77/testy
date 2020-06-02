@@ -128,7 +128,7 @@ VALG_ERROR="13"                                       # error code that valgrind
 
 VALGRIND_PROG="valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=13 --track-origins=yes"
 
-# Uses gsed if available for BSED-based operating systems and sed if otherwise
+# Uses gsed if available for BSD-based operating systems and sed if otherwise
 if command -v gsed >/dev/null 2>&1; then
     sedCmd=$(command -v gsed)
 else
