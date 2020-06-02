@@ -2,7 +2,7 @@
 #
 # A script to automate testing programs on the command line.
 # author:  Chris Kauffman <kauffman@umn.edu>
-# RELEASE: Mon 17 Feb 2020 09:42:58 PM CST 
+# RELEASE: Mon 17 Feb 2020 09:42:58 PM CST
 
 read -r -d '' usage <<EOF
 usage:    testy <testfile.org> [test# test# ...]
@@ -90,7 +90,7 @@ file before any other tests.
 
 PROGRAM="bash"           : program to run/test if no option is specified
 PROMPT=">>               : prompt to honor if none is specified
-ECHOING="input"          : {input, both} for program input echoing style, 
+ECHOING="input"          : {input, both} for program input echoing style,
                            "input" means the program echoes only input provided by testy, testy will add back in prompts
                            "both" echoes both prompt and input so testy won't add back anything
 PREFIX="test"            : prefix for output files
@@ -105,7 +105,7 @@ Each of the above Global variables can be set Locally during a single
 test by setting their lower-case version. For exaxmple:
 
   * Test 5: A test of bc
-  #+TESTY: program="bc -i" 
+  #+TESTY: program="bc -i"
 
 will send input to the program "bc -i" and check output rather than
 the default PROGRAM. The lower case options are reset during each test
@@ -123,10 +123,17 @@ DIFF="diff -bB \
            --unchanged-line-format='' \
            --old-line-format='EXPECT:%4dn) %L' \
            --new-line-format='ACTUAL:%4dn) %L'"       # diff which will show prepend EXPECT/ACTUAL to differing lines
-TIMEOUTCMD="timeout --signal KILL"                    # kills user programs after a certain duration  of 'timeout'  
+TIMEOUTCMD="timeout --signal KILL"                    # kills user programs after a certain duration  of 'timeout'
 VALG_ERROR="13"                                       # error code that valgrind should return on detecting errors
 
 VALGRIND_PROG="valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=13 --track-origins=yes"
+
+# Uses gsed if available for BSED-based operating systems and sed if otherwise
+if command -v gsed >/dev/null 2>&1; then
+    sedCmd=$(command -v gsed)
+else
+    sedCmd=$(command -v sed)
+fi
 
 # default values for the program to be tested
 PROGRAM=${PROGRAM:-"bash -v"}                         # program to run if no option is specified
@@ -144,7 +151,7 @@ SKIPDIFF=${SKIPDIFF:-"0"}                             # skip diffing results, us
 PASS_STATUS="ok"                                      # status message associated with passing
 TEST_TITLE_WIDTH=20                                   # initial width for test test_titles, set to widest during initial parsing
 
-function reset_options(){                             # reset options to defaults, run before each test session
+function reset_options() {                             # reset options to defaults, run before each test session
     program=$PROGRAM
     prompt=$PROMPT
     echoing=$ECHOING
@@ -156,20 +163,20 @@ function reset_options(){                             # reset options to default
     use_valgrind=$USE_VALGRIND
     valgrind_reachable=$VALGRIND_REACHABLE
     skipdiff=$SKIPDIFF
-}    
+}
 
-function debug(){                                     # print a debug message
-    if [[ ! -z "$DEBUG" ]]; then
+function debug() {                                     # print a debug message
+    if [[ -n "$DEBUG" ]]; then
         echo "==DBG== $1" > /dev/stderr
     fi
 }
 
 function updateline(){                                # processes $line to set some other global variables
     line="$REPLY"                                     # copy from REPLY to avoid losing whitespace
-    ((linenum++))                                     # update the current line number 
-    first="${line%% *}"                               # extracts the first word on the line 
+    ((linenum++))                                     # update the current line number
+    first="${line%% *}"                               # extracts the first word on the line
     rest="${line#* }"                                 # extracts remainder of line
-}    
+}
 
 ################################################################################
 # Run a Test Session
@@ -181,7 +188,7 @@ function updateline(){                                # processes $line to set s
 # - program
 # - tag
 # - prompt
-# 
+#
 # The function is run in a context where 'read' will extract lines
 # from the test session.
 function run_test_session(){
@@ -267,10 +274,10 @@ function run_test_session(){
     debug "closing to fifo fd ${to}"
     exec {to}>&-                                      # closes to fifo
 
-    debug "waiting on finished child"                 
+    debug "waiting on finished child"
     wait $pid &> /dev/null                            # wait on the child to finish
     retcode="$?"                                      # capture return code from program run
-    debug "wait returned: $retcode"                   
+    debug "wait returned: $retcode"
 
     debug "removing to fifo"
     rm ${toprog_fifo}                                 # ${toprog_fifo}
@@ -288,20 +295,20 @@ function run_test_session(){
             status="FAIL"
             fail_messages+=("FAILURE($retcode) due to Kill Signal from OS: likely a SEGFAULT occured")
             ;;
-    esac        
+    esac
 
     if [[ "$use_valgrind" = "1" ]] &&                 # if valgrind is on
        [[ "$valgrind_reachable" = "1" ]] &&           # and checking for reachable memory
        ! awk '/still reachable:/{if($4 != 0){exit 1;}}' ${valgrd_file};
     then                                              # valgrind log does not contain 'reachable: 0 bytes'
-        status="FAIL"                               
+        status="FAIL"
         fail_messages+=("FAILURE: Valgrind reports reachable memory, may need to add free() or fclose()")
     fi
 
     cp ${fromprog_file} ~/fromprog.tmp
 
     # ADDING IN PROMPTS TO ECHOED INPUT
-    # 
+    #
     # NOTE: The code below handles adding prompts to input lines that
     # are echoed without it.  Originally was trying to do this with
     # sed or awk but the quoting becomes a huge mess: any input lines
@@ -313,7 +320,7 @@ function run_test_session(){
     # do this with { } construct).  This approach can be fooled: if an
     # output line matches an input line, the prompt may be added at
     # the wrong spot.
-    if [[ "$ECHOING" = "input" ]]; then               # program may only echo input necessitating adding prompts to output
+    if [[ "$echoing" = "input" ]]; then               # program may only echo input necessitating adding prompts to output
         idx=0                                         # index for input line
         exec {mod}>${fromprog_file}.mod
         while read -r || [[ "$REPLY" != "" ]]; do     # read from output file into default REPLY var, second condition catches last line which may not end with a newline char
@@ -338,13 +345,13 @@ function run_test_session(){
 
     # To avoid confusion, replace message from timeout program with
     # easier to interpret Segfault Message
-    sed -i'' 's/timeout: the monitored command dumped core/Segmentation Fault/' ${fromprog_file}
+    $sedCmd -i'' 's/timeout: the monitored command dumped core/Segmentation Fault/' "${fromprog_file}"
 
     mv ${fromprog_file} ${actual_file}                # copy temp file to final destination
 
     # extract expected output from test file, filter #+TESTY_ , store result in expect_file
-    cat $specfile | \
-        sed -n "${session_beg_line},${session_end_line}p" | \
+    cat "$specfile" | \
+        $sedCmd -n "${session_beg_line},${session_end_line}p" | \
         grep -v '^#+TESTY_' \
         > ${expect_file}
 
@@ -367,7 +374,7 @@ function run_test_session(){
     debug "total_width $total_width"
     
     diffcmd="$DIFF ${expect_file} ${actual_file}"     # run standard diff to check for differences
-    diffresult=$(eval "$diffcmd")                     
+    diffresult=$(eval "$diffcmd")
     diffreturn="$?"                                   # capture return value for later tests
     debug "diffresult: $diffresult"
     debug "diffreturn: $diffreturn"
@@ -426,7 +433,7 @@ function run_test_session(){
             extra_space_width=$((actual_width-expect_width))
             extra_space_width=$((extra_space_width-5))
             debug "Eliminating $extra_space_width spaces from result file"
-            sed -i -E "s/(.{$expect_width})[ ]{$extra_space_width}/\1 /" $result_file
+            $sedCmd -i -E "s/(.{$expect_width})[ ]{$extra_space_width}/\1 /" "$result_file"
         fi
 
         fail_files+=("${result_file}")                # test failed, add to files to show later
@@ -449,7 +456,7 @@ for f in $funcs; do                                   # as these are output with
 done
 
 
-if [[ "$#" < 1 ]]; then                               # check for presence of at least 1 argument
+if [[ "$#" -lt 1 ]]; then                               # check for presence of at least 1 argument
     printf "usage: testy <testspec> [testnum]\n"
     printf "       testy --help\n"
     exit 1
@@ -458,9 +465,9 @@ fi
 # Command line argument processing
 specfile=$1                                           # gather test file
 shift                                                 # shift test file off the command line
-alltests="$@"                                         # remaining args are tests to run
+alltests="$*"                                         # remaining args are tests to run
 debug "Testing $specfile"
-debug "alltests='$alltests"                           
+debug "alltests='$alltests"
 
 
 
@@ -543,7 +550,7 @@ for i in $(seq $testnum); do
     debug "-----TEST $i: beg ${test_beg_line[i]} end: ${test_end_line[i]} -----"
     while read -r; do                                # iterate over all lines of test
         debug ":TEST $i: $REPLY"
-    done <<< "$(sed -n "${test_beg_line[i]},${test_end_line[i]}p" $specfile)"
+    done <<< "$($sedCmd -n "${test_beg_line[i]},${test_end_line[i]}p" "$specfile")"
 done
 
 ##################################################
@@ -563,7 +570,7 @@ fi
 testcount=0
 failcount=0
 
-# Print header info 
+# Print header info
 
 
 printf "============================================================\n"
@@ -571,7 +578,7 @@ if [[ "$global_title" = "" ]]; then
     printf "== testy $specfile\n"
 else
     printf "== $specfile : %s\n" "$global_title"
-fi    
+fi
 printf "== Running %d / %d tests\n" "$ntests" "$totaltests"
 
 for testnum in $alltests; do                          # Iterate over all tests to be run
@@ -608,7 +615,7 @@ for testnum in $alltests; do                          # Iterate over all tests t
                 end=$((session_end_line+1))           # #+END_SRC line
                 linenum=$((beg-1))
                 debug "^^ Re-running session on lines $beg to $end"
-                run_test_session <<< "$(sed -n "${beg},${end}p" $specfile)"
+                run_test_session <<< "$($sedCmd -n "${beg},${end}p" "$specfile")"
                 debug "Done re-running session on lines $beg to $end"
                 linenum=$old_linenum
                 ;;
@@ -619,11 +626,11 @@ for testnum in $alltests; do                          # Iterate over all tests t
                 fi
                 ;;
         esac
-    done <<< "$(sed -n "${test_beg_line[testnum]},${test_end_line[testnum]}p" $specfile)"
+    done <<< "$($sedCmd -n "${test_beg_line[testnum]},${test_end_line[testnum]}p" "$specfile")"
 
     # report the final status of this test
     printf "%-3s %-${TEST_TITLE_WIDTH}s : %s\n" "${testnum})" "$test_title" "$status"
-done    
+done
 
 ########################################
 # Final Output
@@ -632,7 +639,7 @@ printf "============================================================\n"
 printf "RESULTS: $passcount / $testcount tests passed\n"
 
 debug "SHOW: $SHOW"
-if [[ "$SHOW" == "1" && "${#fail_files[@]}" > "0" ]]; then # show failure results if requested
+if [[ "$SHOW" -eq 1 && "${#fail_files[@]}" -gt 0 ]]; then # show failure results if requested
     printf "\n\n"
     printf "FAILURE RESULTS\n"
     printf "%s\n" "----------------------------------------"
