@@ -203,12 +203,14 @@ function run_test_session(){
 
     if [[ "$use_valgrind" == 1 ]]; then
         VALGRIND="${VALGRIND_PROG} --log-file=${valgrd_file}"
+        valgrind_dep="valgrind "
     else
         VALGRIND=""
+        valgrind_dep=""
     fi
 
-    toprog_fifo=$(mktemp --tmpdir testy_to.XXXXXX)    # set up communication with the program being tested
-    fromprog_file=$(mktemp --tmpdir testy_from.XXXXXX)
+    toprog_fifo=$(mktemp -d "${TMPDIR:-/tmp}/testy_to.XXXXXXXXX") # set up communication with the program being tested
+    fromprog_file=$(mktemp -d "${TMPDIR:-/tmp}/testy_from.XXXXXXXXX")
     debug "toprog_fifo: $toprog_fifo"
     debug "fromprog_file: $fromprog_file"
     rm -Rf "${toprog_fifo}" "${fromprog_file}"             # remove just in case
@@ -477,13 +479,13 @@ if [[ "$specfile" = "--help" ]]; then                 # check for --help option
 fi
 
 # check for necessary tools
-deps="valgrind timeout stdbuf awk sed grep diff"
+deps="${valgrind_dep}timeout stdbuf awk sed grep diff"
 for dep in $deps; do
-    if ! which $dep >& /dev/null ; then
-        echo "ERROR: testy requires the program '$dep' which does not appear to be installed"
+    if ! command -v "$dep" >& /dev/null ; then
+        echo "ERROR: testy requires the program '$dep', which does not appear to be installed"
         echo "Consult your OS docs and install '$dep' before proceeding"
-        echo "If '$dep' is installed, adjust your PATH variable so '$dep' can be found using 'which $dep'"
-        which $dep
+        echo "If '$dep' is installed, adjust your PATH variable so '$dep' can be found using 'command -v $dep'"
+        command -v "$dep"
         exit 1
     fi
 done
