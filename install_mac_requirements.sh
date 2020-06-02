@@ -11,9 +11,9 @@ fi
 if [ "$#" -gt 1 ]; then
     printf "This script only supports up to one command-line arguments.\n\n";
     exit 1; # Exiting with with a non-zero status to indicate an error
-# Otherwise, if one command-line argument was entered, throw an error if it is not "-echo" and enable echoing otherwise
+# Otherwise, if one command-line argument was entered, throw an error if it is not "-v" and enable echoing/verbose mode otherwise
 elif [ "$#" -eq 1 ]; then
-    if [ "$1" != "-echo" ]; then
+    if [ "$1" != "-v" ]; then
         printf "The only command line argument accepted is the '-echo' flag.\n\n";
         exit 1; # Exiting with with a non-zero status to indicate an error
     fi
@@ -71,11 +71,11 @@ else
     printf "Installing homebrew... (Please be patient. This may take some time.) 🍺\n\n";
     
     if $echoOn; then
-        printf "> /usr/bin/ruby -e \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"\n\n";
+        printf "> /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)\"\n\n";
     fi
     
     # Install homebrew if it does not exist and exits the script if an error occurs in the installation
-    if ! /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)" </dev/null >&3 2>&4; then
+    if ! /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" </dev/null >&3 2>&4; then
         printf "\nAn error occurred in the installation of homebrew.\n";
         printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n";
         exit 1; # Exit if homebrew does not install succesfully
@@ -171,7 +171,7 @@ else
     exit 1; # Exiting with a non-zero status to indicate that the script did not fully run
 fi
 
-# Checks to see if /usr/local/bin/gcc is in your path (or at least has a higher presence than /usr/bin) and puts it in your path if not
+# Checks to see if /usr/local/bin/ is in your path (or at least has a higher presence than /usr/bin) and puts it in your path if not
 if [[ "$(command -v bash)" != "/usr/local/bin/bash" ]]; then
     printf "/usr/local/bin/ is not in your \$PATH. ❌\n\n";
     printf "Adding /usr/local/bin/ to your \$Path... 📝\n\n";
