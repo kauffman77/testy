@@ -99,6 +99,7 @@ TIMEOUT="5s"             : maximum time for the test before it is failed due to 
 POST_FILTER=""           : program to adjust output from test before evaluating, run as 'cat output | post_filter > actual.tmp'
 USE_VALGRIND="0"         : set to 1 to run programs under Valgrind which checks for memory errors
 VALGRIND_REACHABLE="1"   : under valgrind, report errors if memory is still reachable at the end of the program
+SKIPDIFF="0"             : skip diffing results, useful if checking valgrind but actual output can vary
 
 Each of the above Global variables can be set Locally during a single
 test by setting their lower-case version. For exaxmple:
@@ -138,6 +139,7 @@ TIMEOUT=${TIMEOUT:-"5s"}                              # time after which to kill
 POST_FILTER=${POST_FILTER:-""}                        # run this progam on output to adjust it if needed
 USE_VALGRIND=${USE_VALGRIND:-"0"}                     # use valgrind while testing
 VALGRIND_REACHABLE=${VALGRIND_REACHABLE:-"1"}         # report valgrind errors if memory is still reachable
+SKIPDIFF=${SKIPDIFF:-"0"}                             # skip diffing results, useful if checking valgrind but actual output can vary
 
 PASS_STATUS="ok"                                      # status message associated with passing
 TEST_TITLE_WIDTH=20                                   # initial width for test test_titles, set to widest during initial parsing
@@ -153,6 +155,7 @@ function reset_options(){                             # reset options to default
     post_filter=$POST_FILTER
     use_valgrind=$USE_VALGRIND
     valgrind_reachable=$VALGRIND_REACHABLE
+    skipdiff=$SKIPDIFF
 }    
 
 function debug(){                                     # print a debug message
@@ -368,7 +371,10 @@ function run_test_session(){
     diffreturn="$?"                                   # capture return value for later tests
     debug "diffresult: $diffresult"
     debug "diffreturn: $diffreturn"
-    if [[ "$diffreturn" != "0" ]]; then
+    if [[ "$skipdiff" == "1" ]]; then # skipping diff
+        debug "Skipping diff (skipdiff=$skipdiff)"
+        diffreturn=0
+    elif [[ "$diffreturn" != "0" ]]; then
         status="FAIL"
         fail_messages+=("FAILURE: Output Mismatch at lines marked")
     fi
