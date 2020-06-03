@@ -14,7 +14,7 @@ if [ "$#" -gt 1 ]; then
 # Otherwise, if one command-line argument was entered, throw an error if it is not "-v" and enable echoing/verbose mode otherwise
 elif [ "$#" -eq 1 ]; then
     if [ "$1" != "-v" ]; then
-        printf "The only command line argument accepted is the '-echo' flag.\n\n";
+        printf "The only command line argument accepted is the '-v' flag.\n\n";
         exit 1; # Exiting with with a non-zero status to indicate an error
     fi
     
