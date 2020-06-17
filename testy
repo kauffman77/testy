@@ -89,7 +89,7 @@ Global variables that are usually specified at the beginning of a test
 file before any other tests.
 
 PROGRAM="bash"           : program to run/test if no option is specified
-PROMPT=">>               : prompt to honor if none is specified
+PROMPT=">>"              : prompt to honor if none is specified
 ECHOING="input"          : {input, both} for program input echoing style, 
                            "input" means the program echoes only input provided by testy, testy will add back in prompts
                            "both" echoes both prompt and input so testy won't add back anything
@@ -140,6 +140,7 @@ POST_FILTER=${POST_FILTER:-""}                        # run this progam on outpu
 USE_VALGRIND=${USE_VALGRIND:-"0"}                     # use valgrind while testing
 VALGRIND_REACHABLE=${VALGRIND_REACHABLE:-"1"}         # report valgrind errors if memory is still reachable
 SKIPDIFF=${SKIPDIFF:-"0"}                             # skip diffing results, useful if checking valgrind but actual output can vary
+INPUT_STYLE="normal"
 
 PASS_STATUS="ok"                                      # status message associated with passing
 TEST_TITLE_WIDTH=20                                   # initial width for test test_titles, set to widest during initial parsing
@@ -156,6 +157,7 @@ function reset_options(){                             # reset options to default
     use_valgrind=$USE_VALGRIND
     valgrind_reachable=$VALGRIND_REACHABLE
     skipdiff=$SKIPDIFF
+    input_style=$NORMAL
 }    
 
 function debug(){                                     # print a debug message
@@ -216,8 +218,10 @@ function run_test_session(){
     # - valgrind may be turned on to check for memory errors
     # - input is read from a fifo from the specfile
     # - output is directed to a file
-    debug "running: '$TIMEOUTCMD $timeout $STDBUF $VALGRIND $program <${toprog_fifo} &> ${fromprog_file} &'"
-    $TIMEOUTCMD $timeout $STDBUF $VALGRIND $program <${toprog_fifo} &> ${fromprog_file} &
+
+    cmd="$TIMEOUTCMD $timeout $STDBUF $VALGRIND $program <${toprog_fifo} &> ${fromprog_file} &"
+    debug "running: '$cmd'"
+    eval $cmd                                         # eval is required due to the complex redirections with < and >
     pid=$!
     debug "child pid: $pid"
 
@@ -313,7 +317,7 @@ function run_test_session(){
     # do this with { } construct).  This approach can be fooled: if an
     # output line matches an input line, the prompt may be added at
     # the wrong spot.
-    if [[ "$ECHOING" = "input" ]]; then               # program may only echo input necessitating adding prompts to output
+    if [[ "$echoing" = "input" ]]; then               # program may only echo input necessitating adding prompts to output
         idx=0                                         # index for input line
         exec {mod}>${fromprog_file}.mod
         while read -r || [[ "$REPLY" != "" ]]; do     # read from output file into default REPLY var, second condition catches last line which may not end with a newline char

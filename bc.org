@@ -2,6 +2,7 @@
 #+TESTY: TAG="bc" 
 #+TESTY: PROGRAM="bc -iq" 
 #+TESTY: ECHOING="input"
+
 * Addition and Multiplication
 Some add/multiply tests
 #+BEGIN_SRC text
@@ -67,4 +68,26 @@ Then add multiply
 7
 >> 9*2+3
 21
+#+END_SRC
+
+* bash tests for bc
+#+TESTY: program="bash -v" 
+#+TESTY: prompt="bash>" 
+#+TESTY: echoing="input"
+#+TESTY: post_filter=""
+#+TESTY: use_valgrind='0'
+
+#+BEGIN_SRC sh
+bash> echo hello
+hello
+bash> echo '1+1' | bc -q
+2
+bash> echo '1+1' | bc -q > xxx
+bash> cat xxx
+2
+bash> printf "1+1\nquit\n" > test-results/input.tmp
+bash> bc -iq < test-results/input.tmp
+1+1
+2
+quit
 #+END_SRC
