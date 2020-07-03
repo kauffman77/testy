@@ -448,13 +448,6 @@ if $echoOn; then
     printf "> mapfile -t osVersionNumbers < <( tr . '\\\n' <<< \"\$macOsVersion\")\n\n";
 fi
 
-# Creates an array called osVersionNumbers and stores each of the version numbers into an array (e.g. 10.14.6 to 10, 14, and 6) (Credits to tinyurl.com/ql7xf8y)
-if ! mapfile -t osVersionNumbers < <( tr . '\n' <<< "$macOsVersion"); then
-    printf "An error occurred when trying to split up the macOS version.\n";
-    printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n";
-    exit 1; # Exiting with with a non-zero status to indicate an error
-fi
-
 # Edit: Previously, I had an experimental version of valgrind installed on macOS here. However, it had too many issues for me to consider worth it. Use valgrind on a CSE labs machine or Ubuntu machine/VM
 
 printf "Congratulations! Your computer should be completely set up! 💻\n\n";
