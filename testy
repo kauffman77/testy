@@ -167,7 +167,7 @@ function debug(){                                     # print a debug message
 }
 
 function updateline(){                                # processes $line to set some other global variables
-    line="$REPLY"                                     # copy from REPLY to avoid losing whitespace
+    line="$REPLY"                                     # copy from REPLY built-in variable to avoid losing whitespace
     ((linenum++))                                     # update the current line number 
     first="${line%% *}"                               # extracts the first word on the line 
     rest="${line#* }"                                 # extracts remainder of line
