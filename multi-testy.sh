@@ -15,11 +15,9 @@ ticktime=0.1
 longticks=8
 
 STDBUF="stdbuf -i 0 -o 0 -e 0"          # disables standard IO buffering for a program
-# STDBUF=""          # disables standard IO buffering for a program
-TIMEOUT=${TIMEOUT:-"5s"}                # time after which to kill a test, passed to 'timeout' command
-TIMEOUTCMD=""                           # kills user programs after a certain duration  of 'timeout'  
-# TIMEOUTCMD="timeout --signal KILL"                    # kills user programs after a certain duration  of 'timeout'  
-# VALGRIND_PROG=""
+TIMEOUT=${TIMEOUT:-"5"}                 # time after which to kill a test, passed to 'timeout' command and program_wait();
+                                        # ^^ Don't use '5s' as the letters mess up program_wait
+TIMEOUTCMD="timeout --signal KILL"      # kills user programs after a certain duration  of 'timeout'  
 VALG_ERROR="13"                         # error code that valgrind should return on detecting errors
 VALGRIND_PROG="valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=$VALG_ERROR --track-origins=yes"
 VALGRIND_OPTS="--suppressions=test_valg_suppress_leak.conf"
@@ -29,7 +27,7 @@ valgrind_reachable=1
 use_valgrind=1
 
 function updateline(){                                # processes $line to set some other global variables
-    debug "updateline: '$REPLY'"
+    # debug "updateline: '$REPLY'"
     line="$REPLY"                                     # copy from REPLY built-in variable to avoid losing whitespace
     ((linenum++))                                     # update the current line number 
     first="${line%% *}"                               # extracts the first word on the line 
@@ -48,26 +46,57 @@ function debug(){                       # print a debug message
 }
 
 
-# Calls wait on program, captures its return value, marks it as no
-# longer running. May cause test to block.
+# Calls wait on program with given key, captures return value of
+# program from wait, marks it as no longer running. If program is
+# unresponsive for TIMEOUT seconds, kills it and marks it as timed
+# out.
 function program_wait () {
     debug "program_wait '$1'"
     key="$1"
-    debug "with state ${program_state[$key]}"
+    pid=${program_pid[$key]}
+    curtime=0.0
+    step=0.1                                          # amount of time to wait in between checks on program
+    while kill -0 $pid &> /dev/null &&            # loop examining if program is complete
+          [[ $(bc <<< "$curtime < $TIMEOUT") == "1" ]];
+    do
+        sleep $step                                   # sleep a short time and then 
+        curtime=$(bc <<< "$curtime + $step")
+    done
 
-    if [[ "${program_state[$key]}" == "Running" ]]; then
-        debug "Waiting on ${program_pid[$key]} (${program_command[$key]})"
-        wait "${program_pid[$key]}" &> /dev/null            # wait on the child to finish
-        ret=$?
+    if kill -0 $pid &> /dev/null; then            # program still alive after timeout
+        printf "Killing unresponsive program '%s' (%s)\n" "$key" "${program_command[$key]}"
+        kill -9 $pid &> /dev/null                 # kill it
+        wait "${program_pid[$key]}" &> /dev/null      # wait on the child to finish, safe as its killed
+        program_state[$key]="TimedOut"
+        program_retcode[$key]=$TIMEOUT_RETCODE
+    else
+        wait "${program_pid[$key]}" &> /dev/null      # wait on the child to finish, safe as its done
         program_retcode[$key]=$ret
         program_state[$key]="Done"
-        debug "wait completed with return code $ret"
-
-        return 0
-    else
-        return 1
     fi
+    return 0
 }
+
+
+# function program_wait () {
+#     debug "program_wait '$1'"
+#     key="$1"
+#     debug "with state ${program_state[$key]}"
+
+#     if [[ "${program_state[$key]}" == "Running" ]]; then
+#         debug "Waiting on ${program_pid[$key]} (${program_command[$key]})"
+#         curtime=0
+#         wait "${program_pid[$key]}" &> /dev/null            # wait on the child to finish
+#         ret=$?
+#         program_retcode[$key]=$ret
+#         program_state[$key]="Done"
+#         debug "wait completed with return code $ret"
+
+#         return 0
+#     else
+#         return 1
+#     fi
+# }
 
 # Check if the program is running or dead. Update the program_state[]
 # array for the given key setting the entry to 0 if the program is no
