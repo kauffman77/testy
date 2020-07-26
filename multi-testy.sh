@@ -26,13 +26,14 @@ valgrind_reachable=1
 
 use_valgrind=1
 
-function updateline(){                                # processes $line to set some other global variables
+function updateline(){                          # processes $line to set some other global variables
     # debug "updateline: '$REPLY'"
-    line="$REPLY"                                     # copy from REPLY built-in variable to avoid losing whitespace
-    ((linenum++))                                     # update the current line number 
-    first="${line%% *}"                               # extracts the first word on the line 
-    rest="${line#* }"                                 # extracts remainder of line
+    line="$REPLY"                               # copy from REPLY built-in variable to avoid losing whitespace
+    ((linenum++))                               # update the current line number 
+    first="${line%% *}"                         # extracts the first word on the line 
+    rest="${line#* }"                           # extracts remainder of line
 }    
+
 
 function tick() {                       # command to pause input
     sleep $ticktime
@@ -77,27 +78,6 @@ function program_wait () {
     return 0
 }
 
-
-# function program_wait () {
-#     debug "program_wait '$1'"
-#     key="$1"
-#     debug "with state ${program_state[$key]}"
-
-#     if [[ "${program_state[$key]}" == "Running" ]]; then
-#         debug "Waiting on ${program_pid[$key]} (${program_command[$key]})"
-#         curtime=0
-#         wait "${program_pid[$key]}" &> /dev/null            # wait on the child to finish
-#         ret=$?
-#         program_retcode[$key]=$ret
-#         program_state[$key]="Done"
-#         debug "wait completed with return code $ret"
-
-#         return 0
-#     else
-#         return 1
-#     fi
-# }
-
 # Check if the program is running or dead. Update the program_state[]
 # array for the given key setting the entry to 0 if the program is no
 # longer alive.  Uses the 'kill -0 pid' trick which doesn't actually
@@ -125,6 +105,8 @@ function program_alive () {
     return $ret
 }
 
+# Start a program and populate various arrays with the programs
+# information such as PID, output / input sources.
 function program_start () {                           # create a new program, populate data structures with its info
     debug "program_start '$1' '$2'"
     key="$1"
@@ -174,9 +156,11 @@ function program_start () {                           # create a new program, po
 }
 
 
-# sends text to a program on standard input using the pre-established
-# FIFO for that program.  The special message '%EOF' will close the
-# FIFO used for input which should give the program end of input.
+# Sends an input line to a program on standard input using the
+# pre-established FIFO for that program.  The special message '%EOF'
+# will close the FIFO used for input which should give the program end
+# of input. Checks that the program is alive before sending and if not
+# prints and error message.
 function program_send_input () {
     key="$1"
     msg="$2"
@@ -210,8 +194,8 @@ function program_get_output () {
 }
 
 
-# Check the valgrind output for the program for erros and print it if
-# any errors appear. 
+# Check the valgrind output for the program for errors. Print any that
+# appear.
 function program_valgrind_check () {
     debug "program_valgrind_check '$1' '$2'"
     if [[ "$use_valgrind" == "0" ]]; then
@@ -261,6 +245,7 @@ function program_valgrind_check () {
     return 0
 }
 
+# Send a program a signal
 function program_signal() {
     debug "program_signal '$1' '$2'"
     key="$1"
@@ -277,7 +262,7 @@ function program_signal() {
 
 
 
-# handles a TESTY_MULTI command; run in a context where
+# Handles a TESTY_MULTI command; run in a context where
 # printing/echoing will not go to the screen but is instead redirected
 # into a file which will the "actual" results for the test session to
 # be compared to the "expected" results from the session
@@ -336,29 +321,54 @@ prompt=">>"
 # time. The function is run in a context where 'read' will extract
 # lines from the test session.
 function run_testy_multi_session(){
-    unset program_keys                 # INDEXED: each program has a unique key
-    unset program_pid                  # ASSOCIATIVE: pid of the multiple programs used during the test
-    unset program_state                # ASSOCIATIVE: 1 for program still running, 0 for program complete/killed
-    unset program_name                 # ASSOCIATIVE: name of programs, 1st word in command, useful for pkill
-    unset program_command              # ASSOCIATIVE: full command for each program
-    unset program_tofifo               # ASSOCIATIVE: file names for fifos for writing to the program
-    unset program_tofifo_fd            # ASSOCIATIVE: fds for the fifos for writing to the clients
-    unset program_fromfile             # ASSOCIATIVE: names of files for data coming from the files
-    unset program_retcode
-    unset program_valgfile
+    # unset program_keys                 # INDEXED: each program has a unique key
+    # unset program_pid                  # ASSOCIATIVE: pid of the multiple programs used during the test
+    # unset program_state                # ASSOCIATIVE: 1 for program still running, 0 for program complete/killed
+    # unset program_name                 # ASSOCIATIVE: name of programs, 1st word in command, useful for pkill
+    # unset program_command              # ASSOCIATIVE: full command for each program
+    # unset program_tofifo               # ASSOCIATIVE: file names for fifos for writing to the program
+    # unset program_tofifo_fd            # ASSOCIATIVE: fds for the fifos for writing to the clients
+    # unset program_fromfile             # ASSOCIATIVE: names of files for data coming from the files
+    # unset program_retcode
+    # unset program_valgfile
     
-    # -g for global, -a for indexed array, -A for associative array (hash)
-    declare -g -a program_keys                 # INDEXED: each program has a unique key
-    declare -g -A program_pid                  # ASSOCIATIVE: pid of the multiple programs used during the test
-    declare -g -A program_state                # ASSOCIATIVE: "Running" or "Done"
-    declare -g -A program_name                 # ASSOCIATIVE: name of programs, 1st word in command, useful for pkill
-    declare -g -A program_command              # ASSOCIATIVE: full command for each program
-    declare -g -A program_tofifo               # ASSOCIATIVE: file names for fifos for writing to the program
-    declare -g -A program_tofifo_fd            # ASSOCIATIVE: fds for the fifos for writing to the clients
-    declare -g -A program_fromfile             # ASSOCIATIVE: names of files for data coming from the files
-    declare -g -A program_retcode              # ASSOCIATIVE: return code for program or "?" if still running
-    declare -g -A program_valgfile             # ASSOCIATIVE: name of valgrind file when using valgrind or "NONE"
+    # # -g for global, -a for indexed array, -A for associative array (hash)
+    # declare -g -a program_keys                 # INDEXED: each program has a unique key
+    # declare -g -A program_pid                  # ASSOCIATIVE: pid of the multiple programs used during the test
+    # declare -g -A program_state                # ASSOCIATIVE: "Running" or "Done"
+    # declare -g -A program_name                 # ASSOCIATIVE: name of programs, 1st word in command, useful for pkill
+    # declare -g -A program_command              # ASSOCIATIVE: full command for each program
+    # declare -g -A program_tofifo               # ASSOCIATIVE: file names for fifos for writing to the program
+    # declare -g -A program_tofifo_fd            # ASSOCIATIVE: fds for the fifos for writing to the clients
+    # declare -g -A program_fromfile             # ASSOCIATIVE: names of files for data coming from the files
+    # declare -g -A program_retcode              # ASSOCIATIVE: return code for program or "?" if still running
+    # declare -g -A program_valgfile             # ASSOCIATIVE: name of valgrind file when using valgrind or "NONE"
     
+    indexed_arrays=(
+        program_keys               # INDEXED: each program has a unique key
+    )
+
+    assoc_arrays=(
+        program_pid                  # pid of the multiple programs used during the test
+        program_state                # 1 for program still running, 0 for program complete/killed
+        program_name                 # name of programs, 1st word in command, useful for pkill
+        program_command              # full command for each program
+        program_tofifo               # file names for fifos for writing to the program
+        program_tofifo_fd            # fds for the fifos for writing to the clients
+        program_fromfile             # names of files for data coming from the files
+        program_retcode              # return codes for programs
+        program_valgfile             # valgrind output files for programs
+    )
+
+    for a in ${indexed_arrays[@]}; do
+        unset "$a"                                    # remove any existing binding
+        declare -g -a "$a"                            # declare as -g global, -a indexed array
+    done
+    for a in ${assoc_arrays[@]}; do
+        unset "$a"                                    # remove any existing binding
+        declare -g -A "$a"                            # declare as -g global, -A Associative array
+    done
+
     mkdir -p $resultdir                               # set up test results directory
     mkdir -p $resultraw
     result_file=$(printf "%s/%s-%02d-result.tmp" "$resultdir" "$prefix" "$testnum")
@@ -419,7 +429,7 @@ specfile=$1
 
 while read -r; do
     updateline
-    printf "LINE: '%s'\n" "$line"
+    # printf "LINE: '%s'\n" "$line"
     case "$first" in
         "#+BEGIN_SRC")                            # test session starting
             printf "Begin testing session\n"
@@ -428,7 +438,7 @@ while read -r; do
             ;;
 
         *)
-            printf "^^ Ignoring\n"
+            # printf "^^ Ignoring\n"
             ;;
     esac
 done < $specfile
