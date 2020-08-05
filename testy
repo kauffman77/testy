@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # A script to automate testing programs on the command line.
 # author:  Chris Kauffman <kauffman@umn.edu>
@@ -128,6 +128,13 @@ VALG_ERROR="13"                                       # error code that valgrind
 
 VALGRIND_PROG="valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=13 --track-origins=yes"
 
+# Uses gsed if available for BSD-based operating systems and sed if otherwise
+if command -v gsed >/dev/null 2>&1; then
+    sedCmd=$(command -v gsed)
+else
+    sedCmd=$(command -v sed)
+fi
+
 # default values for the program to be tested
 PROGRAM=${PROGRAM:-"bash -v"}                         # program to run if no option is specified
 PROMPT=${PROMPT:-">>"}                                # prompt to honor if none is specified
@@ -161,7 +168,7 @@ function reset_options(){                             # reset options to default
 }    
 
 function debug(){                                     # print a debug message
-    if [[ ! -z "$DEBUG" ]]; then
+    if [[ -n "$DEBUG" ]]; then
         echo "==DBG== $1" > /dev/stderr
     fi
 }
@@ -188,27 +195,29 @@ function updateline(){                                # processes $line to set s
 # from the test session.
 function run_test_session(){
 
-    mkdir -p $resultdir                               # set up test results directory
-    mkdir -p $resultraw
+    mkdir -p "$resultdir"                               # set up test results directory
+    mkdir -p "$resultraw"
     result_file=$(printf "%s/%s-%02d-result.tmp" "$resultdir" "$prefix" "$testnum")
     actual_file=$(printf "%s/%s-%02d-actual.tmp" "$resultraw" "$prefix" "$testnum")
     expect_file=$(printf "%s/%s-%02d-expect.tmp" "$resultraw" "$prefix" "$testnum")
     valgrd_file=$(printf "%s/%s-%02d-valgrd.tmp" "$resultraw" "$prefix" "$testnum")
     rm -f ${actual_file} ${expect_file} ${result_file} ${valgrd_file}
 
-    if [[ "$use_valgrind" = 1 ]]; then
+    if [[ "$use_valgrind" == 1 ]]; then
         VALGRIND="${VALGRIND_PROG} --log-file=${valgrd_file}"
+        valgrind_dep="valgrind"
     else
         VALGRIND=""
+        valgrind_dep=""
     fi
 
-    toprog_fifo=$(mktemp --tmpdir testy_to.XXXXXX)    # set up communication with the program being tested
-    fromprog_file=$(mktemp --tmpdir testy_from.XXXXXX)
+    toprog_fifo=$(mktemp -d "${TMPDIR:-/tmp}/testy_to.XXXXXXXXX") # set up communication with the program being tested
+    fromprog_file=$(mktemp -d "${TMPDIR:-/tmp}/testy_from.XXXXXXXXX")
     debug "toprog_fifo: $toprog_fifo"
-    debug "fromprog_fifo: $fromprog_fifo"
-    rm -f ${toprog_fifo} ${fromprog_file}             # remove just in case
+    debug "fromprog_file: $fromprog_file"
+    rm -f "${toprog_fifo}" "${fromprog_file}"             # remove just in case
 
-    mkfifo $toprog_fifo                               # create the fifos
+    mkfifo "$toprog_fifo"                               # create the fifos
     # mkfifo $fromprog_fifo
 
     # RUN THE PROGRAM
@@ -226,7 +235,7 @@ function run_test_session(){
     debug "child pid: $pid"
 
     # open to after running the program or testy will stall 
-    exec {to}>${toprog_fifo}                          # open connection to fifo for writing
+    exec {to}>"${toprog_fifo}"                          # open connection to fifo for writing CHECK
     debug "to fd: $to"
 
     status="$PASS_STATUS"                             # initial status, change to 'FAIL' if things go wrong
@@ -277,7 +286,7 @@ function run_test_session(){
     debug "wait returned: $retcode"                   
 
     debug "removing to fifo"
-    rm ${toprog_fifo}                                 # ${toprog_fifo}
+    rm -f "${toprog_fifo}"                                 # ${toprog_fifo}
 
     case "$retcode" in                                # inspect return code for errors
         "$VALG_ERROR")
@@ -296,13 +305,13 @@ function run_test_session(){
 
     if [[ "$use_valgrind" = "1" ]] &&                 # if valgrind is on
        [[ "$valgrind_reachable" = "1" ]] &&           # and checking for reachable memory
-       ! awk '/still reachable:/{if($4 != 0){exit 1;}}' ${valgrd_file};
+       ! awk '/still reachable:/{if($4 != 0){exit 1;}}' "${valgrd_file}";
     then                                              # valgrind log does not contain 'reachable: 0 bytes'
         status="FAIL"                               
         fail_messages+=("FAILURE: Valgrind reports reachable memory, may need to add free() or fclose()")
     fi
 
-    cp ${fromprog_file} ~/fromprog.tmp
+    cp "${fromprog_file}" ~/fromprog.tmp
 
     # ADDING IN PROMPTS TO ECHOED INPUT
     # 
@@ -319,7 +328,7 @@ function run_test_session(){
     # the wrong spot.
     if [[ "$echoing" = "input" ]]; then               # program may only echo input necessitating adding prompts to output
         idx=0                                         # index for input line
-        exec {mod}>${fromprog_file}.mod
+        exec {mod}>"${fromprog_file}.mod"
         while read -r || [[ "$REPLY" != "" ]]; do     # read from output file into default REPLY var, second condition catches last line which may not end with a newline char
             if (( idx < ${#all_input[@]} )) &&        # still in bounds for input lines
                [[ "${all_input[idx]}" = "$REPLY" ]];  # input line matches the program output
@@ -329,28 +338,28 @@ function run_test_session(){
                 debug "added prompt to input $idx: $REPLY"
             fi;
             printf '%s\n' "$REPLY" >&$mod             # output the (un)modified line into the modified file
-        done < ${fromprog_file}                       # reading from the original output file
+        done < "${fromprog_file}"                       # reading from the original output file
         exec {mod}>&-                                 # close the modified file
-        mv ${fromprog_file}.mod ${fromprog_file}      # copy modified file back to original
+        mv "${fromprog_file}.mod" "${fromprog_file}"      # copy modified file back to original
     fi
 
     if [[ "$post_filter" != "" ]]; then               # use a filter to post-process the output
         debug "running post filter '$post_filter'"
-        cat ${fromprog_file} | ${post_filter} > ${fromprog_file}.tmp
-        mv ${fromprog_file}.tmp ${fromprog_file}
+        cat "${fromprog_file}" | ${post_filter} > "${fromprog_file}.tmp"
+        mv "${fromprog_file}.tmp" "${fromprog_file}"
     fi
 
     # To avoid confusion, replace message from timeout program with
     # easier to interpret Segfault Message
-    sed -i'' 's/timeout: the monitored command dumped core/Segmentation Fault/' ${fromprog_file}
+    $sedCmd -i'' 's/timeout: the monitored command dumped core/Segmentation Fault/' "${fromprog_file}"
 
-    mv ${fromprog_file} ${actual_file}                # copy temp file to final destination
+    mv "${fromprog_file}" "${actual_file}"                # copy temp file to final destination
 
     # extract expected output from test file, filter #+TESTY_ , store result in expect_file
-    cat $specfile | \
-        sed -n "${session_beg_line},${session_end_line}p" | \
+    cat "$specfile" | \
+        $sedCmd -n "${session_beg_line},${session_end_line}p" | \
         grep -v '^#+TESTY_' \
-        > ${expect_file}
+        > "${expect_file}"
 
     # Try to compute the width of expected/actual outputs to make the
     # side-by-side diff as narrow as possible. 'diff -y -W' is a bit
@@ -361,8 +370,8 @@ function run_test_session(){
     # the left EXPECT column is narrow while the right ACTUAL column
     # wide. Later code filters to remove extraneous whitespace from
     # the left column.
-    actual_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' $actual_file)
-    expect_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' $expect_file)
+    actual_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$actual_file")
+    expect_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$expect_file")
     col_width=$((actual_width > expect_width ? actual_width : expect_width))
     total_width=$((col_width*2 + 3))                  # width to pass to diff as -W
     debug "actual_width $actual_width"
@@ -404,10 +413,10 @@ function run_test_session(){
            if [[ "$diffreturn" != "0" ]]; then        # show differences between expect and actual
                printf "%s\n" "--- Side by Side Differences ---"
                printf "%s\n" "- Expect output in: $expect_file" 
-               printf "%s\n" "- Acutal output in: $actual_file" 
+               printf "%s\n" "- Actual output in: $actual_file"
                printf "%s\n" "- Differing lines have a character like '|' in the middle\n"
                printf "%-${col_width}s   %-${col_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
-               $SDIFF -W $total_width $expect_file $actual_file 
+               $SDIFF -W $total_width "$expect_file" "$actual_file"
                printf "%s\n" "--- Line Differences ---"
                printf "%s\n" "$diffresult"
                printf "\n"
@@ -415,10 +424,10 @@ function run_test_session(){
 
            if [[ "$use_valgrind" = "1" ]]; then       # show valgrind log if enabled and test failed
                printf "%s\n" "--- Valgrind Log from: $valgrd_file ---"
-               cat $valgrd_file
+               cat "$valgrd_file"
                printf "\n"
            fi
-        } &> ${result_file}                           # end of results file output
+        } &> "${result_file}"                           # end of results file output
 
         # The below eliminate extra spaces in diff results mostly for
         # the left EXPECT column that would make the output very wide.
@@ -430,7 +439,7 @@ function run_test_session(){
             extra_space_width=$((actual_width-expect_width))
             extra_space_width=$((extra_space_width-5))
             debug "Eliminating $extra_space_width spaces from result file"
-            sed -i -E "s/(.{$expect_width})[ ]{$extra_space_width}/\1 /" $result_file
+            $sedCmd -i -E "s/(.{$expect_width})[ ]{$extra_space_width}/\1 /" "$result_file"
         fi
 
         fail_files+=("${result_file}")                # test failed, add to files to show later
@@ -449,11 +458,11 @@ unset BASH_ENV                                        # ensure subshells don't s
 
 funcs=$(declare -x -F | awk '{print $3}')             # eliminate any exported functions in bash
 for f in $funcs; do                                   # as these are output with the -v option
-    unset -f $f;
+    unset -f "$f";
 done
 
 
-if [[ "$#" < 1 ]]; then                               # check for presence of at least 1 argument
+if [[ "$#" -lt 1 ]]; then                               # check for presence of at least 1 argument
     printf "usage: testy <testspec> [testnum]\n"
     printf "       testy --help\n"
     exit 1
@@ -462,7 +471,7 @@ fi
 # Command line argument processing
 specfile=$1                                           # gather test file
 shift                                                 # shift test file off the command line
-alltests="$@"                                         # remaining args are tests to run
+alltests="$*"                                         # remaining args are tests to run
 debug "Testing $specfile"
 debug "alltests='$alltests"                           
 
@@ -474,10 +483,10 @@ if [[ "$specfile" = "--help" ]]; then                 # check for --help option
 fi
 
 # check for necessary tools
-deps="valgrind timeout stdbuf awk sed grep diff"
+deps="${valgrind_dep} timeout stdbuf awk sed grep diff"
 for dep in $deps; do
-    if ! which $dep >& /dev/null ; then
-        echo "ERROR: testy requires the program '$dep' which does not appear to be installed"
+    if ! command -v "$dep" >& /dev/null ; then
+        echo "ERROR: testy requires the program '$dep', which does not appear to be installed"
         echo "Consult your OS docs and install '$dep' before proceeding"
         echo "If '$dep' is installed, adjust your PATH variable so '$dep' can be found using 'which $dep'"
         which $dep
@@ -532,7 +541,7 @@ while read -r; do                                     # read from test file, -r 
             debug "^^ Ignoring line in first pass"
             ;;
     esac
-done < $specfile
+done < "$specfile"
 
 endline=$(( linenum ))                                # append the last test end
 test_end_line+=("$endline")
@@ -547,7 +556,7 @@ for i in $(seq $testnum); do
     debug "-----TEST $i: beg ${test_beg_line[i]} end: ${test_end_line[i]} -----"
     while read -r; do                                # iterate over all lines of test
         debug ":TEST $i: $REPLY"
-    done <<< "$(sed -n "${test_beg_line[i]},${test_end_line[i]}p" $specfile)"
+    done <<< "$($sedCmd -n "${test_beg_line[i]},${test_end_line[i]}p" "$specfile")"
 done
 
 ##################################################
@@ -612,7 +621,7 @@ for testnum in $alltests; do                          # Iterate over all tests t
                 end=$((session_end_line+1))           # #+END_SRC line
                 linenum=$((beg-1))
                 debug "^^ Re-running session on lines $beg to $end"
-                run_test_session <<< "$(sed -n "${beg},${end}p" $specfile)"
+                run_test_session <<< "$($sedCmd -n "${beg},${end}p" "$specfile")"
                 debug "Done re-running session on lines $beg to $end"
                 linenum=$old_linenum
                 ;;
@@ -623,7 +632,7 @@ for testnum in $alltests; do                          # Iterate over all tests t
                 fi
                 ;;
         esac
-    done <<< "$(sed -n "${test_beg_line[testnum]},${test_end_line[testnum]}p" $specfile)"
+    done <<< "$($sedCmd -n "${test_beg_line[testnum]},${test_end_line[testnum]}p" "$specfile")"
 
     # report the final status of this test
     printf "%-3s %-${TEST_TITLE_WIDTH}s : %s\n" "${testnum})" "$test_title" "$status"
@@ -633,15 +642,15 @@ done
 # Final Output
 passcount=$((testcount-failcount))                    # calculate number of tests passed
 printf "============================================================\n"
-printf "RESULTS: $passcount / $testcount tests passed\n"
+printf "RESULTS: %s / %s tests passed\n" "$passcount" "$testcount"
 
 debug "SHOW: $SHOW"
-if [[ "$SHOW" == "1" && "${#fail_files[@]}" > "0" ]]; then # show failure results if requested
+if [[ "$SHOW" == "1" && "${#fail_files[@]}" -gt 0 ]]; then # show failure results if requested
     printf "\n\n"
     printf "FAILURE RESULTS\n"
     printf "%s\n" "----------------------------------------"
-    for f in "${fail_files[@]}"; do                   # iteratre overa ll failure files outputing them
-        cat $f
+    for f in "${fail_files[@]}"; do                   # iterate over all failure files, outputting them
+        cat "$f"
         printf "%s\n" "----------------------------------------"
     done
 fi
