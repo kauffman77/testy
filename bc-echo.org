@@ -1,10 +1,33 @@
 #+TESTY: TAG bc-echo
 
-* Echo Style 'none'
+* Echoing 'input'
+Subtraction tests with echo style 'input' : bc will echo the input
+itself so it does not need to appear in the test session.
+#+TESTY: program="bc -i"
+#+TESTY: echoing="input"
+#+BEGIN_SRC sh
+bc 1.07.1
+Copyright 1991-1994, 1997, 1998, 2000, 2004, 2006, 2008, 2012-2017 Free Software Foundation, Inc.
+This is free software with ABSOLUTELY NO WARRANTY.
+For details type `warranty'. 
+>> 1-1
+0
+>> 6-3
+3
+>> 9-3
+6
+>> 10-8
+2
+#+END_SRC
+
+* Mistake in test results
 Subtraction tests. Due to the -i option, input is echoed after
 receiving it from testy.
-#+TESTY: program bc -i
-#+TESTY: echo_style none
+
+This test should fail as the input is repeated in the expected output
+below, both on the prompt and after it. This is not how to set up a
+test properly at this time.
+#+TESTY: program="bc -i"
 #+BEGIN_SRC sh
 bc 1.07.1
 Copyright 1991-1994, 1997, 1998, 2000, 2004, 2006, 2008, 2012-2017 Free Software Foundation, Inc.
@@ -21,26 +44,6 @@ For details type `warranty'.
 6
 >> 10-8
 10-8
-2
-#+END_SRC
-
-* Echo Style 'input'
-Subtraction tests with echo style 'input' : bc will echo the input
-itself so it does not need to appear in the test session.
-#+TESTY: program bc -i
-#+TESTY: echo_style input
-#+BEGIN_SRC sh
-bc 1.07.1
-Copyright 1991-1994, 1997, 1998, 2000, 2004, 2006, 2008, 2012-2017 Free Software Foundation, Inc.
-This is free software with ABSOLUTELY NO WARRANTY.
-For details type `warranty'. 
->> 1-1
-0
->> 6-3
-3
->> 9-3
-6
->> 10-8
 2
 #+END_SRC
 

@@ -130,9 +130,9 @@ VALGRIND_PROG="valgrind --leak-check=full --show-leak-kinds=all --error-exitcode
 
 # Uses gsed if available for BSD-based operating systems and sed if otherwise
 if command -v gsed >/dev/null 2>&1; then
-    sedCmd=$(command -v gsed)
+    SEDCMD=$(command -v gsed)
 else
-    sedCmd=$(command -v sed)
+    SEDCMD=$(command -v sed)
 fi
 
 # default values for the program to be tested
@@ -166,6 +166,18 @@ function reset_options(){                             # reset options to default
     skipdiff=$SKIPDIFF
     input_style=$NORMAL
 }    
+
+# fail if a tool is not found, used to check for utilities like timeout and valgrind
+function checkdep_fail () {
+    dep="$1"
+    if ! command -v "$dep" >& /dev/null ; then
+        echo "ERROR: testy requires the program '$dep', which does not appear to be installed"
+        echo "Consult your OS docs and install '$dep' before proceeding"
+        echo "If '$dep' is installed, adjust your PATH variable so '$dep' can be found using 'which $dep'"
+        which $dep
+        exit 1
+    fi
+}
 
 function debug(){                                     # print a debug message
     if [[ -n "$DEBUG" ]]; then
@@ -205,20 +217,18 @@ function run_test_session(){
 
     if [[ "$use_valgrind" == 1 ]]; then
         VALGRIND="${VALGRIND_PROG} --log-file=${valgrd_file}"
-        valgrind_dep="valgrind"
+        checkdep_fail "valgrind"                        # only check for valgrind if the test requires it
     else
         VALGRIND=""
-        valgrind_dep=""
     fi
 
-    toprog_fifo=$(mktemp -d "${TMPDIR:-/tmp}/testy_to.XXXXXXXXX") # set up communication with the program being tested
-    fromprog_file=$(mktemp -d "${TMPDIR:-/tmp}/testy_from.XXXXXXXXX")
+    toprog_fifo="${resultraw}/%s-%02d-tofifo.tmp"       # set up communication with the program being tested
+    fromprog_file="${resultraw}/%s-%02d-fromfile.tmp"   # may wish to alter this to honor TMPDIR
     debug "toprog_fifo: $toprog_fifo"
     debug "fromprog_file: $fromprog_file"
-    rm -f "${toprog_fifo}" "${fromprog_file}"             # remove just in case
+    rm -f "${toprog_fifo}" "${fromprog_file}"           # remove just in case
 
     mkfifo "$toprog_fifo"                               # create the fifos
-    # mkfifo $fromprog_fifo
 
     # RUN THE PROGRAM
     #
@@ -235,7 +245,7 @@ function run_test_session(){
     debug "child pid: $pid"
 
     # open to after running the program or testy will stall 
-    exec {to}>"${toprog_fifo}"                          # open connection to fifo for writing CHECK
+    exec {to}>"${toprog_fifo}"                        # open connection to fifo for writing
     debug "to fd: $to"
 
     status="$PASS_STATUS"                             # initial status, change to 'FAIL' if things go wrong
@@ -351,13 +361,13 @@ function run_test_session(){
 
     # To avoid confusion, replace message from timeout program with
     # easier to interpret Segfault Message
-    $sedCmd -i'' 's/timeout: the monitored command dumped core/Segmentation Fault/' "${fromprog_file}"
+    $SEDCMD -i'' 's/timeout: the monitored command dumped core/Segmentation Fault/' "${fromprog_file}"
 
     mv "${fromprog_file}" "${actual_file}"                # copy temp file to final destination
 
     # extract expected output from test file, filter #+TESTY_ , store result in expect_file
     cat "$specfile" | \
-        $sedCmd -n "${session_beg_line},${session_end_line}p" | \
+        $SEDCMD -n "${session_beg_line},${session_end_line}p" | \
         grep -v '^#+TESTY_' \
         > "${expect_file}"
 
@@ -439,7 +449,7 @@ function run_test_session(){
             extra_space_width=$((actual_width-expect_width))
             extra_space_width=$((extra_space_width-5))
             debug "Eliminating $extra_space_width spaces from result file"
-            $sedCmd -i -E "s/(.{$expect_width})[ ]{$extra_space_width}/\1 /" "$result_file"
+            $SEDCMD -i -E "s/(.{$expect_width})[ ]{$extra_space_width}/\1 /" "$result_file"
         fi
 
         fail_files+=("${result_file}")                # test failed, add to files to show later
@@ -475,23 +485,14 @@ alltests="$*"                                         # remaining args are tests
 debug "Testing $specfile"
 debug "alltests='$alltests"                           
 
-
-
 if [[ "$specfile" = "--help" ]]; then                 # check for --help option
     printf "$usage\n"                                 # print usage and exit
     exit 0
 fi
 
-# check for necessary tools
-deps="${valgrind_dep} timeout stdbuf awk sed grep diff"
+deps="timeout stdbuf awk $SEDCMD grep diff"           # check for baseline necessary tools
 for dep in $deps; do
-    if ! command -v "$dep" >& /dev/null ; then
-        echo "ERROR: testy requires the program '$dep', which does not appear to be installed"
-        echo "Consult your OS docs and install '$dep' before proceeding"
-        echo "If '$dep' is installed, adjust your PATH variable so '$dep' can be found using 'which $dep'"
-        which $dep
-        exit 1
-    fi
+    checkdep_fail "$dep"
 done
 
 ##################################################
@@ -556,7 +557,7 @@ for i in $(seq $testnum); do
     debug "-----TEST $i: beg ${test_beg_line[i]} end: ${test_end_line[i]} -----"
     while read -r; do                                # iterate over all lines of test
         debug ":TEST $i: $REPLY"
-    done <<< "$($sedCmd -n "${test_beg_line[i]},${test_end_line[i]}p" "$specfile")"
+    done <<< "$($SEDCMD -n "${test_beg_line[i]},${test_end_line[i]}p" "$specfile")"
 done
 
 ##################################################
@@ -621,7 +622,7 @@ for testnum in $alltests; do                          # Iterate over all tests t
                 end=$((session_end_line+1))           # #+END_SRC line
                 linenum=$((beg-1))
                 debug "^^ Re-running session on lines $beg to $end"
-                run_test_session <<< "$($sedCmd -n "${beg},${end}p" "$specfile")"
+                run_test_session <<< "$($SEDCMD -n "${beg},${end}p" "$specfile")"
                 debug "Done re-running session on lines $beg to $end"
                 linenum=$old_linenum
                 ;;
@@ -632,7 +633,7 @@ for testnum in $alltests; do                          # Iterate over all tests t
                 fi
                 ;;
         esac
-    done <<< "$($sedCmd -n "${test_beg_line[testnum]},${test_end_line[testnum]}p" "$specfile")"
+    done <<< "$($SEDCMD -n "${test_beg_line[testnum]},${test_end_line[testnum]}p" "$specfile")"
 
     # report the final status of this test
     printf "%-3s %-${TEST_TITLE_WIDTH}s : %s\n" "${testnum})" "$test_title" "$status"
