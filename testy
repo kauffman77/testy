@@ -187,8 +187,8 @@ function checkdep_fail () {
         echo "ERROR: testy requires the program '$dep', which does not appear to be installed"
         echo "Consult your OS docs and install '$dep' before proceeding"
         echo "If '$dep' is installed, adjust your PATH variable so '$dep' can be found using 'which $dep'"
-        which $dep
-        exit 1
+        which "$dep"                                  # Intentionally using 'which' as it shows the program name
+        exit 1                                        # and path on stderr to help diagnose missing programs 
     fi
 }
 
@@ -776,7 +776,7 @@ function run_test_session(){
     actual_file=$(printf "%s/%s-%02d-actual.tmp" "$resultraw" "$prefix" "$testnum")
     expect_file=$(printf "%s/%s-%02d-expect.tmp" "$resultraw" "$prefix" "$testnum")
     valgrd_file=$(printf "%s/%s-%02d-valgrd.tmp" "$resultraw" "$prefix" "$testnum")
-    rm -f ${actual_file} ${expect_file} ${result_file} ${valgrd_file}
+    rm -f "${actual_file}" "${expect_file}" "${result_file}" "${valgrd_file}"
 
     if [[ "$use_valgrind" == 1 ]]; then
         checkdep_fail "valgrind"                        # only check for valgrind if the test requires it
@@ -803,7 +803,7 @@ function run_test_session(){
 
     cmd="$TIMEOUTCMD $timeout $STDBUF $VALGRIND $program <${toprog_fifo} &> ${fromprog_file} &"
     debug "running: '$cmd'"
-    eval $cmd                                         # eval is required due to the complex redirections with < and >
+    eval "$cmd"                                       # eval is required due to the complex redirections with < and >
     pid=$!
     debug "child pid: $pid"
 
@@ -975,7 +975,7 @@ function run_test_session(){
         {                                             # begin capturnig output for results file
            printf '(TEST %d) %s\n' "$testnum" "$test_title"
            printf 'COMMENTS:\n'
-           printf "${comments}\n" 
+           printf "%s\n" "${comments}"
            printf 'program: %s\n' "$program"
            printf "Failure messages:\n"
            for msg in "${fail_messages[@]}"; do       # iterate through faiure messages
@@ -1049,7 +1049,7 @@ debug "Testing $specfile"
 debug "alltests='$alltests"                           
 
 if [[ "$specfile" = "--help" ]]; then                 # check for --help option
-    printf "$usage\n"                                 # print usage and exit
+    printf "%s\n" "$usage"                            # print usage and exit
     exit 0
 fi
 
@@ -1116,7 +1116,7 @@ debug "Test $testnum beg $beg end $end"
 totaltests=$testnum                                   # set the total number of tests read from the file
 
 # Debug output
-for i in $(seq $testnum); do
+for i in $(seq "$testnum"); do
     debug "-----TEST $i: beg ${test_beg_line[i]} end: ${test_end_line[i]} -----"
     while read -r; do                                # iterate over all lines of test
         debug ":TEST $i: $REPLY"
@@ -1128,7 +1128,7 @@ done
 
 
 if [[ -z "$alltests" ]]; then                         # no individual tests specified on the command line
-    alltests=$(seq $totaltests)                       # so run all tests
+    alltests=$(seq "$totaltests")                       # so run all tests
 fi
 ntests=$(wc -w <<< "$alltests")                       # count how many tests will be run
 
@@ -1145,7 +1145,7 @@ failcount=0
 
 printf "============================================================\n"
 if [[ "$global_title" = "" ]]; then
-    printf "== testy $specfile\n"
+    printf "== testy %s\n" "$specfile"
 else
     printf "== $specfile : %s\n" "$global_title"
 fi    
