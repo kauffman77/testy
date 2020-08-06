@@ -553,7 +553,7 @@ debug "Test $testnum beg $beg end $end"
 totaltests=$testnum                                   # set the total number of tests read from the file
 
 # Debug output
-for i in $(seq $testnum); do
+for i in $(seq "$testnum"); do
     debug "-----TEST $i: beg ${test_beg_line[i]} end: ${test_end_line[i]} -----"
     while read -r; do                                # iterate over all lines of test
         debug ":TEST $i: $REPLY"
@@ -565,7 +565,7 @@ done
 
 
 if [[ -z "$alltests" ]]; then                         # no individual tests specified on the command line
-    alltests=$(seq $totaltests)                       # so run all tests
+    alltests=$(seq "$totaltests")                       # so run all tests
 fi
 ntests=$(wc -w <<< "$alltests")                       # count how many tests will be run
 
