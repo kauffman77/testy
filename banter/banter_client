@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+
+if [[ "$#" -lt 2 ]]; then       # check for presence of at least 2 arguments
+    printf "usage: banter_client <server_fifo> <client_name>\n"
+    exit 1
+fi
+
+function handle_signal() {
+    if kill -0 "$server_input_pid" &> /dev/null; then
+        kill "$server_input_pid" &> /dev/null      # kill server input process if it exists
+    fi
+    rm -f "$client_fifo"
+    exit 0
+
+}
+trap 'handle_signal' TERM
+trap 'handle_signal' INT
+
+server_fifo="$1"
+client_name="$2"
+client_fifo="$$.${client_name}.fifo"
+
+rm -f "$client_fifo"
+mkfifo "$client_fifo"
+
+printf "JOIN %s %s\n" "$client_name" "$client_fifo" > "$server_fifo"
+
+exec {fifo_fd}<>"$client_fifo"         # opens fd for input, read/write, ensures server doesn't block
+# printf "fifo_fd: $fifo_fd\n"
+
+ppid=$$                                    # PID of parent process which will listen to input
+while read -u ${fifo_fd} cmd name rest; do    # start a reading process that reads from the server
+    case "$cmd" in
+        "JOIN")
+            printf "=== %s JOINED ===\n" "$name"
+            ;;
+        "DEPART")
+            printf "=== %s DEPARTED ===\n" "$name"
+            ;;
+        "MESSAGE")
+            printf "[%s]: %s\n" "$name" "$rest"
+            ;;
+        "SHUTDOWN")             # shutting down, break out of the loop
+            printf "=== SERVER SHUTTING DOWN ===\n"
+            break
+            ;;
+        *)
+            printf "ERR: ignoring server message '%s %s %s'\n" "$cmd" "$name" "$rest"
+            ;;
+    esac
+done && kill $ppid &
+server_input_pid=$!
+
+while read; do
+    printf "MESSAGE %s %s\n" "$client_name" "$REPLY" > "$server_fifo"
+    # check for quitting - ctrl-d probably kicks out of this
+done
+printf "DEPART %s\n" "$client_name" > "$server_fifo"
+printf "End of Input\n"
+kill $$                         # send self signal to run the shutdown routine
+
+
+# typed_input_pid=$!
+
+
+# wait -n                         # wait for next child to finish, either server or typed input
+
+# if ! kill -0 $typed_input_pid &> /dev/null; then # check if child still alive and kill if needed
+#     kill $typed_input_pid
+# fi
+
+
+# if ! kill -0 "$server_input_pid" &> /dev/null; then
+#     kill "$server_input_pid"
+# fi
+
+# rm -f "$server_fifo"
+

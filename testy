@@ -222,30 +222,34 @@ function program_wait () {
     pid=${program_pid[$key]}
     curtime=0.0
     step=0.1                                          # amount of time to wait in between checks on program
-    while kill -0 $pid &> /dev/null &&            # loop examining if program is complete
+    while kill -0 $pid &> /dev/null &&                # loop examining if program is complete
           [[ $(bc <<< "$curtime < $timeout") == "1" ]];
     do
-        sleep $step                                   # sleep a short time and then 
+        sleep $step                                   # sleep a short time and then increment
         curtime=$(bc <<< "$curtime + $step")
     done
 
-    if kill -0 $pid &> /dev/null; then            # program still alive after timeout
+    if kill -0 $pid &> /dev/null; then                # program still alive after timeout
         printf "Killing unresponsive program '%s' (%s)\n" "$key" "${program_command[$key]}"
-        kill -9 $pid &> /dev/null                 # kill it
+        kill -9 $pid &> /dev/null                     # kill it
         wait "${program_pid[$key]}" &> /dev/null      # wait on the child to finish, safe as its killed
         program_state[$key]="TimeoutErr"
         program_retcode[$key]=$TIMEOUT_RETCODE
     else
         wait "${program_pid[$key]}" &> /dev/null      # wait on the child to finish, safe as its done
-        program_retcode[$key]=$ret
+        program_retcode[$key]=$?
+        debug "normal termination of '$key' with retcode '${program_retcode[$key]}'"
         program_state[$key]="Done"
     fi
-    if [[ "${program_input__fifo_fd[$key]}" != "CLOSED" ]]; then # check and close the input_fifo if needed
-        to="${program_input__fifo_fd[$key]}"
+
+    if [[ "${program_input__fifo_fd[$key]}" != "CLOSED" ]]; then
+        to="${program_input__fifo_fd[$key]}"          # input_fifo still open in testy, close
         debug "closing $to"
         exec {to}>&-                                  # close the input_fifo, may already have been done
-        rm -f "${program_input__fifo[$key]}"               # remove input_fifo from disk
-        program_input__fifo_fd[$key]="CLOSED"              # mark as closed
+        rm -f "${program_input__fifo[$key]}"          # remove input_fifo from disk
+        program_input__fifo_fd[$key]="CLOSED"         # mark as closed
+    else
+        debug "file descriptor $fd already closed"
     fi
     return 0
 }
@@ -325,17 +329,30 @@ function program_start () {
     fi
 
     rm -f ${program_input__fifo[$key]} ${program_output_file[$key]} # remove just in case
-    mkfifo ${program_input__fifo[$key]}                          # create the fifo going to the program
+    mkfifo ${program_input__fifo[$key]}                             # create the fifo going to the program
     
-    cmd="$STDBUF $VALGRIND $progcmd <${program_input__fifo[$key]} &> ${program_output_file[$key]} &"
+    # Below block starts a subshell to close extraneous file
+    # descriptors then exec's the actual program. MUST close the other
+    # program file descriptors otherwise when testy closes an input
+    # fifo via <EOF>, other children will still have it open via FD
+    # inheritance; do this in a subshell so as not to mess with testy
+    # then exec to replace the process image with the child process.
+    cmd="$STDBUF $VALGRIND $progcmd <${program_input__fifo[$key]} &> ${program_output_file[$key]}"
     debug "running: '$cmd'"
-    eval $cmd                                         # eval is required due to the complex redirections with < and >
+    (
+        for tofd in "${program_input__fifo_fd[@]}"; do # close fds for input to other programs so only
+            if [[ "$tofd" != "CLOSED" ]]; then         # testy owns the input
+                exec {tofd}>&-
+            fi
+        done
+        eval exec $cmd                                # exec replaces current image with child process
+    ) &                                               # run as background subshell
     program_pid[$key]=$!
     debug "PID is '${program_pid[$key]}'"
     program_state[$key]="Running"
     program_retcode[$key]="?"
 
-    exec {to}>${program_input__fifo[$key]}                 # open connection to fifo for writing
+    exec {to}>${program_input__fifo[$key]}                          # open connection to fifo for writing
     program_input__fifo_fd[$key]=$to
     debug "to: $to   program_input__fifo_fd: ${program_input__fifo_fd[$key]}"
 
@@ -354,23 +371,28 @@ function program_start () {
 }    
 
 # Sends an input line to a program on standard input using the
-# pre-established FIFO for that program.  The special message '%EOF'
+# pre-established FIFO for that program.  The special message '<EOF>'
 # will close the FIFO used for input which should give the program end
 # of input. Checks that the program is alive before sending and if not
 # prints and error message.  Calls tick() before returning.
 function program_send_input () {
     key="$1"
     msg="$2"
+    debug "program_send_input '$key' '$msg'"
     
     if ! program_alive "$key"; then
-        printf "Can't send INPUT to dead program '%s' (%s)\n" "$prog_key" "${program_command[$prog_key]}"
+        printf "Can't send INPUT to dead program '%s' (%s)\n" "$key" "${program_command[$key]}"
         return 1
     fi
 
-    tofd=${program_input__fifo_fd[$key]}                   # extract the file descriptor for sending data to the child program
+    tofd=${program_input__fifo_fd[$key]}              # extract the file descriptor for sending data to the child program
     case "$msg" in
-        "%EOF")                                       # end of input
+        "<EOF>")                                      # end of input
+            debug "EOF: closing fd $tofd"
             exec {tofd}>&-                            # close fifo to child program
+            program_input__fifo_fd[$key]="CLOSED"
+            # debug "Closed"
+            # printf "Test message\n" >&$tofd
             ;;
         *)
             printf "%s\n" "$msg" >&$tofd              # print to open file descriptor, possibly replace with direct reference to fifo name
@@ -642,7 +664,7 @@ function run_testy_multi_session(){
                 printf "%s\n" "$line"                 # print test line so it appears in 'actual' output
                 handle_multi_command "$rest"
                 ;;
-            "#")
+            "#" | "")
                 debug "^^ comment"
                 printf "%s\n" "$line"                 # print comment so it appears in 'actual' output
                 ;;
@@ -677,21 +699,21 @@ function run_testy_multi_session(){
     for key in "${program_keys[@]}"; do
         cmd_str="${program_command[$key]}" # peel of raw directory
         cmd_width=${#cmd_str}
-        if [[ $cmd_width > $max_cmd_width ]]; then
+        if (( $cmd_width > $max_cmd_width )); then
             max_cmd_width=$cmd_width
         fi
 
         out_file="${program_output_file[$key]#${resultraw}/}" # peel of raw directory
         out_width=${#out_file}
         debug "File '$outfile' with width $outwidth"
-        if [[ $out_width > $max_out_width ]]; then
+        if (( $out_width > $max_out_width )); then
             max_out_width=$out_width
             debug "File '$out_file' has new max width $out_width"
         fi
 
         valg_file="${program_valgfile[$key]#${resultraw}/}"
         valg_width=${#valg_file}
-        if [[ $valg_width > $max_valg_width ]]; then
+        if (( $valg_width > $max_valg_width )); then
             max_valg_width=$valg_width
         fi
     done

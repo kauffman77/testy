@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+
+function handle_signal() {               # signal handler for shutdown
+    log "Signalled for shutdown\n"
+    broadcast "SHUTDOWN"
+    rm -f "$server_fifo"
+    exit 0
+}
+
+function log() {
+    printf "log: %s\n" "$1"
+}
+
+function broadcast() {
+    msg="$1"
+    log "$msg"
+    for client_fifo in "${name2fifo[@]}"; do
+        # log "writing to '$client_fifo'"
+        printf "%s\n" "$msg" > "$client_fifo"
+    done
+}
+
+if [[ "$#" -lt 1 ]]; then       # check for presence of at least 1 argument
+    printf "usage: banter_server <server_fifo>\n"
+    exit 1
+fi
+
+trap 'handle_signal' TERM
+trap 'handle_signal' INT
+
+server_fifo="$1"
+shift
+
+rm -f "$server_fifo"
+mkfifo "$server_fifo"
+
+exec {fifo_fd}<>"$server_fifo"  # opens fd for input, read/write, ensures server doesn't block
+
+declare -g -A name2fifo         # associative array for client names mapped to fifo files for their messages
+
+log "Server started with fifo '$server_fifo'"
+
+while true; do
+    read -u ${fifo_fd} cmd name rest;      
+    case "$cmd" in
+        "JOIN")
+            if [[ -n "${name2fifo[$name]}" ]]; then # reject client with same name
+                printf "REJECT Already have a client named '%s'\n" "$name"
+            else                # add client
+                name2fifo["$name"]="$rest"
+                broadcast "JOIN $name"
+            fi
+            ;;
+
+        "DEPART")
+            unset name2fifo["$name"]
+            broadcast "DEPART $name"
+            ;;
+
+        "MESSAGE")
+            broadcast "MESSAGE $name $rest"
+            ;;
+        
+        *)
+            log "Unknown command '$cmd $name $rest'"
+            ;;
+    esac
+done
+

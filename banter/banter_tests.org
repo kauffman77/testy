@@ -1,0 +1,168 @@
+#+TESTY: PREFIX=banter
+#+TESTY: PROGRAM='TESTY_MULTI'
+# #+TESTY: TICKTIME=0.25
+# #+TESTY: TIMEOUT=600
+
+This file shows how multi-program testing can be done with the
+TESTY_MULTI feature. Using the directive
+: #+TESTY: PROGRAM='TESTY_MULTI'
+globally or within a test
+: #+TESTY: program='TESTY_MULTI'
+will interpret the testing session as a set of commands that are
+understood naively by testy to start/stop programs, send data and
+signals to them, and check that they close down properly. 
+
+This file demonstrates TESTY_MULTI with the two programs
+~banter_server~ and ~banter_client~ which are shell programs that
+affect a sort of local chat server.
+
+* Server Start/Stop
+This test starts up a ~banter_server~ and then sends it a signal to
+shut down gracefully.
+
+# Start banter_server and refer to the running process with the key 'server' thereafter
+
+
+#+BEGIN_SRC text
+>> START server ./banter_server gotham
+>> SIGNAL server -15
+>> WAIT server
+>> OUTPUT server cat
+log: Server started with fifo 'gotham'
+log: SHUTDOWN
+#+END_SRC
+
+* One Client, Join, Shutdown
+#+BEGIN_SRC text
+>> START server ./banter_server gotham
+>> START bruce ./banter_client gotham bruce
+>> SIGNAL server -15
+>> WAIT server
+>> WAIT bruce
+>> OUTPUT server cat
+log: Server started with fifo 'gotham'
+log: JOIN bruce
+log: SHUTDOWN
+>> OUTPUT bruce cat
+=== bruce JOINED ===
+=== SERVER SHUTTING DOWN ===
+#+END_SRC
+
+* One Client Messages
+#+BEGIN_SRC text
+>> START server ./banter_server gotham
+>> START bruce ./banter_client gotham bruce
+>> INPUT bruce Alfred?
+>> INPUT bruce Robin? Barbara?
+>> INPUT bruce Aaaaal-freeeeed!
+>> SIGNAL server -15
+>> WAIT server
+>> WAIT bruce
+>> OUTPUT server cat
+log: Server started with fifo 'gotham'
+log: JOIN bruce
+log: MESSAGE bruce Alfred?
+log: MESSAGE bruce Robin? Barbara?
+log: MESSAGE bruce Aaaaal-freeeeed!
+log: SHUTDOWN
+>> OUTPUT bruce cat
+=== bruce JOINED ===
+[bruce]: Alfred?
+[bruce]: Robin? Barbara?
+[bruce]: Aaaaal-freeeeed!
+=== SERVER SHUTTING DOWN ===
+#+END_SRC
+
+* One Client EOF
+#+BEGIN_SRC text
+>> START server ./banter_server gotham
+>> START bruce ./banter_client gotham bruce
+>> INPUT bruce If no one is here, I'm leaving
+>> INPUT bruce k bye
+>> INPUT bruce <EOF>
+>> WAIT bruce
+>> SIGNAL server -15
+>> WAIT server
+>> OUTPUT server cat
+log: Server started with fifo 'gotham'
+log: JOIN bruce
+log: MESSAGE bruce If no one is here, I'm leaving
+log: MESSAGE bruce k bye
+log: DEPART bruce
+log: SHUTDOWN
+>> OUTPUT bruce cat
+=== bruce JOINED ===
+[bruce]: If no one is here, I'm leaving
+[bruce]: k bye
+#+END_SRC
+
+* Two Clients
+#+BEGIN_SRC text
+>> START server ./banter_server gotham
+>> START bruce ./banter_client gotham bruce
+>> START clark ./banter_client gotham clark
+
+>> INPUT bruce Hey
+>> INPUT clark What's up?
+>> INPUT bruce It's been a while, huh?
+>> INPUT clark Yeah, haven't seen you, I've been, you know, savin' the world and stuff.
+>> INPUT bruce Mmm.. Me too. Busy. Savin' stuff. People.
+>> INPUT clark Oh really? Like saving cities from clowns and penguins and such?
+>> INPUT bruce Yeah. cuz....
+>> INPUT bruce I'M BAAATMAAAN!
+>> INPUT bruce <EOF>
+>> WAIT bruce
+>> INPUT clark He's so sensitive.
+
+>> SIGNAL server -15
+>> WAIT server
+>> WAIT clark
+>> OUTPUT server cat
+log: Server started with fifo 'gotham'
+log: JOIN bruce
+log: JOIN clark
+log: MESSAGE bruce Hey
+log: MESSAGE clark What's up?
+log: MESSAGE bruce It's been a while, huh?
+log: MESSAGE clark Yeah, haven't seen you, I've been, you know, savin' the world and stuff.
+log: MESSAGE bruce Mmm.. Me too. Busy. Savin' stuff. People.
+log: MESSAGE clark Oh really? Like saving cities from clowns and penguins and such?
+log: MESSAGE bruce Yeah. cuz....
+log: MESSAGE bruce I'M BAAATMAAAN!
+log: DEPART bruce
+log: MESSAGE clark He's so sensitive.
+log: Signalled for shutdown\n
+log: SHUTDOWN
+
+>> OUTPUT bruce cat
+=== bruce JOINED ===
+=== clark JOINED ===
+[bruce]: Hey
+[clark]: What's up?
+[bruce]: It's been a while, huh?
+[clark]: Yeah, haven't seen you, I've been, you know, savin' the world and stuff.
+[bruce]: Mmm.. Me too. Busy. Savin' stuff. People.
+[clark]: Oh really? Like saving cities from clowns and penguins and such?
+[bruce]: Yeah. cuz....
+[bruce]: I'M BAAATMAAAN!
+End of Input
+
+>> OUTPUT clark cat
+=== clark JOINED ===
+[bruce]: Hey
+[clark]: What's up?
+[bruce]: It's been a while, huh?
+[clark]: Yeah, haven't seen you, I've been, you know, savin' the world and stuff.
+[bruce]: Mmm.. Me too. Busy. Savin' stuff. People.
+[clark]: Oh really? Like saving cities from clowns and penguins and such?
+[bruce]: Yeah. cuz....
+[bruce]: I'M BAAATMAAAN!
+=== bruce DEPARTED ===
+[clark]: He's so sensitive.
+=== SERVER SHUTTING DOWN ===
+
+>> CHECK_FAILURES server cat
+>> CHECK_FAILURES bruce cat
+>> CHECK_FAILURES clark cat
+#+END_SRC
+
