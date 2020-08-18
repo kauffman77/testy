@@ -156,7 +156,8 @@ VALGRIND_OPTS=${VALGRIND_OPTS:-""}                    # additional options to va
 
 # INPUT_STYLE="normal"
 
-TIMEOUT_RETCODE=137                                   # code usually returned by timeout when it kills programs
+RETCODE_TIMEOUT=137                                   # code usually returned by timeout when it kills programs
+RETCODE_KILLED=139                                    # code usually returned when OS kills a program
 PASS_STATUS="ok"                                      # status message associated with passing
 FAIL_STATUS="FAIL"                                    # default status message associated with failing a test, anything not $PASS_STATUS is a failure though
 TEST_TITLE_WIDTH=20                                   # initial width for test test_titles, set to widest during initial parsing
@@ -222,25 +223,27 @@ function program_wait () {
     pid=${program_pid[$key]}
     curtime=0.0
     step=0.1                                          # amount of time to wait in between checks on program
-    while kill -0 $pid &> /dev/null &&                # loop examining if program is complete
-          [[ $(bc <<< "$curtime < $timeout") == "1" ]];
-    do
-        sleep $step                                   # sleep a short time and then increment
-        curtime=$(bc <<< "$curtime + $step")
-    done
 
-    if kill -0 $pid &> /dev/null; then                # program still alive after timeout
-        printf "Killing unresponsive program '%s' (%s)\n" "$key" "${program_command[$key]}"
-        kill -9 $pid &> /dev/null                     # kill it
-        wait "${program_pid[$key]}" &> /dev/null      # wait on the child to finish, safe as its killed
-        program_state[$key]="TimeoutErr"
-        program_retcode[$key]=$TIMEOUT_RETCODE
-    else
-        wait "${program_pid[$key]}" &> /dev/null      # wait on the child to finish, safe as its done
-        program_retcode[$key]=$?
-        debug "normal termination of '$key' with retcode '${program_retcode[$key]}'"
-        program_state[$key]="Done"
-    fi
+    wait "${program_pid[$key]}" &> /dev/null          # wait on the child to finish, safe as its done
+    retcode=$?
+    program_retcode[$key]=$retcode
+    program_state[$key]="Done"                        # state will be changed when checking for failures
+    debug "program '$key' complete with retcode '${program_retcode[$key]}'"
+
+    case "$retcode" in                                # inspect return and print appropriate inline messages
+        0)                                            # no action for normal return code
+            ;;
+        "$RETCODE_TIMEOUT")
+            printf "Return Code %s: TIMEOUT, program killed, not complete within %s sec limit\n" "$retcode" "$timeout"
+            ;;
+        "$RETCODE_KILLED")
+            printf "Return Code %s: KILLED by OS likely a SEGFAULT occured\n" "$retcode"
+            ;;
+        *)
+            printf "Non-zero return code %s\n" "$retcode"
+            ;;
+    esac
+
 
     if [[ "${program_input__fifo_fd[$key]}" != "CLOSED" ]]; then
         to="${program_input__fifo_fd[$key]}"          # input_fifo still open in testy, close
@@ -300,6 +303,8 @@ function program_alive () {
 # UTILITY at some point in the future for simplicity.
 
 
+SHELL_SYMBOLS='.*(>|<|\||&|&&|\|\|).*' # regular expression used to detect commands that contain shell symbols which are barred
+
 # Start a program and populate various arrays with the programs
 # information such as PID, output / input sources. Checks that the
 # program is actually alive after starting it and prints an error
@@ -311,6 +316,17 @@ function program_start () {
     debug "program_start '$1' '$2'"
     key="$1"
     progcmd="$2"
+
+    if [[ "$progcmd" =~ $SHELL_SYMBOLS ]]; then
+        {
+            printf "ERROR with '%s'\n" "$progcmd" 
+            printf "TESTY_MULTI does not support program commands with shell redirects, pipes, booleans, or backgrounds\n"
+            printf "The following symbols in program comands will trigger this error: > < | & || && \n"
+            printf "Please rework the test file to avoid this\n"
+        } > /dev/stderr
+        exit 1
+    fi
+    
     program_keys+=($key)
     debug "Adding program w/ key '$key' command '$progcmd'"
     program_command[$key]="$progcmd"
@@ -337,7 +353,7 @@ function program_start () {
     # fifo via <EOF>, other children will still have it open via FD
     # inheritance; do this in a subshell so as not to mess with testy
     # then exec to replace the process image with the child process.
-    cmd="$STDBUF $VALGRIND $progcmd <${program_input__fifo[$key]} &> ${program_output_file[$key]}"
+    cmd="$TIMEOUTCMD $timeout $STDBUF $VALGRIND $progcmd <${program_input__fifo[$key]} &> ${program_output_file[$key]}"
     debug "running: '$cmd'"
     (
         for tofd in "${program_input__fifo_fd[@]}"; do # close fds for input to other programs so only
@@ -346,7 +362,7 @@ function program_start () {
             fi
         done
         eval exec $cmd                                # exec replaces current image with child process
-    ) &                                               # run as background subshell
+    )  &                                              # run as background subshell
     program_pid[$key]=$!
     debug "PID is '${program_pid[$key]}'"
     program_state[$key]="Running"
@@ -525,10 +541,10 @@ function program_check_failures () {
 function handle_multi_command() {
     debug "handle_multi_command: '$1'"
     multi_line="$1"
-    multi_cmd="${multi_line%% *}"                     # extracts the first word on the line 
-    multi_rest="${multi_line#* }"                     # extracts remainder of line
-    prog_key="${multi_rest%% *}"                      # key to identify program, only applicable to some lines
-    prog_rest="${multi_rest#* }"                      # remainder of program line, only applicable to some lines
+    multi_cmd="${multi_line%% *}"                          # extracts the first word on the line 
+    multi_rest="${multi_line#* }"                          # extracts remainder of line
+    prog_key="${multi_rest%% *}"                           # key to identify program, only applicable to some lines
+    prog_rest="${multi_rest#* }"                           # remainder of program line, only applicable to some lines
     debug "multi_cmd: '$multi_cmd' multi_rest: '$multi_rest'"
     debug "prog_key: '$prog_key' prog_rest: '$prog_rest'"
 
@@ -539,20 +555,38 @@ function handle_multi_command() {
         "INPUT")
             program_send_input "$prog_key" "$prog_rest"
             ;;
+        "SIGNAL")                                          # 'SIGNAL server -15' == 'kill -15 ${program_pid["server"]}'
+            program_signal "$prog_key" "$prog_rest"
+            ;;
         "OUTPUT")
             # cat "${program_output_file[$prog_key]}"
             program_get_output "$prog_key" "$prog_rest"
             ;;
+        "OUTPUT_ALL")
+            for pk in "${program_keys[@]}"; do
+                printf "<testy> OUTPUT for %s\n" "$pk"
+                program_get_output "$pk" "$prog_key"       # second arg is a filter to run output through
+            done
+            ;;
         "CHECK_FAILURES")
             program_check_failures "$prog_key" "$prog_rest"
             ;;
-        "SIGNAL")                                     # 'SIGNAL server -15' == 'kill -15 ${program_pid["server"]}'
-            program_signal "$prog_key" "$prog_rest"
+        "CHECK_ALL")
+            for pk in "${program_keys[@]}"; do
+                printf "<testy> CHECK_FAILURES for %s\n" "$pk"
+                program_check_failures "$pk" "$prog_key"   # second arg is a filter to run all valgrind checks through
+            done
             ;;
         "WAIT")           
             program_wait "$prog_key"
             ;;
-        "SHELL")
+        "WAIT_ALL")           
+            for pk in "${program_keys[@]}"; do
+                printf "<testy> WAIT for %s\n" "$pk"
+                program_wait "$pk"
+            done
+            ;;
+        "SHELL")                                           # run a shell command in testy, could remove files, sleep testy, etc.
             eval "$multi_rest"
             ;;
         *)
@@ -888,11 +922,11 @@ function run_test_session(){
             status="$FAIL_STATUS"
             fail_messages+=("FAILURE($retcode): Valgrind detected errors")
             ;;
-        "$TIMEOUT_RETCODE")
+        "$RETCODE_TIMEOUT")
             status="$FAIL_STATUS"
             fail_messages+=("FAILURE($retcode) due to TIMEOUT: Runtime exceeded maximum of '$timeout'")
             ;;
-        139)
+        "$RETCODE_KILLED")
             status="$FAIL_STATUS"
             fail_messages+=("FAILURE($retcode) due to Kill Signal from OS: likely a SEGFAULT occured")
             ;;
