@@ -1,0 +1,65 @@
+Testy comes equipped with builtin timeouts, defaulting to 5 seconds.
+The utility ~timeout~ is used for this. These demonstrations show 
+
+* sleep_print success
+Runs the provide ~sleep_print~ script which should produce output
+prior to the 5 second timeout.
+
+#+TESTY: program='./sleep_print 2 "hello world"'
+#+BEGIN_SRC text
+hello world
+#+END_SRC
+
+* sleep_print fails
+Sets the timeout for the test to be 1 second which will cause the same
+program run to fail as it takes too long.
+
+#+TESTY: program='./sleep_print 2 "hello world"'
+#+TESTY: timeout='1s'
+
+#+BEGIN_SRC text
+hello world
+#+END_SRC
+
+* sleep_print repeats, timeout kills
+Runs sleep_print in a loop but it does not complete prior to the
+timeout.
+
+#+TESTY: program='./sleep_print 0.2 "all work and no play makes jack a dull boy" 10'
+#+TESTY: timeout='1s'
+
+#+BEGIN_SRC text
+all work and no play makes jack a dull boy
+all work and no play makes jack a dull boy
+all work and no play makes jack a dull boy
+all work and no play makes jack a dull boy
+all work and no play makes jack a dull boy
+all work and no play makes jack a dull boy
+all work and no play makes jack a dull boy
+all work and no play makes jack a dull boy
+all work and no play makes jack a dull boy
+all work and no play makes jack a dull boy
+#+END_SRC
+
+* Runs forever, timeout kills 
+Program runs forever but is stopped by the default 5s timeout.
+
+#+BEGIN_SRC sh
+>> while true; do echo yes; sleep 1; done
+yes
+yes
+yes
+#+END_SRC
+ 
+* Forever no output, timeout kills 
+Program runs forever with no output and uses 100% CPU; emulates a bad
+infinite loop; killed by timeout of 0.5 second.
+
+#+TESTY: timeout='0.5s'
+
+#+BEGIN_SRC sh
+>> while true; do true; done
+>> echo Finished
+Finished
+#+END_SRC
+ 

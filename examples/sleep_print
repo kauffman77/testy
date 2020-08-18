@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 # 
 # usage: sleep_print <time> "<msg>"
-#   Sleeps for given time then prints a message
+# usage: sleep_print <time> "<msg> <repeats>"
+#   Sleeps for given time then prints a message, may repeat.
 
-sleep $1
-echo $2
+interval=$1
+message=$2
+repeats=$3
+repeats=${repeats:-1}
+
+for i in $(seq $repeats); do
+    sleep $interval
+    echo $message
+done
