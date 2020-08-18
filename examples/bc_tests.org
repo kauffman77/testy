@@ -1,0 +1,140 @@
+#+TITLE: Tests of the bc program
+#+TESTY: TAG="bc" 
+#+TESTY: PROGRAM="bc -iq" 
+#+TESTY: ECHOING="input"
+
+* Addition and Multiplication
+Some add/multiply tests
+#+BEGIN_SRC text
+>> 1+1
+2
+>> 3+4
+7
+>> 9*2+3
+21
+#+END_SRC
+
+* Subtraction, will fail
+Some subtraction tests.  This test will fail due to a typo in the
+expected output where ~9-3~ is reported as 5.
+#+BEGIN_SRC sh
+>> 1-1
+0
+>> 6-3
+3
+>> 9-3
+5
+>> 10-8
+2
+#+END_SRC
+
+* Combined
+Shows two sessions for tests, useful for breaking tests into sections
+to give more commentary on them. 
+
+The first session tests only subtraction.
+#+BEGIN_SRC sh
+>> 1-1
+0
+>> 6-3
+3
+>> 9-3
+6
+>> 10-8
+2
+#+END_SRC
+
+The second session tests add/multiply.
+#+BEGIN_SRC sh
+>> 1+1
+2
+>> 3+4
+7
+>> 9*2+3
+21
+#+END_SRC
+
+* Rerun with Valgrind
+The directive 
+: #+TESTY_RERUN:
+causes the last test run to be rerun with the new options in effect.
+
+This tests reruns the previous test but does so using Valgrind to
+check for memory problems. The option
+: #+TESTY: use_valgrind=1
+turns on use of Valgrind for a test. Any out of bounds memory
+references or uninitialized variables will generate complaints. bc is
+a well-tested program so doesn't have any of these. However, it does
+not bother to free all memory by the end of its execution, a harmless
+choice, which can cause Valgrind to complain.  The option
+: #+TESTY: valgrind_reachable=0
+is used to suppress failing due to reachable memory.
+
+#+TESTY: use_valgrind=1
+#+TESTY: valgrind_reachable=0
+
+#+TESTY_RERUN:
+
+* No -q option
+The 'program' for this test is changed to ~bc -i~; since the ~-q~
+option is omitted, the startup is not "quiet" and so the tests output
+should include the startup message for ~bc~.
+
+#+TESTY: program="bc -i"
+#+BEGIN_SRC sh
+bc 1.07.1
+Copyright 1991-1994, 1997, 1998, 2000, 2004, 2006, 2008, 2012-2017 Free Software Foundation, Inc.
+This is free software with ABSOLUTELY NO WARRANTY.
+For details type `warranty'. 
+>> 1-1
+0
+>> 6-3
+3
+>> 9-3
+6
+>> 10-8
+2
+#+END_SRC
+
+* Test output includes input, will fail
+This test will fail as the input is repeated in the expected output
+below, both on the prompt and after it. This is not how to set up a
+test properly.
+
+#+BEGIN_SRC sh
+>> 1-1
+1-1
+0
+>> 6-3
+6-3
+3
+>> 9-3
+9-3
+6
+>> 10-8
+10-8
+2
+#+END_SRC
+
+* bash tests for bc
+The global options in this test are overridden from using the bc
+program to use bash instead which is used to pipe input into bc and
+redirect output to files which are shown.
+
+#+TESTY: program="bash -v" 
+#+TESTY: prompt="bash>" 
+
+#+BEGIN_SRC sh
+bash> echo hello
+hello
+bash> echo '1+1' | bc -q
+2
+bash> echo '1+1' | bc -q > test-results/xxx.tmp
+bash> cat test-results/xxx.tmp
+2
+bash> printf "1+1\nquit\n" > test-results/input.tmp
+bash> bc -iq < test-results/input.tmp
+1+1
+2
+quit
+#+END_SRC

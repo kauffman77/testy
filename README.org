@@ -2,9 +2,13 @@
 A script to run tests for interactive terminal programs. Tests are
 specified Emacs Org-like files.
 
+* License
+~testy~ is released under the terms of the *GNU General Public License
+v3.0-or-later (GPLv3-or-later)*. A copy of the GPLv3-or-later is
+included in the file ~LICENSE~ in the source repository.
+  
+
 * Planned Additions
-- Re-arrange the example files into directories and guarantee that
-  all of them work as expected
 - Remove the need to pass 'cat' as the filter to various
   TESTY_MULTI commands
 - Adjust standard single tests to add failures to lists like they
@@ -25,3 +29,5 @@ specified Emacs Org-like files.
   - LOW PRIORITY: the actual results for test are stored in files
     which can easily be re-inserted into the Org SRC blocks via
     commands in emacs.
+- Re-checked example files in file:examples/ to guarantee that all of
+  them work as expected

@@ -1,3 +1,8 @@
+This file briefly demonstrates the use of TESTY_MULTI features to
+check several programs running simultaneously, in this case the
+~file:sleep_print~ program.  For a more complex demo of TESTY_MULTI which
+features multiple interacting programs see ~file:banter_tests.org~
+
 * sleep_print Pass
 This test demonstrates use of TESTY_MULTI commands to launch several
 concurrent programs, wait for all of them then check their output. It
