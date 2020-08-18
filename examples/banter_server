@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+#
+# Creates a local chat "server", program that reads input on a FIFO
+# and broadcasts it to banter_client programs that have 'joined'.
+# This is mainly used to demonstrate how the TESTY_MULTI functionality
+# works.
+# 
+# To experiment interactively, use several terminals in the following way:
+#
+# TERM 1 Server
+# > ./banter_server gotham 
+# 
+# TERM 2 Client 1
+# > ./banter_client gotham Bruce
+# 
+# TERM 3 Client 2
+# > ./banter_client gotham Clark
+
+function handle_signal() {               # signal handler for shutdown
+    log "Signalled for shutdown"
+    broadcast "SHUTDOWN"
+    rm -f "$server_fifo"
+    exit 0
+}
+
+function log() {                         # log a messsage to the server's standard output
+    printf "log: %s\n" "$1"
+}
+
+function broadcast() {                   # broadcast a message to all clients
+    msg="$1"
+    log "$msg"
+    for client_fifo in "${name2fifo[@]}"; do
+        printf "%s\n" "$msg" > "$client_fifo"
+    done
+}
+
+################################################################################
+# begin main 
+################################################################################
+
+if [[ "$#" -lt 1 ]]; then                # check for presence of FIFO name for server
+    printf "usage: banter_server <server_fifo>\n"
+    exit 1
+fi
+
+trap 'handle_signal' TERM                # set up signal handlers
+trap 'handle_signal' INT
+
+server_fifo="$1"
+shift
+
+rm -f "$server_fifo"
+mkfifo "$server_fifo"
+exec {fifo_fd}<>"$server_fifo"           # opens fd for input, read/write, ensures server doesn't block
+log "Server started with fifo '$server_fifo'"
+
+declare -g -A name2fifo                  # associative array for client names mapped to fifo files for their messages
+while true; do                           # loop until signaled 
+    read -u ${fifo_fd} cmd name rest;    # read line from input FIFO, first word in var 'cmd', remaining in 'rest'
+
+    case "$cmd" in                       
+        "JOIN")                          # client joining
+            if [[ -n "${name2fifo[$name]}" ]]; then
+                printf "REJECT Already have a client named '%s'\n" "$name"
+            else                         # add client internal map of name->fifo
+                name2fifo["$name"]="$rest"
+                broadcast "JOIN $name"
+            fi
+            ;;
+
+        "DEPART")                        # client departing
+            unset name2fifo["$name"]     # remove from map
+            broadcast "DEPART $name"
+            ;;
+
+        "MESSAGE")                       # client message, broadcast to all clients
+            broadcast "MESSAGE $name $rest"
+            ;;
+        
+        *)
+            log "Unknown command '$cmd $name $rest'"
+            ;;
+    esac
+done
+

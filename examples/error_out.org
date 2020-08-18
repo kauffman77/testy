@@ -1,0 +1,11 @@
+* Errors on Symbols
+Testy should fail here as the program command is illegal due to
+containing shell symbol '&&' which is not supported
+
+#+TESTY: program="TESTY_MULTI"
+#+BEGIN_SRC text
+>> START sleep1 sleep 1 && echo hi
+>> WAIT sleep1
+>> OUTPUT sleep1
+>> CHECK_FAILURES sleep1
+#+END_SRC

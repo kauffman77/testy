@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# 
+# usage: sleep_print <time> "<msg>"
+#   Sleeps for given time then prints a message
+
+sleep $1
+echo $2

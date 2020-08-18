@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+#
+# Creates a local chat client, program that reads typed input and
+# sends it via a FIFO to a banter_server which broadcasts it to all
+# other connected clients.  This is mainly used to demonstrate how the
+# TESTY_MULTI functionality works.
+#
+# To experiment interactively, use several terminals in the following way:
+#
+# TERM 1 Server
+# > ./banter_server gotham 
+# 
+# TERM 2 Client 1
+# > ./banter_client gotham Bruce
+# 
+# TERM 3 Client 2
+# > ./banter_client gotham Clark
+
+function handle_signal() {                         # signal handler for graceful shutdown
+    if kill -0 "$server_input_pid" &> /dev/null; then
+        kill "$server_input_pid" &> /dev/null      # kill server input process if it exists
+    fi
+    rm -f "$client_fifo"
+    exit 0
+
+}
+
+################################################################################
+# begin main 
+################################################################################
+
+if [[ "$#" -lt 2 ]]; then                          # check for presence of server-fifo and client-name arguments
+    printf "usage: banter_client <server_fifo> <client_name>\n"
+    exit 1
+fi
+
+server_fifo="$1"
+client_name="$2"
+client_fifo="$$.${client_name}.fifo"               # name of fifo for server to brodcast to this client, based in PID
+rm -f "$client_fifo"
+mkfifo "$client_fifo"
+
+trap 'handle_signal' TERM                          # set up signal handlers
+trap 'handle_signal' INT
+
+# send a message to server to join it
+printf "JOIN %s %s\n" "$client_name" "$client_fifo" > "$server_fifo"
+
+exec {fifo_fd}<>"$client_fifo"                     # opens fd for input, read/write, ensures client doesn't block
+
+ppid=$$                                            # PID of parent process which will listen to input
+
+# Below loop is launched as a background process to enable it to run
+# concurrently with later code; it reads from server input and
+# prints to the screen while the later code reads typed input from the
+# user and conveys it to the server. 
+while read -u ${fifo_fd} cmd name rest; do         # read server data coming into client fifo, 'cmd' and 'name' are first two words, 'rest' is remaining
+    case "$cmd" in
+        "JOIN")                                    # another client joined
+            printf "=== %s JOINED ===\n" "$name"
+            ;;
+        "DEPART")                                  # another client departed
+            printf "=== %s DEPARTED ===\n" "$name"
+            ;;
+        "MESSAGE")                                 # message from another client, print it
+            printf "[%s]: %s\n" "$name" "$rest"
+            ;;
+        "SHUTDOWN")                                # server shutting down
+            printf "=== SERVER SHUTTING DOWN ===\n"
+            kill $$                                # send self signal to shut down client
+            ;;
+        *)
+            printf "ERR: ignoring server message '%s %s %s'\n" "$cmd" "$name" "$rest"
+            ;;
+    esac
+done && kill $ppid &                               # reading process in background so works concurrently to typed input 
+server_input_pid=$!                                # track PID of server input process
+
+while read; do                                     # loop to read input interactively, 'read' populates builtin var 'REPLY' with typed input
+    printf "MESSAGE %s %s\n" "$client_name" "$REPLY" > "$server_fifo"
+done
+printf "End of Input\n"
+
+printf "DEPART %s\n" "$client_name" > "$server_fifo"
+kill $$                                            # send self signal to shut down client
+

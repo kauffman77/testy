@@ -2,12 +2,26 @@
 A script to run tests for interactive terminal programs. Tests are
 specified Emacs Org-like files.
 
-* Plans
-- [ ] Catch signals and clean up files if interrupt/term signal is
-  given
-- [X] Add support for Valgrind: re-run previous test to check for
-  valgrind results
-- [ ] Add regeneration of test results
-- [X] Improve documentation
-- [ ] Add version number reporting
+* Planned Additions
+- Re-arrange the example files into directories and guarantee that
+  all of them work as expected
+- Remove the need to pass 'cat' as the filter to various
+  TESTY_MULTI commands
+- Adjust standard single tests to add failures to lists like they
+  do in TESTY_MULT (refactoring)
+- Explore use of Bash's built-in co-processes to see if that would
+  simplify the overall design 
+- Catch signals and clean up files if interrupt/term signal is given
+- Add version number reporting
+- Add documentation for TESTY_MULTI
 
+* Completed Additions
+- Add support for Valgrind: re-run previous test to check for valgrind
+  results
+- Added support for testing multiple programs at once via TESTY_MULTI
+  which can launch multiple coordinate programs and check their
+  behavior
+- Add automatic regeneration of test results
+  - LOW PRIORITY: the actual results for test are stored in files
+    which can easily be re-inserted into the Org SRC blocks via
+    commands in emacs.
