@@ -29,7 +29,9 @@ shut down gracefully.
 >> WAIT server
 >> OUTPUT server cat
 log: Server started with fifo 'gotham'
+log: Signalled for shutdown
 log: SHUTDOWN
+>> CHECK_FAILURES server cat
 #+END_SRC
 
 * One Client, Join, Shutdown
@@ -42,10 +44,13 @@ log: SHUTDOWN
 >> OUTPUT server cat
 log: Server started with fifo 'gotham'
 log: JOIN bruce
+log: Signalled for shutdown
 log: SHUTDOWN
 >> OUTPUT bruce cat
 === bruce JOINED ===
 === SERVER SHUTTING DOWN ===
+>> CHECK_FAILURES server cat
+>> CHECK_FAILURES bruce cat
 #+END_SRC
 
 * One Client Messages
@@ -64,6 +69,7 @@ log: JOIN bruce
 log: MESSAGE bruce Alfred?
 log: MESSAGE bruce Robin? Barbara?
 log: MESSAGE bruce Aaaaal-freeeeed!
+log: Signalled for shutdown
 log: SHUTDOWN
 >> OUTPUT bruce cat
 === bruce JOINED ===
@@ -71,6 +77,8 @@ log: SHUTDOWN
 [bruce]: Robin? Barbara?
 [bruce]: Aaaaal-freeeeed!
 === SERVER SHUTTING DOWN ===
+>> CHECK_FAILURES server cat
+>> CHECK_FAILURES bruce cat
 #+END_SRC
 
 * One Client EOF
@@ -83,17 +91,24 @@ log: SHUTDOWN
 >> WAIT bruce
 >> SIGNAL server -15
 >> WAIT server
+
 >> OUTPUT server cat
 log: Server started with fifo 'gotham'
 log: JOIN bruce
 log: MESSAGE bruce If no one is here, I'm leaving
 log: MESSAGE bruce k bye
 log: DEPART bruce
+log: Signalled for shutdown
 log: SHUTDOWN
+
 >> OUTPUT bruce cat
 === bruce JOINED ===
 [bruce]: If no one is here, I'm leaving
 [bruce]: k bye
+End of Input
+
+>> CHECK_FAILURES server cat
+>> CHECK_FAILURES bruce cat
 #+END_SRC
 
 * Two Clients
@@ -131,7 +146,7 @@ log: MESSAGE bruce Yeah. cuz....
 log: MESSAGE bruce I'M BAAATMAAAN!
 log: DEPART bruce
 log: MESSAGE clark He's so sensitive.
-log: Signalled for shutdown\n
+log: Signalled for shutdown
 log: SHUTDOWN
 
 >> OUTPUT bruce cat

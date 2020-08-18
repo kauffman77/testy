@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 function handle_signal() {               # signal handler for shutdown
-    log "Signalled for shutdown\n"
+    log "Signalled for shutdown"
     broadcast "SHUTDOWN"
     rm -f "$server_fifo"
     exit 0
