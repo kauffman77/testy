@@ -181,3 +181,250 @@ End of Input
 >> CHECK_FAILURES clark cat
 #+END_SRC
 
+* Stress Test
+#+BEGIN_SRC text
+>> START server ./banter_server gotham
+>> START clark ./banter_client gotham clark
+>> START bruce ./banter_client gotham bruce
+
+>> INPUT clark Hey Bruce
+>> INPUT clark Bruce?
+>> INPUT clark Are you deaf
+
+>> START lois ./banter_client gotham lois
+
+>> INPUT clark Hey Lois
+>> INPUT lois  Hey Clark. What's up?
+>> INPUT clark Bruce is lurking again.
+>> INPUT lois  I hate it when he does that. How do you know he's there?
+>> INPUT clark Super hearing, X-ray vision, computer-like mind. You know...
+>> INPUT lois  Not really, but I'll take your word for it.
+
+>> START barb ./banter_client gotham barbara
+
+>> INPUT barb  Hey guys
+>> INPUT clark Sup!
+>> INPUT lois  Great to see you.
+>> INPUT barb  Is bruce around?
+>> INPUT lois  Apparently
+>> INPUT clark Yes but he's pretending to "be the night"
+>> INPUT barb  Ugh. Well I wanted to check in before I head to the library.
+>> INPUT lois  See if you can find a book on childhood trauma.
+>> INPUT clark Ha! It might help with the lurker in the room.
+>> INPUT barb  Sure thing. Any other requests?
+>> INPUT lois  Anything you can find on "secret identy syndrome"
+>> INPUT clark Hey!
+>> INPUT barb  Copy that. Ciao.
+>> INPUT barb  <EOF>
+
+>> INPUT clark I've gotta split too, need some "me" time.
+>> INPUT lois  Well lucky you: wish I had a fortress of solitude for me time.
+>> INPUT clark <EOF>
+>> INPUT lois  Bruce: unless you wanna come out of the shadows, I'm gone.
+>> INPUT bruce ...
+>> INPUT lois  <EOF>
+>> INPUT bruce I'm filled with solitude... because...
+
+>> START diana ./banter_client gotham diana
+>> INPUT bruce I'M BATMAN!!!
+>> INPUT diana Hello no. Grayson may put with that crap but not me.
+>> INPUT diana I'm shutting this down.
+
+>> SIGNAL server -TERM
+
+>> WAIT server
+>> WAIT clark
+>> WAIT bruce
+>> WAIT lois
+>> WAIT barb
+>> WAIT diana
+
+>> CHECK_FAILURES server cat
+>> CHECK_FAILURES clark  cat
+>> CHECK_FAILURES bruce  cat
+>> CHECK_FAILURES lois   cat
+>> CHECK_FAILURES barb   cat
+>> CHECK_FAILURES diana  cat
+
+>> OUTPUT server cat
+log: Server started with fifo 'gotham'
+log: JOIN clark
+log: JOIN bruce
+log: MESSAGE clark Hey Bruce
+log: MESSAGE clark Bruce?
+log: MESSAGE clark Are you deaf
+log: JOIN lois
+log: MESSAGE clark Hey Lois
+log: MESSAGE lois Hey Clark. What's up?
+log: MESSAGE clark Bruce is lurking again.
+log: MESSAGE lois I hate it when he does that. How do you know he's there?
+log: MESSAGE clark Super hearing, X-ray vision, computer-like mind. You know...
+log: MESSAGE lois Not really, but I'll take your word for it.
+log: JOIN barbara
+log: MESSAGE barbara Hey guys
+log: MESSAGE clark Sup!
+log: MESSAGE lois Great to see you.
+log: MESSAGE barbara Is bruce around?
+log: MESSAGE lois Apparently
+log: MESSAGE clark Yes but he's pretending to "be the night"
+log: MESSAGE barbara Ugh. Well I wanted to check in before I head to the library.
+log: MESSAGE lois See if you can find a book on childhood trauma.
+log: MESSAGE clark Ha! It might help with the lurker in the room.
+log: MESSAGE barbara Sure thing. Any other requests?
+log: MESSAGE lois Anything you can find on "secret identy syndrome"
+log: MESSAGE clark Hey!
+log: MESSAGE barbara Copy that. Ciao.
+log: MESSAGE barbara <EOF>
+log: MESSAGE clark I've gotta split too, need some "me" time.
+log: MESSAGE lois Well lucky you: wish I had a fortress of solitude for me time.
+log: DEPART clark
+log: MESSAGE lois Bruce: unless you wanna come out of the shadows, I'm gone.
+log: MESSAGE bruce ...
+log: MESSAGE lois <EOF>
+log: MESSAGE bruce I'm filled with solitude... because...
+log: JOIN diana
+log: MESSAGE bruce I'M BATMAN!!!
+log: MESSAGE diana Hello no. Grayson may put with that crap but not me.
+log: MESSAGE diana I'm shutting this down.
+log: Signalled for shutdown
+log: SHUTDOWN
+>> OUTPUT clark  cat
+=== clark JOINED ===
+=== bruce JOINED ===
+[clark]: Hey Bruce
+[clark]: Bruce?
+[clark]: Are you deaf
+=== lois JOINED ===
+[clark]: Hey Lois
+[lois]: Hey Clark. What's up?
+[clark]: Bruce is lurking again.
+[lois]: I hate it when he does that. How do you know he's there?
+[clark]: Super hearing, X-ray vision, computer-like mind. You know...
+[lois]: Not really, but I'll take your word for it.
+=== barbara JOINED ===
+[barbara]: Hey guys
+[clark]: Sup!
+[lois]: Great to see you.
+[barbara]: Is bruce around?
+[lois]: Apparently
+[clark]: Yes but he's pretending to "be the night"
+[barbara]: Ugh. Well I wanted to check in before I head to the library.
+[lois]: See if you can find a book on childhood trauma.
+[clark]: Ha! It might help with the lurker in the room.
+[barbara]: Sure thing. Any other requests?
+[lois]: Anything you can find on "secret identy syndrome"
+[clark]: Hey!
+[barbara]: Copy that. Ciao.
+[barbara]: <EOF>
+[clark]: I've gotta split too, need some "me" time.
+[lois]: Well lucky you: wish I had a fortress of solitude for me time.
+End of Input
+>> OUTPUT bruce  cat
+=== bruce JOINED ===
+[clark]: Hey Bruce
+[clark]: Bruce?
+[clark]: Are you deaf
+=== lois JOINED ===
+[clark]: Hey Lois
+[lois]: Hey Clark. What's up?
+[clark]: Bruce is lurking again.
+[lois]: I hate it when he does that. How do you know he's there?
+[clark]: Super hearing, X-ray vision, computer-like mind. You know...
+[lois]: Not really, but I'll take your word for it.
+=== barbara JOINED ===
+[barbara]: Hey guys
+[clark]: Sup!
+[lois]: Great to see you.
+[barbara]: Is bruce around?
+[lois]: Apparently
+[clark]: Yes but he's pretending to "be the night"
+[barbara]: Ugh. Well I wanted to check in before I head to the library.
+[lois]: See if you can find a book on childhood trauma.
+[clark]: Ha! It might help with the lurker in the room.
+[barbara]: Sure thing. Any other requests?
+[lois]: Anything you can find on "secret identy syndrome"
+[clark]: Hey!
+[barbara]: Copy that. Ciao.
+[barbara]: <EOF>
+[clark]: I've gotta split too, need some "me" time.
+[lois]: Well lucky you: wish I had a fortress of solitude for me time.
+=== clark DEPARTED ===
+[lois]: Bruce: unless you wanna come out of the shadows, I'm gone.
+[bruce]: ...
+[lois]: <EOF>
+[bruce]: I'm filled with solitude... because...
+=== diana JOINED ===
+[bruce]: I'M BATMAN!!!
+[diana]: Hello no. Grayson may put with that crap but not me.
+[diana]: I'm shutting this down.
+=== SERVER SHUTTING DOWN ===
+>> OUTPUT lois   cat
+=== lois JOINED ===
+[clark]: Hey Lois
+[lois]: Hey Clark. What's up?
+[clark]: Bruce is lurking again.
+[lois]: I hate it when he does that. How do you know he's there?
+[clark]: Super hearing, X-ray vision, computer-like mind. You know...
+[lois]: Not really, but I'll take your word for it.
+=== barbara JOINED ===
+[barbara]: Hey guys
+[clark]: Sup!
+[lois]: Great to see you.
+[barbara]: Is bruce around?
+[lois]: Apparently
+[clark]: Yes but he's pretending to "be the night"
+[barbara]: Ugh. Well I wanted to check in before I head to the library.
+[lois]: See if you can find a book on childhood trauma.
+[clark]: Ha! It might help with the lurker in the room.
+[barbara]: Sure thing. Any other requests?
+[lois]: Anything you can find on "secret identy syndrome"
+[clark]: Hey!
+[barbara]: Copy that. Ciao.
+[barbara]: <EOF>
+[clark]: I've gotta split too, need some "me" time.
+[lois]: Well lucky you: wish I had a fortress of solitude for me time.
+=== clark DEPARTED ===
+[lois]: Bruce: unless you wanna come out of the shadows, I'm gone.
+[bruce]: ...
+[lois]: <EOF>
+[bruce]: I'm filled with solitude... because...
+=== diana JOINED ===
+[bruce]: I'M BATMAN!!!
+[diana]: Hello no. Grayson may put with that crap but not me.
+[diana]: I'm shutting this down.
+=== SERVER SHUTTING DOWN ===
+>> OUTPUT barb   cat
+=== barbara JOINED ===
+[barbara]: Hey guys
+[clark]: Sup!
+[lois]: Great to see you.
+[barbara]: Is bruce around?
+[lois]: Apparently
+[clark]: Yes but he's pretending to "be the night"
+[barbara]: Ugh. Well I wanted to check in before I head to the library.
+[lois]: See if you can find a book on childhood trauma.
+[clark]: Ha! It might help with the lurker in the room.
+[barbara]: Sure thing. Any other requests?
+[lois]: Anything you can find on "secret identy syndrome"
+[clark]: Hey!
+[barbara]: Copy that. Ciao.
+[barbara]: <EOF>
+[clark]: I've gotta split too, need some "me" time.
+[lois]: Well lucky you: wish I had a fortress of solitude for me time.
+=== clark DEPARTED ===
+[lois]: Bruce: unless you wanna come out of the shadows, I'm gone.
+[bruce]: ...
+[lois]: <EOF>
+[bruce]: I'm filled with solitude... because...
+=== diana JOINED ===
+[bruce]: I'M BATMAN!!!
+[diana]: Hello no. Grayson may put with that crap but not me.
+[diana]: I'm shutting this down.
+=== SERVER SHUTTING DOWN ===
+>> OUTPUT diana  cat
+=== diana JOINED ===
+[bruce]: I'M BATMAN!!!
+[diana]: Hello no. Grayson may put with that crap but not me.
+[diana]: I'm shutting this down.
+=== SERVER SHUTTING DOWN ===
+#+END_SRC
