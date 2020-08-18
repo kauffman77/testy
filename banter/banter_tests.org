@@ -9,8 +9,8 @@ TESTY_MULTI feature. Using the directive
 globally or within a test
 : #+TESTY: program='TESTY_MULTI'
 will interpret the testing session as a set of commands that are
-understood naively by testy to start/stop programs, send data and
-signals to them, and check that they close down properly. 
+understood natively by testy to start/stop programs, send data and
+signals to them, and check that they close down properly.
 
 This file demonstrates TESTY_MULTI with the two programs
 ~banter_server~ and ~banter_client~ which are shell programs that
