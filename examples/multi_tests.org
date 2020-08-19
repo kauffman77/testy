@@ -12,9 +12,9 @@ should pass.
 #+TESTY: timeout=3s
 
 #+BEGIN_SRC text
->> START spA sleep_print 2 'A sleep_print'
->> START spB sleep_print 1 'B sleep_print'
->> START spC sleep_print 2 'C sleep_print'
+>> START spA ./sleep_print 2 'A sleep_print'
+>> START spB ./sleep_print 1 'B sleep_print'
+>> START spC ./sleep_print 2 'C sleep_print'
 
 >> WAIT_ALL
 <testy> WAIT for spA
@@ -42,15 +42,15 @@ C sleep_print
 
 * sleep_print Timeout Failure
 This test launches several programs but one of them will not complete
-due to a timeout.
+due to a timeout causing the test to fail.
 
 #+TESTY: program="TESTY_MULTI"
 #+TESTY: timeout=3s
 
 #+BEGIN_SRC text
->> START spA sleep_print 2 'A sleep_print'
->> START spB sleep_print 5 'B sleep_print'
->> START spC sleep_print 2 'C sleep_print'
+>> START spA ./sleep_print 2 'A sleep_print'
+>> START spB ./sleep_print 5 'B sleep_print'
+>> START spC ./sleep_print 2 'C sleep_print'
 
 >> WAIT_ALL
 <testy> WAIT for spA

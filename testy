@@ -383,7 +383,7 @@ function program_start () {
         tick
     fi
     if ! program_alive "$prog_key"; then
-        printf "Failed to start program '%s'\n" "${program_command[$key]}"
+        printf "Failed to start program: %s\n" "${program_command[$key]}"
         return 1
     fi
 }    
