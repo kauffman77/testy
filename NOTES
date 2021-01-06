@@ -1,0 +1,69 @@
+* TODO Items
+- [ ] Re-arrange the example files into directories
+  - Currently all under file:examples/ but could organize these a bit
+    more with its own README
+- [ ] Remove the need to pass 'cat' as the filter to various
+  TESTY_MULTI commands
+- [ ] Add signal handling to do cleanup if needed
+- [ ] Adjust standard single tests to add failures to lists like they
+  do in TESTY_MULT
+- [ ] Explore use of Bash's built-in co-processes to see if that would
+  simplify the overall design
+- [ ] Remove use of 'mkfifo', perhaps FIFOs altogether as this feature
+  does not work on Windows file systems under the WSL
+
+
+* Multi Process testing
+
+#+BEGIN_SRC text
+> START server ./bl_server gotham
+> SHELL kill -15 ${program_pid[server]}
+> OUTPUT server
+#+END_SRC
+
+#+TESTY: program="TESTY_MULTI"
+
+#+BEGIN_SRC text
+> START server ./bl_server gotham
+> START bruce ./bl_client gotham bruce
+> START clark ./bl_client gotham clark
+> INPUT bruce hey
+> INPUT clark yo, what's up?
+> INPUT bruce not much
+> INPUT clark gotta go
+> INPUT bruce me too
+> INPUT bruce %EOF
+> INPUT clark %EOF
+> SIGNAL server -15 ${program_pid[server]}
+> OUTPUT server
+# server output goes here
+> OUTPUT bruce
+# bruce's output goes here
+> OUTPUT clark
+# clark's output goes here
+
+# Not sure on this section what to do
+> VALGRIND_CHECK server
+> VALGRIND_CHECK bruce
+> VALGRIND_CHECK clark
+#+END_SRC
+
+#+BEGIN_SRC sh
+SHELL kill -15 %PNAME[server]
+
+#+END_SRC
+** notes 
+- the example above illustrates that this command set as it would
+  exist in testy looks more like another interpreter of some type
+- as I have started to experiment with coding it in bash, it feels
+  more like a subprogram
+- particularly the declarations about output would be nice for testy
+  to have inline and then just check the output lines as if it was an
+  interpreter
+- this would create a dependency on another file thought which is a
+  little undesirable
+
+Tue 18 Aug 2020 09:50:13 AM CDT 
+- Altered the syntax away from the above somewhat but the general
+  scheme is still what I ended up using
+- see the banter/ directory for an example 

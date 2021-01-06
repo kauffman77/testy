@@ -1,0 +1,94 @@
+#+TESTY: PROGRAM="./hash/hash_main -echo"
+#+TESTY: PROMPT="HM>"
+#+TESTY: ECHOING="both"
+#+TESTY: PREFIX="hash"
+
+* Start Print Quit
+Tests that the prelude text appears, that 'print' shows nothing
+initially and that quit exits.
+
+#+BEGIN_SRC sh
+Hashmap Demo
+Commands:
+  hashcode <key>   : prints out the numeric hash code for the given key (does not change the hash map)
+  put <key> <val>  : inserts the given key/val into the hash map, overwrites existing values if present
+  get <key>        : prints the value associated with the given key or NOT FOUND
+  print            : shows contents of the hashmap ordered by how they appear in the table
+  structure        : prints detailed structure of the hash map
+  clear            : reinitializes hash map to be empty with default size
+  save <file>      : writes the contents of the hash map the given file
+  load <file>      : clears the current hash map and loads the one in the given file
+  next_prime <int> : if <int> is prime, prints it, otherwise finds the next prime and prints it
+  expand           : expands memory size of hashmap to reduce its load factor
+  quit             : exit the program
+HM> print
+HM> quit
+#+END_SRC
+
+* Commands hashcode, get on empty table
+Checks 'hashcode' command computes hash codes of keys and displays
+them. Also checks that 'get' returns 'NOT FOUND' as the table is
+initially empty.
+
+#+BEGIN_SRC sh
+Hashmap Demo
+Commands:
+  hashcode <key>   : prints out the numeric hash code for the given key (does not change the hash map)
+  put <key> <val>  : inserts the given key/val into the hash map, overwrites existing values if present
+  get <key>        : prints the value associated with the given key or NOT FOUND
+  print            : shows contents of the hashmap ordered by how they appear in the table
+  structure        : prints detailed structure of the hash map
+  clear            : reinitializes hash map to be empty with default size
+  save <file>      : writes the contents of the hash map the given file
+  load <file>      : clears the current hash map and loads the one in the given file
+  next_prime <int> : if <int> is prime, prints it, otherwise finds the next prime and prints it
+  expand           : expands memory size of hashmap to reduce its load factor
+  quit             : exit the program
+HM> print
+HM> hashcode a
+97
+HM> hashcode A
+65
+HM> hashcode Aa
+24897
+HM> hashcode apple
+435611005025
+HM> hashcode banana
+107126708920674
+HM> get a
+NOT FOUND
+HM> get Aa
+NOT FOUND
+HM> get apple
+NOT FOUND
+HM> get banana
+NOT FOUND
+HM> quit
+#+END_SRC
+
+* Single put and get
+Puts a single key/val into the hash table and then gets that key and
+the empty one to ensure the hash table is populated.
+
+#+BEGIN_SRC sh
+Hashmap Demo
+Commands:
+  hashcode <key>   : prints out the numeric hash code for the given key (does not change the hash map)
+  put <key> <val>  : inserts the given key/val into the hash map, overwrites existing values if present
+  get <key>        : prints the value associated with the given key or NOT FOUND
+  print            : shows contents of the hashmap ordered by how they appear in the table
+  structure        : prints detailed structure of the hash map
+  clear            : reinitializes hash map to be empty with default size
+  save <file>      : writes the contents of the hash map the given file
+  load <file>      : clears the current hash map and loads the one in the given file
+  next_prime <int> : if <int> is prime, prints it, otherwise finds the next prime and prints it
+  expand           : expands memory size of hashmap to reduce its load factor
+  quit             : exit the program
+HM> print
+HM> put apple fruit
+HM> get apple
+FOUND: fruit
+HM> get banana
+NOT FOUND
+HM> quit
+#+END_SRC
