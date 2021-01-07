@@ -3,7 +3,7 @@
 # A script to automate testing programs on the command line.
 # author:  Chris Kauffman <kauffman@umn.edu>
 # license: GPLv3-or-later
-# RELEASE: Tue 18 Aug 2020 02:45:22 PM CDT 
+# RELEASE: Thu Jan  7 09:40:58 AM CST 2021 
 
 read -r -d '' usage <<EOF
 usage:    testy <testfile.org> [test# test# ...]
@@ -131,12 +131,14 @@ VALG_ERROR="13"                                       # error code that valgrind
 
 VALGRIND_PROG="valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=13 --track-origins=yes"
 
-# Uses gsed if available for BSD-based operating systems and sed if otherwise
+# Uses gsed if available for BSD-based operating systems and sed otherwise
 if command -v gsed >/dev/null 2>&1; then
     SEDCMD=$(command -v gsed)
 else
     SEDCMD=$(command -v sed)
 fi
+
+TMPFIFOS=""                                           # blank if local directory supports FIFOs, '/tmp' if FIFOS supported there instead
 
 # default values for the program to be tested
 PROGRAM=${PROGRAM:-"bash -v"}                         # program to run if no option is specified
@@ -333,8 +335,11 @@ function program_start () {
     debug "Adding program w/ key '$key' command '$progcmd'"
     program_command[$key]="$progcmd"
     program_name[$key]="${progcmd%% *}"
-    program_input__fifo[$key]=$(printf "%s/%s-%02d-%s_input__fifo.tmp" "$resultraw" "$prefix" "$testnum" "$key")
     program_output_file[$key]=$(printf "%s/%s-%02d-%s_output_file.tmp" "$resultraw" "$prefix" "$testnum" "$key")
+    program_input__fifo[$key]=$(printf "%s/%s-%02d-%s_input__fifo.tmp" "$resultraw" "$prefix" "$testnum" "$key")
+    if [[ -n "$TMPFIFOS" ]]; then                       # use /tmp instead, likely due to Windows/WSL
+        program_input__fifo[$key]=$(printf "%s/%s-%02d-%s_input__fifo.tmp" "${TMPFIFOS}" "$prefix" "$testnum" "$key")
+    fi
     
     if [[ "$use_valgrind" = 1 ]]; then
         program_valgfile[$key]=$(printf "%s/%s-%02d-%s_valgrd.tmp" "$resultraw" "$prefix" "$testnum" "$key")
@@ -843,8 +848,11 @@ function run_test_session(){
         VALGRIND=""
     fi
 
-    toprog_fifo="${resultraw}/%s-%02d-tofifo.tmp"       # set up communication with the program being tested
     fromprog_file="${resultraw}/%s-%02d-fromfile.tmp"   # may wish to alter this to honor TMPDIR
+    toprog_fifo="${resultraw}/%s-%02d-tofifo.tmp"       # set up communication with the program being tested
+    if [[ -n "$TMPFIFOS" ]]; then
+        toprog_fifo="${TMPFIFOS}/%s-%02d-tofifo.tmp"    # use /tmp instead, likely due to Windows/WSL
+    fi
     debug "toprog_fifo: $toprog_fifo"
     debug "fromprog_file: $fromprog_file"
     rm -f "${toprog_fifo}" "${fromprog_file}"           # remove just in case
@@ -1120,6 +1128,21 @@ deps="timeout stdbuf awk $SEDCMD grep diff"           # check for baseline neces
 for dep in $deps; do
     checkdep_fail "$dep"
 done
+
+
+rm -f ./test-fifo.fifo /tmp/test-fifo.fifo              # Test FIFO creation, often fails for Windows file systems on WSL, can
+if !  mkfifo ./test-fifo.fifo &> /dev/null ; then       # FIFOs in current directory?
+    debug "Can't create fifos in $PWD"
+    if ! mkfifo /tmp/test-fifo.fifo &> /dev/null ; then # FIFOs in /tmp?
+        printf "ERROR: Can't create FIFOs in %s or /tmp; Bailing out\n" "$PWD"
+        rm -f ./test-fifo.fifo /tmp/test-fifo.fifo
+        exit 1
+    else                                                # use FIFOS in /tmp
+        TMPFIFOS="/tmp"
+        debug "Local dir $PWD can't handle FIFOs, Creating FIFOs in /tmp"
+    fi
+fi
+rm -f ./test-fifo.fifo /tmp/test-fifo.fifo
 
 ##################################################
 # first procesing loop: read whole file into testdata array which will
