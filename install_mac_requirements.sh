@@ -433,21 +433,6 @@ else
     printf "gawk is installed! ✅\n\n";
 fi
 
-if $echoOn; then
-    printf "> macOsVersion=\$(sw_vers -productVersion)\n\n";
-fi
-
-# Gets the version of macOS the user has
-if ! macOsVersion=$(sw_vers -productVersion); then
-    printf "An error occurred when trying to get the macOS version.\n";
-    printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n";
-    exit 1; # Exiting with with a non-zero status to indicate an error
-fi
-
-if $echoOn; then
-    printf "> mapfile -t osVersionNumbers < <( tr . '\\\n' <<< \"\$macOsVersion\")\n\n";
-fi
-
 # Edit: Previously, I had an experimental version of valgrind installed on macOS here. However, it had too many issues for me to consider worth it. Use valgrind on a CSE labs machine or Ubuntu machine/VM
 
 printf "Congratulations! Your computer should be completely set up! 💻\n\n";
