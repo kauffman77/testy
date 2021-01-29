@@ -117,6 +117,8 @@ run but NOT in between sessions in single test.
 Finally, these variables control some global behavior of the testy.
 SHOW=0            : set to 1 to print test error results after completing
 DEBUG=0           : set to 1 to print LOTS of debugging messages
+REPORT_FRACTION=0 : report the fraction of tests passed rather than the count
+
 EOF
 
 # some global options/programs
@@ -1053,7 +1055,7 @@ function run_test_session(){
                printf "%s\n" "--- Side by Side Differences ---"
                printf "%s\n" "- Expect output in: $expect_file" 
                printf "%s\n" "- Actual output in: $actual_file"
-               printf "%s\n" "- Differing lines have a character like '|' in the middle\n"
+               printf "%s\n" "- Differing lines have a character like '|' '>' or '<' in the middle"
                printf "%-${col_width}s   %-${col_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
                $SDIFF -W $total_width "$expect_file" "$actual_file"
                printf "%s\n" "--- Line Differences ---"
@@ -1313,6 +1315,11 @@ done
 ########################################
 # Final Output
 passcount=$((testcount-failcount))                    # calculate number of tests passed
+if [[ "$REPORT_FRACTION" == "1" ]]; then              # reporting fraction of tests passed
+    passcount=$(awk "BEGIN{printf(\"%0.2f\n\",$passcount / $testcount)}")
+    testcount="1.00"
+fi
+
 printf "============================================================\n"
 printf "RESULTS: %s / %s tests passed\n" "$passcount" "$testcount"
 
