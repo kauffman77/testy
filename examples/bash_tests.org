@@ -1,0 +1,15 @@
+* Output Tests
+By default, program is "bash -v" so prompt lines are fed to the shell
+and executed
+
+#+BEGIN_SRC sh
+>> echo Hello testy
+Hello testy
+>> printf "Testing is easy!\n"
+Testing is easy!
+>> somevar=42
+>> echo "The ultimate answer is $somevar"
+The ultimate answer is 42
+#+END_SRC
+
+
