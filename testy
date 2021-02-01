@@ -853,7 +853,7 @@ function run_test_session(){
     fromprog_file=$(printf "%s/%s-%02d-fromfile.tmp" "$resultraw" "$prefix" "$testnum")   # may wish to alter this to honor TMPDIR
     toprog_fifo=$(printf "%s/%s-%02d-tofifo.tmp" "$resultraw" "$prefix" "$testnum")       # set up communication with the program being tested
     if [[ -n "$TMPFIFOS" ]]; then
-        toprog_fifo=$(printf "%s/%s-%02d-tofifo.tmp" "TMPFIFOS" "$prefix" "$testnum")     # use /tmp instead, likely due to Windows/WSL
+        toprog_fifo=$(printf "%s/%s-%02d-tofifo.tmp" "$TMPFIFOS" "$prefix" "$testnum")    # use /tmp instead, likely due to Windows/WSL
     fi
     debug "toprog_fifo: $toprog_fifo"
     debug "fromprog_file: $fromprog_file"
