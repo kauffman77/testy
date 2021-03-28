@@ -1,4 +1,9 @@
 * TODO Items
+- [ ] TESTY_MULTI commands don't work unless there is a exactly one
+  space separating the tokens. This defies common
+  convention/expectation.  Work out a function to split words on
+  spaces and use it in the MULTI functionality to make this more
+  robust. 
 - [ ] Re-arrange the example files into directories
   - Currently all under file:examples/ but could organize these a bit
     more with its own README
@@ -11,7 +16,10 @@
   simplify the overall design
 - [ ] Remove use of 'mkfifo', perhaps FIFOs altogether as this feature
   does not work on Windows file systems under the WSL
-
+- [ ] If a file doesn't end in a newline, this can cause the last line
+  of a testing session to be missed. Try to make this a bit more
+  robust. Use the DEBUG output to see when the last line of the
+  session is missed
 
 * Multi Process testing
 
