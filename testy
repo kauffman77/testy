@@ -386,11 +386,16 @@ function program_start() {
     else
         tick
     fi
-    if ! program_alive "$prog_key"; then
-        printf "Failed to start program: %s\n" "${program_command[$key]}"
-        return 1
-    fi
-}    
+
+    # NOTE: Below code checks for the subprocess starting up BUT this
+    # is a race condition as if the program finishes before the check,
+    # then it will spuriously report that the code did not start.
+    #
+    # if ! program_alive "$prog_key"; then
+    #     printf "Failed to start program: %s\n" "${program_command[$key]}"
+    #     return 1
+    # fi
+}
 
 # Sends an input line to a program on standard input using the
 # pre-established FIFO for that program.  The special message '<EOF>'
