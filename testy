@@ -1251,7 +1251,7 @@ for testnum in $alltests; do                          # Iterate over all tests t
             "#+BEGIN_SRC")                            # test session starting
                 debug ":TEST $testnum: Begin testing session"
                 if [[ "$program" == "TESTY_MULTI" ]]; then
-                    run_testy_multi_session
+                    run_test_multi_session
                 else
                     run_test_session
                 fi
@@ -1276,7 +1276,7 @@ for testnum in $alltests; do                          # Iterate over all tests t
                 fi
 
                 if [[ "$program" == "TESTY_MULTI" ]]; then
-                    run_testy_multi_session <<<"$($SEDCMD -n "${beg},${end}p" "$specfile")"
+                    run_test_multi_session <<<"$($SEDCMD -n "${beg},${end}p" "$specfile")"
                 else
                     run_test_session <<<"$($SEDCMD -n "${beg},${end}p" "$specfile")"
                 fi
