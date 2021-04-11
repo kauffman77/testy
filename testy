@@ -61,7 +61,7 @@ failure in a file.
 >> echo 'hi'
 hi
 >> printf 'INTENTIONAL fail\n'
-INTENTIONALly fails
+INTENTIONAL fail
 #+END_SRC
 
 * Test bc
@@ -84,7 +84,7 @@ The following variables can be specified in test files via lines like
 or on via an environment variable during a program run as in
   > VAR="value" testy testfile.org
 
-They will change the behavior of how the test data is interpretted.
+They will change the behavior of how the test data is interpreted.
 
 Global variables that are usually specified at the beginning of a test
 file before any other tests.
@@ -97,7 +97,7 @@ ECHOING="input"          : {input, both} for program input echoing style,
                             NOTE: testy does not support mocked interaction tests for programs that don't echo input
                             as this is generally hard to do
 PREFIX="test"            : prefix for output files, often changed to reflect program name like 'myprog'
-RESULTDIR="test-results" : directory where the resutls will be written
+RESULTDIR="test-results" : directory where the results will be written
 TIMEOUT="5s"             : maximum time to complete test before it is failed due to timeout
 POST_FILTER=""           : program to adjust output from test before evaluating, run as 'cat output | post_filter > actual.tmp'
 USE_VALGRIND="0"         : set to 1 to run programs under Valgrind which checks for memory errors
@@ -105,7 +105,7 @@ VALGRIND_REACHABLE="1"   : under valgrind, report errors if memory is still reac
 SKIPDIFF="0"             : skip diffing results, useful if checking valgrind but actual output can vary
 
 Each of the above Global variables can be set Locally during a single
-test by setting their lower-case version. For exaxmple:
+test by setting their lower-case version. For example:
 
   * Test 5: A test of bc
   #+TESTY: program="bc -i"
@@ -147,10 +147,10 @@ PROGRAM=${PROGRAM:-"bash -v"}                         # program to run if no opt
 PROMPT=${PROMPT:-">>"}                                # prompt to honor if none is specified
 ECHOING=${ECHOING:-"input"}                           # {input, both} for program input echoing style
 PREFIX=${PREFIX:-"test"}                              # prefix for the files that are produced by testy
-RESULTDIR=${RESULTDIR:-"test-results"}                # directory where the resutls will be written
+RESULTDIR=${RESULTDIR:-"test-results"}                # directory where the results will be written
 RESULTRAW=${RESULTRAW:-"$RESULTDIR/raw"}              # directory where actual / expect / valgrind results are stored
 TIMEOUT=${TIMEOUT:-"5s"}                              # time after which to kill a test, passed to 'timeout' command and program_wait();
-POST_FILTER=${POST_FILTER:-""}                        # run this progam on output to adjust it if needed
+POST_FILTER=${POST_FILTER:-""}                        # run this program on output to adjust it if needed
 USE_VALGRIND=${USE_VALGRIND:-"0"}                     # use valgrind while testing
 VALGRIND_REACHABLE=${VALGRIND_REACHABLE:-"1"}         # report valgrind errors if memory is still reachable
 SKIPDIFF=${SKIPDIFF:-"0"}                             # skip diffing results, useful if checking valgrind but actual output can vary
@@ -242,7 +242,7 @@ function program_wait() {
             printf "Return Code %s: TIMEOUT, program killed, not complete within %s sec limit\n" "$retcode" "$timeout"
             ;;
         "$RETCODE_KILLED")
-            printf "Return Code %s: KILLED by OS likely a SEGFAULT occured\n" "$retcode"
+            printf "Return Code %s: KILLED by OS likely a SEGFAULT occurred\n" "$retcode"
             ;;
         *)
             printf "Non-zero return code %s\n" "$retcode"
@@ -324,7 +324,7 @@ function program_start() {
         {
             printf "ERROR with '%s'\n" "$progcmd"
             printf "TESTY_MULTI does not support program commands with shell redirects, pipes, booleans, or backgrounds\n"
-            printf "The following symbols in program comands will trigger this error: > < | & || && \n"
+            printf "The following symbols in program commands will trigger this error: > < | & || && \n"
             printf "Please rework the test file to avoid this\n"
         } >/dev/stderr
         exit 1
@@ -524,7 +524,7 @@ function program_check_failures() {
             program_state[$key]="ReachErr"
             msg=""
             msg+="${key} MEMORY REACHABLE: Valgrind reports '${program_command[$key]}' has\n"
-            msg+="reachable memory, may need to add free() or fclose() beore exiting\n"
+            msg+="reachable memory, may need to add free() or fclose() before exiting\n"
             msg+="\n"
             msg+="Valgrind output from file '${program_valgfile[$key]}'\n"
             msg+="--------------------\n"
@@ -604,8 +604,8 @@ function handle_multi_command() {
     return $?
 }
 
-    debug "diff_exepct_actual '$1' '$2'"
 function diff_expect_actual() {
+    debug "diff_expect_actual '$1' '$2'"
     expect_file="$1"
     actual_file="$2"
     
@@ -639,8 +639,8 @@ function diff_expect_actual() {
         debug "Skipping diff (skipdiff=$skipdiff)"
         diffreturn=0
     elif [[ "$diffreturn" != "0" ]]; then
-        status="$FAIL_STATUS"                         # differences found, triger failure
         msg="$(cat $diff_file)"
+        status="$FAIL_STATUS"                         # differences found, trigger failure
         fail_messages+=("$msg")
     fi
     return $diffreturn
@@ -936,13 +936,13 @@ function run_test_session() {
             ;;
         "$RETCODE_KILLED")
             status="$FAIL_STATUS"
-            fail_messages+=("FAILURE($retcode) due to Kill Signal from OS: likely a SEGFAULT occured")
+            fail_messages+=("FAILURE($retcode) due to Kill Signal from OS: likely a SEGFAULT occurred")
             ;;
     esac
 
-    if [[ "$use_valgrind" = "1" ]] &&                 # if valgrind is on
-       [[ "$valgrind_reachable" = "1" ]] &&           # and checking for reachable memory
-       ! awk '/still reachable:/{if($4 != 0){exit 1;}}' "${valgrd_file}";
+    if [[ "$use_valgrind" == "1" ]] &&                # if valgrind is on
+        [[ "$valgrind_reachable" == "1" ]] &&         # and checking for reachable memory
+        ! awk '/still reachable:/{if($4 != 0){exit 1;}}' "${valgrd_file}";
     then                                              # valgrind log does not contain 'reachable: 0 bytes'
         status="$FAIL_STATUS"
         fail_messages+=("FAILURE: Valgrind reports reachable memory, may need to add free() or fclose()")
@@ -1010,7 +1010,7 @@ function run_test_session() {
     actual_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$actual_file")
     expect_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$expect_file")
     col_width=$((actual_width > expect_width ? actual_width : expect_width))
-    total_width=$((col_width * 2 + 3))                 # width to pass to diff as -W
+    total_width=$((col_width * 2 + 3))                # width to pass to diff as -W
     debug "actual_width $actual_width"
     debug "expect_width $expect_width"
     debug "col_width $col_width"
@@ -1036,13 +1036,13 @@ function run_test_session() {
         debug "kill returned: $?"
     else
         debug "FAILURE cleanup"                       # test failed for some reason
-        {                                             # begin capturnig output for results file
+        {                                             # begin capturing output for results file
            printf '(TEST %d) %s\n' "$testnum" "$test_title"
            printf 'COMMENTS:\n'
            printf "%b\n" "${comments}"
            printf 'program: %s\n' "$program"
            printf "Failure messages:\n"
-           for msg in "${fail_messages[@]}"; do       # iterate through faiure messages
+           for msg in "${fail_messages[@]}"; do       # iterate through failure messages
                printf "%s\n" "- $msg"
            done
            printf "\n"
@@ -1140,7 +1140,7 @@ fi
 rm -f ./test-fifo.fifo /tmp/test-fifo.fifo
 
 ##################################################
-# first procesing loop: read whole file into testdata array which will
+# first processing loop: read whole file into testdata array which will
 # contain the text of each test. Record ONLY the start/end lines of
 # each test to be used later.  Other side effects: evaluate any global
 # #+TESTY: expressions, calculate the widest test title width for nice
@@ -1320,7 +1320,7 @@ if [[ "$SHOW" == "1" && "${#fail_files[@]}" -gt 0 ]]; then # show failure result
     printf "============================================================\n"
     printf "== FAILURE RESULTS\n"
     # printf "%s\n" "----------------------------------------"
-    for f in "${fail_files[@]}"; do                   # iteratre overa ll failure files outputing them
+    for f in "${fail_files[@]}"; do                        # iterate over all failure files outputting them
         printf "============================================================\n"
         cat $f
     done
