@@ -595,8 +595,8 @@ function handle_multi_command() {
             eval "$multi_rest"
             ;;
         *)
-            printf "Unknown command '%s' in line '%s'\n" > /dev/stderr
             printf "TESTY FAILURE in handle_multi_command():\n" >/dev/stderr
+            printf "Unknown command '%s' in line '%s'\n" "$multi_cmd" "$linenum" >/dev/stderr
             printf "Aborting testy\n" >/dev/stderr
             exit 1
             ;;
