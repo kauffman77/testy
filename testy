@@ -275,14 +275,14 @@ function program_wait() {
 function program_alive() {
     key="$1"
     if [[ "${program_state[$key]}" == "Done" ]]; then
-        printf "Program '$key' has already died\n"
+        printf "Program '%s' has already died\n" "$key"
         return 0
     fi
     pid=${program_pid[$key]}
     output=$(kill -0 "$pid" 2>&1)
     ret=$?                                            # capture return val for kill: 0 for alive, 1 for dead
     if [[ "$ret" != "0" ]]; then
-        printf "Program '$key' is not alive: $output\n"
+        printf "Program '%s' is not alive: %s\n" "$key" "$output"
         program_wait "$key"                           # wait on program and mark as dead
     fi
     return $ret
@@ -339,8 +339,8 @@ function program_start() {
     if [[ -n "$TMPFIFOS" ]]; then                       # use /tmp instead, likely due to Windows/WSL
         program_input__fifo[$key]=$(printf "%s/%s-%02d-%s_input__fifo.tmp" "${TMPFIFOS}" "$prefix" "$testnum" "$key")
     fi
-    
-    if [[ "$use_valgrind" = 1 ]]; then
+
+    if [[ "$use_valgrind" == 1 ]]; then
         program_valgfile[$key]=$(printf "%s/%s-%02d-%s_valgrd.tmp" "$resultraw" "$prefix" "$testnum" "$key")
         VALGRIND="${VALGRIND_PROG} ${VALGRIND_OPTS} --log-file=${program_valgfile[$key]}"
         # program_valgfile[$key]=$(mktemp $resultraw/testy_valg.XXXXXX)
@@ -483,7 +483,7 @@ function program_check_failures() {
             status="$FAIL_STATUS"
             program_state[$key]="ValgErr"
             msg=""
-            msg+="Valgrind found errors for program ${key} ($progcmd : return code $retcode[VALG_ERROR])\n"
+            msg+="Valgrind found errors for program ${key} ($progcmd : return code ${retcode[VALG_ERROR]})\n"
             msg+="Valgrind output from '${program_valgfile[$key]}'\n"
             msg+=$(cat ${program_valgfile[$key]})
             fail_messages+=("$msg")
@@ -502,15 +502,15 @@ function program_check_failures() {
             ;;
         139)
             status="$FAIL_STATUS"
-            msg="${key} returned $retcode (KILL SIGNAL): OS signaled '${program_command[$key}' likely due to a SEGFAULT"
             program_state[$key]="KillErr"
+            msg="${key} returned $retcode (KILL SIGNAL): OS signaled '${program_command[$key]}' likely due to a SEGFAULT"
             fail_messages+=("$msg")
 
             # printf "FAILURE $msg\n"
             ;;
     esac
 
-    if [[ "$use_valgrind" = "1" ]]; then              # if valgrind is enabled, check its output
+    if [[ "$use_valgrind" == "1" ]]; then                       # if valgrind is enabled, check its output
         valgfile="${program_valgfile[$key]}"
         debug "use_valgrind: $use_valgrind, valgfile: $valgfile"
         $filter $valgfile >${valgfile/.tmp/.filtered.tmp}       # create a filtered version of the valgrind file to
@@ -799,7 +799,7 @@ function run_test_multi_session() {
                 # printf '%s\n' '- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
                 printf '%s\n' '-----------------------------------------------------------------------------------------------'
                 printf "* FAILURE %d\n" "$fidx"
-                printf "${msg}\n"
+                printf "%s\n" "${msg}"
                 printf "\n"
                 ((fidx++))
             done
@@ -895,7 +895,7 @@ function run_test_session() {
                 debug "^^ eof_set=1"
                 ;;
             "$prompt")                                # test input, feed to program
-                if [[ "$eof_set" = "0" ]]; then
+                if [[ "$eof_set" == "0" ]]; then
                     input="$rest"
                     all_input+=("$input")                 # append to all_input array for later processing
                     debug "^^ sending input"
@@ -962,8 +962,8 @@ function run_test_session() {
     # do this with { } construct).  This approach can be fooled: if an
     # output line matches an input line, the prompt may be added at
     # the wrong spot.
-    if [[ "$echoing" = "input" ]]; then               # program may only echo input necessitating adding prompts to output
-        idx=0                                         # index for input line
+    if [[ "$echoing" == "input" ]]; then               # program may only echo input necessitating adding prompts to output
+        idx=0                                          # index for input line
         exec {mod}>"${fromprog_file}.mod"
         while read -r || [[ "$REPLY" != "" ]]; do      # read from output file into default REPLY var, second condition catches last line which may not end with a newline char
             if ((idx < ${#all_input[@]})) &&           # still in bounds for input lines
@@ -1027,7 +1027,7 @@ function run_test_session() {
         fail_messages+=("FAILURE: Output Mismatch at lines marked")
     fi
 
-    if [[ "$status" = "$PASS_STATUS" ]]; then         # test passed
+    if [[ "$status" == "$PASS_STATUS" ]]; then        # test passed
         debug "NORMAL cleanup"                        # normal finish
         debug "Checking child status with kill -0"
         kill -0 $pid >&/dev/null                      # check that the child is dead, return value 1
@@ -1057,7 +1057,7 @@ function run_test_session() {
                printf "\n"
            fi
 
-           if [[ "$use_valgrind" = "1" ]]; then       # show valgrind log if enabled and test failed
+           if [[ "$use_valgrind" == "1" ]]; then      # show valgrind log if enabled and test failed
                printf "%s\n" "--- Valgrind Log from: $valgrd_file ---"
                cat "$valgrd_file"
                printf "\n"
@@ -1108,7 +1108,7 @@ alltests="$*"                                         # remaining args are tests
 debug "Testing $specfile"
 debug "alltests='$alltests"
 
-if [[ "$specfile" = "--help" ]]; then                 # check for --help option
+if [[ "$specfile" == "--help" ]]; then                # check for --help option
     printf "%s\n" "$usage"                            # print usage and exit
     exit 0
 fi
@@ -1170,7 +1170,7 @@ while read -r; do                                     # read from test file, -r 
             fi
             ;;
         "#+TESTY:")                                   # evaluate global expressions
-            if [[ "$eval_testy_expr" = "1" ]]; then
+            if [[ "$eval_testy_expr" == "1" ]]; then
                 debug "Evaluating '$rest'"
                 eval "$rest"
             fi
@@ -1221,7 +1221,7 @@ failcount=0
 # Print header info
 
 printf "============================================================\n"
-if [[ "$global_title" = "" ]]; then
+if [[ "$global_title" == "" ]]; then
     printf "== testy %s\n" "$specfile"
 else
     printf "== $specfile : %s\n" "$global_title"
