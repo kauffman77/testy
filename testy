@@ -215,7 +215,7 @@ function updateline() {                               # processes $line to set s
 # Multi test functions
 
 function tick() {                                     # pause execution during multi test sessions
-    sleep $ticktime
+    sleep "$ticktime"
 }
 
 # Calls wait on program with given key, captures return value of
@@ -279,7 +279,7 @@ function program_alive() {
         return 0
     fi
     pid=${program_pid[$key]}
-    output=$(kill -0 $pid 2>&1)
+    output=$(kill -0 "$pid" 2>&1)
     ret=$?                                            # capture return val for kill: 0 for alive, 1 for dead
     if [[ "$ret" != "0" ]]; then
         printf "Program '$key' is not alive: $output\n"
@@ -367,20 +367,20 @@ function program_start() {
                 exec {tofd}>&-
             fi
         done
-        eval exec $cmd                                # exec replaces current image with child process
-    )  &                                              # run as background subshell
+        eval exec "$cmd"                                # exec replaces current image with child process
+    ) &                                                 # run as background subshell
     program_pid[$key]=$!
     debug "PID is '${program_pid[$key]}'"
     program_state[$key]="Running"
     program_retcode[$key]="?"
 
-    exec {to}>${program_input__fifo[$key]}                          # open connection to fifo for writing
+    exec {to}>"${program_input__fifo[$key]}"            # open connection to fifo for writing
     program_input__fifo_fd[$key]=$to
     debug "to: $to   program_input__fifo_fd: ${program_input__fifo_fd[$key]}"
 
     if [[ "$use_valgrind" == "1" ]]; then
         debug "use_valgrind=1, long ticks while starting program"
-        for i in $(seq ${valgrind_start_ticks}); do
+        for i in $(seq "${valgrind_start_ticks}"); do
             tick
         done
     else
@@ -435,7 +435,7 @@ function program_signal() {
     fi
 
     cmd="kill $prog_rest ${program_pid[$prog_key]}"
-    eval $cmd
+    eval "$cmd"
     tick
 }
 
@@ -449,7 +449,7 @@ function program_get_output() {
     filter="$2"
     outfile=${program_output_file[$key]}
     debug "output for '$key' is file '$outfile' with filter '$filter'"
-    $filter $outfile                                  # output the program by passing through given filter, usually 'cat'
+    $filter "$outfile"                                # output the program by passing through given filter, usually 'cat'
     return $?
 }
 
@@ -608,9 +608,9 @@ function diff_expect_actual() {
     debug "diff_expect_actual '$1' '$2'"
     expect_file="$1"
     actual_file="$2"
-    
-    actual_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' $actual_file)
-    expect_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' $expect_file)
+
+    actual_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$actual_file")
+    expect_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$expect_file")
     col_width=$((actual_width > expect_width ? actual_width : expect_width))
     total_width=$((col_width * 2 + 3))                # width to pass to diff as -W
     debug "actual_width $actual_width expect_width $expect_width"
@@ -629,18 +629,18 @@ function diff_expect_actual() {
         printf "\n"
         printf "%s\n" "#+BEGIN_SRC diff"
         printf "%-${col_width}s   %-${col_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
-        $SDIFF -W $total_width $expect_file $actual_file 
+        $SDIFF -W $total_width "$expect_file" "$actual_file"
         printf "%s\n" "#+END_SRC"
         printf "\n"
         printf "%s\n" "--- Line Differences ---"
         printf "%s" "$diffresult"
-    } > $diff_file
+    } >"$diff_file"
     if [[ "$skipdiff" == "1" ]]; then                 # skipping diff
         debug "Skipping diff (skipdiff=$skipdiff)"
         diffreturn=0
     elif [[ "$diffreturn" != "0" ]]; then
-        msg="$(cat $diff_file)"
         status="$FAIL_STATUS"                         # differences found, trigger failure
+        msg="$(cat "$diff_file")"
         fail_messages+=("$msg")
     fi
     return $diffreturn
@@ -669,18 +669,18 @@ function run_test_multi_session() {
         program_valgfile             # valgrind output files for programs
     )
 
-    for a in ${indexed_arrays[@]}; do
+    for a in "${indexed_arrays[@]}"; do
         unset "$a"                                    # remove any existing binding
         declare -g -a "$a"                            # declare as -g global, -a indexed array
     done
-    for a in ${assoc_arrays[@]}; do
+    for a in "${assoc_arrays[@]}"; do
         unset "$a"                                    # remove any existing binding
         declare -g -A "$a"                            # declare as -g global, -A Associative array
     done
 
     # Set up the testing environment
-    mkdir -p $resultdir                               # set up test results directory
-    mkdir -p $resultraw                               # set up raw directory for temporary files/raw output
+    mkdir -p "$resultdir"                             # set up test results directory
+    mkdir -p "$resultraw"                             # set up raw directory for temporary files/raw output
     result_file=$(printf "%s/%s-%02d-result.tmp" "$resultdir" "$prefix" "$testnum")
     actual_file=$(printf "%s/%s-%02d-actual.tmp" "$resultraw" "$prefix" "$testnum")
     expect_file=$(printf "%s/%s-%02d-expect.tmp" "$resultraw" "$prefix" "$testnum")
@@ -711,20 +711,19 @@ function run_test_multi_session() {
                 debug "^^ expected output"
                 ;;
         esac
-    done > ${actual_file}                             # redirect output of printf/echo into actual output
+    done >"${actual_file}"                            # redirect output of printf/echo into actual output
     session_end_line=$((linenum - 1))                 # note the line session ends on to enable #+TESTY_RERUN:
 
     for key in "${program_keys[@]}"; do               # clean up files and other artifacts for each program
         if [[ "${program_state[$key]}" == "Running" ]]; then
             program_wait "$key"
         fi
-    done >> ${actual_file}                            # capture failures of any unresponsive_programs
+    done >>"${actual_file}"                           # capture failures of any unresponsive_programs
 
     # extract expected output from test file, filter #+TESTY_ , store result in expect_file
-    cat $specfile | \
-        sed -n "${session_beg_line},${session_end_line}p" | \
+    $SEDCMD -n "${session_beg_line},${session_end_line}p" <"$specfile" |
         grep -v '^#+TESTY_' \
-        > ${expect_file}
+        >"${expect_file}"
 
     diff_expect_actual "$expect_file" "$actual_file"  # diff expect/actual output, sets 'status'
 
@@ -808,7 +807,7 @@ function run_test_multi_session() {
             fail_files+=("${result_file}")                  # test failed, add to files to show later
             status="FAIL -> results in file '$result_file'" # show results file on command line
         fi
-    }  > ${result_file}
+    } >"${result_file}"
 
     # TODO: may need to clean up files that were created during
     # testing at this point and are not needed for results
@@ -993,10 +992,9 @@ function run_test_session() {
     mv "${fromprog_file}" "${actual_file}"                # copy temp file to final destination
 
     # extract expected output from test file, filter #+TESTY_ , store result in expect_file
-    cat "$specfile" | \
-        $SEDCMD -n "${session_beg_line},${session_end_line}p" | \
+    $SEDCMD -n "${session_beg_line},${session_end_line}p" <"$specfile" |
         grep -v '^#+TESTY_' \
-        > "${expect_file}"
+        >"${expect_file}"
 
     # Try to compute the width of expected/actual outputs to make the
     # side-by-side diff as narrow as possible. 'diff -y -W' is a bit
@@ -1094,7 +1092,7 @@ unset BASH_ENV                                        # ensure subshells don't s
 
 funcs=$(declare -x -F | awk '{print $3}')             # eliminate any exported functions in bash
 for f in $funcs; do                                   # as these are output with the -v option
-    unset -f "$f";
+    unset -f "$f"
 done
 
 if [[ "$#" -lt 1 ]]; then                             # check for presence of at least 1 argument
@@ -1278,9 +1276,9 @@ for testnum in $alltests; do                          # Iterate over all tests t
                 fi
 
                 if [[ "$program" == "TESTY_MULTI" ]]; then
-                    run_testy_multi_session <<< "$(sed -n "${beg},${end}p" $specfile)"
+                    run_testy_multi_session <<<"$($SEDCMD -n "${beg},${end}p" "$specfile")"
                 else
-                    run_test_session <<< "$(sed -n "${beg},${end}p" $specfile)"
+                    run_test_session <<<"$($SEDCMD -n "${beg},${end}p" "$specfile")"
                 fi
                 debug "Done re-running session on lines $beg to $end"
                 linenum=$old_linenum
@@ -1322,6 +1320,6 @@ if [[ "$SHOW" == "1" && "${#fail_files[@]}" -gt 0 ]]; then # show failure result
     # printf "%s\n" "----------------------------------------"
     for f in "${fail_files[@]}"; do                        # iterate over all failure files outputting them
         printf "============================================================\n"
-        cat $f
+        cat "$f"
     done
 fi
