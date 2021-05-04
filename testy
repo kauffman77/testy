@@ -389,10 +389,15 @@ function program_start () {
     else
         tick
     fi
-    if ! program_alive "$prog_key"; then
-        printf "Failed to start program: %s\n" "${program_command[$key]}"
-        return 1
-    fi
+
+    # NOTE: Below code checks for the subprocess starting up BUT this
+    # is a race condition as if the program finishes before the check,
+    # then it will spuriously report that the code did not start.
+    # 
+    # if ! program_alive "$prog_key"; then
+    #     printf "Failed to start program: %s\n" "${program_command[$key]}"
+    #     return 1
+    # fi
 }    
 
 # Sends an input line to a program on standard input using the
@@ -452,7 +457,7 @@ function program_get_output () {
     key="$1"
     filter="$2"
     outfile=${program_output_file[$key]}
-    debug "output for '$key' is file '$outfile' with filter '$filter'"
+    debug "output for '$key' via  '$filter $outfile'"
     $filter $outfile                                  # output the program by passing through given filter, usually 'cat'
     return $?
 }
@@ -573,7 +578,7 @@ function handle_multi_command() {
             ;;
         "OUTPUT_ALL")
             for pk in "${program_keys[@]}"; do
-                printf "<testy> OUTPUT for %s\n" "$pk"
+                printf "\n<testy> OUTPUT for %s\n" "$pk"
                 program_get_output "$pk" "$prog_key"       # second arg is a filter to run output through
             done
             ;;
@@ -804,7 +809,7 @@ function run_testy_multi_session(){
                 # printf '%s\n' '- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
                 printf '%s\n' '-----------------------------------------------------------------------------------------------'
                 printf "* FAILURE %d\n" "$fidx"
-                printf "${msg}\n"
+                printf "%s\n" "${msg}"
                 printf "\n"
                 ((fidx++))
             done
