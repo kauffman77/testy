@@ -376,14 +376,15 @@ function program_start () {
                 exec {tofd}>&-
             fi
         done
-        eval exec $cmd                                # exec replaces current image with child process
-    )  &                                              # run as background subshell
+        eval exec $cmd                                 # exec replaces current image with child process
+    ) | : &                                            # in a subshell, started in background, pipe output to
+                                                       # null cmd (:) to avoid bash segfault message
     program_pid[$key]=$!
     debug "PID is '${program_pid[$key]}'"
     program_state[$key]="Running"
     program_retcode[$key]="?"
 
-    exec {to}>${program_input__fifo[$key]}                          # open connection to fifo for writing
+    exec {to}>${program_input__fifo[$key]}             # open connection to fifo for writing
     program_input__fifo_fd[$key]=$to
     debug "to: $to   program_input__fifo_fd: ${program_input__fifo_fd[$key]}"
 
@@ -395,6 +396,7 @@ function program_start () {
     else
         tick
     fi
+
 
     # NOTE: Below code checks for the subprocess starting up BUT this
     # is a race condition as if the program finishes before the check,
@@ -525,16 +527,16 @@ function program_check_failures () {
             ;;
     esac        
 
-    if [[ "$use_valgrind" = "1" ]]; then              # if valgrind is enabled, check its output
+    if [[ "$use_valgrind" = "1" ]]; then                        # if valgrind is enabled, check its output
         valgfile="${program_valgfile[$key]}"
         debug "use_valgrind: $use_valgrind, valgfile: $valgfile"
         $filter $valgfile > ${valgfile/.tmp/.filtered.tmp}      # create a filtered version of the valgrind file to 
         valgfile=${valgfile/.tmp/.filtered.tmp}                 # remove spurious errors and use that output instead
-        debug "Checking Valgrind for '$key' ($progcmd) filter '$filter' valgfile '$valgfile'"
+        debug "Checking Valgrind '$key' ($progcmd) filter '$filter' valgfile '$valgfile'"
 
-        if [[ "$valgrind_reachable" = "1" ]] &&       # and checking for reachable memory
+        if [[ "$valgrind_reachable" = "1" ]] &&                 # and checking for reachable memory
              ! awk '/still reachable:/{if($4 != 0){exit 1;}}' ${valgfile}
-        then                                          # valgrind log does not contain 'reachable: 0 bytes'
+        then                                                    # valgrind log does not contain 'reachable: 0 bytes'
             status="$FAIL_STATUS"                               
             program_state[$key]="ReachErr"
             msg=""
