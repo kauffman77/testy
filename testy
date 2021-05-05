@@ -512,7 +512,7 @@ function program_check_failures () {
         139)
             status="$FAIL_STATUS"
             program_state[$key]="KillErr" 
-            msg="${key} returned $retcode (KILL SIGNAL): OS signaled '${program_command[$key}' likely due to a SEGFAULT"
+            msg="${key} returned $retcode (KILL SIGNAL): OS signaled '${program_command[$key]}' likely due to a SEGFAULT"
             fail_messages+=("$msg")
 
             # printf "FAILURE $msg\n"
