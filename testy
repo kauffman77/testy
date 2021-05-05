@@ -232,15 +232,12 @@ function tick() {                                     # pause execution during m
 function program_wait () {
     debug "program_wait '$1'"
     key="$1"
-    pid=${program_pid[$key]}
-    curtime=0.0
-    step=0.1                                          # amount of time to wait in between checks on program
 
     wait "${program_pid[$key]}" &> /dev/null          # wait on the child to finish, safe as its done
     retcode=$?
+    debug "wait on '$key' pid ${program_pid[$key]} gave retcode: $retcode"
     program_retcode[$key]=$retcode
     program_state[$key]="Done"                        # state will be changed when checking for failures
-    debug "program '$key' complete with retcode '${program_retcode[$key]}'"
 
     case "$retcode" in                                # inspect return and print appropriate inline messages
         0)                                            # no action for normal return code
@@ -377,8 +374,7 @@ function program_start () {
             fi
         done
         eval exec $cmd                                 # exec replaces current image with child process
-    ) | : &                                            # in a subshell, started in background, pipe output to
-                                                       # null cmd (:) to avoid bash segfault message
+    ) &                                                # in a subshell, started in background
     program_pid[$key]=$!
     debug "PID is '${program_pid[$key]}'"
     program_state[$key]="Running"
@@ -531,7 +527,8 @@ function program_check_failures () {
         valgfile="${program_valgfile[$key]}"
         debug "use_valgrind: $use_valgrind, valgfile: $valgfile"
         $filter $valgfile > ${valgfile/.tmp/.filtered.tmp}      # create a filtered version of the valgrind file to 
-        valgfile=${valgfile/.tmp/.filtered.tmp}                 # remove spurious errors and use that output instead
+        mv $valgfile ${valgfile/.tmp/.unfiltered.tmp}
+        mv ${valgfile/.tmp/.filtered.tmp} $valgfile             # remove spurious errors and use that output instead
         debug "Checking Valgrind '$key' ($progcmd) filter '$filter' valgfile '$valgfile'"
 
         if [[ "$valgrind_reachable" = "1" ]] &&                 # and checking for reachable memory
