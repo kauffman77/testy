@@ -133,7 +133,13 @@ VALG_ERROR="13"                                       # error code that valgrind
 
 VALGRIND_PROG="valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=13 --track-origins=yes"
 
-# Uses gsed if available for BSD-based operating systems and sed otherwise
+# Uses gsed if available for BSD-based operating systems and sed
+# otherwise
+# 
+# NOTE: it would be better to honor this as an environment variable
+# that defaults to "normal" sed. That way systems with a different sed
+# could set the env variable to tailor the sed cmd. Do this in a
+# future release.
 if command -v gsed >/dev/null 2>&1; then
     SEDCMD=$(command -v gsed)
 else
