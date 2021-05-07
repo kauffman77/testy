@@ -169,7 +169,7 @@ VALGRIND_START_TICKS=${VALGRIND_START_TICKS:-"8"}     # multi: number of ticks t
 # INPUT_STYLE="normal"
 
 RETCODE_TIMEOUT=137                                   # code usually returned by timeout when it kills programs
-RETCODE_KILLED=139                                    # code usually returned when OS kills a program
+RETCODE_SEGFAULT=139                                    # code usually returned when OS kills a program
 PASS_STATUS="ok"                                      # status message associated with passing
 FAIL_STATUS="FAIL"                                    # default status message associated with failing a test, anything not $PASS_STATUS is a failure though
 TEST_TITLE_WIDTH=20                                   # initial width for test test_titles, set to widest during initial parsing
@@ -245,8 +245,8 @@ function program_wait () {
         "$RETCODE_TIMEOUT")
             printf "Return Code %s: TIMEOUT, program killed, not complete within %s sec limit\n" "$retcode" "$timeout"
             ;;
-        "$RETCODE_KILLED")
-            printf "Return Code %s: KILLED by OS likely a SEGFAULT occured\n" "$retcode"
+        "$RETCODE_SEGFAULT")
+            printf "Return Code %s: SIGSEGV (segmentation fault) from OS\n" "$retcode"
             ;;
         *)
             printf "Non-zero return code %s\n" "$retcode"
@@ -509,18 +509,24 @@ function program_check_failures () {
             # printf "FAILURE $msg\n"
             # fail_messages+=("$msg")
             ;;
-        137)
+        "$RETCODE_TIMEOUT")
             status="$FAIL_STATUS"
             program_state[$key]="TimeoutErr"          # should already be set when detecting timeout
-            msg="${key} returned $retcode (TIMEOUT): Program '${program_command[$key]}' still running after $timeout seconds"
+            msg=""
+            msg+="${key} returned $retcode (TIMEOUT):\n"
+            msg+="Program '${program_command[$key]}' still running after $timeout seconds"
             fail_messages+=("$msg")
 
             # printf "FAILURE $msg\n"
             ;;
-        139)
+        "$RETCODE_SEGFAULT")
             status="$FAIL_STATUS"
-            program_state[$key]="KillErr" 
-            msg="${key} returned $retcode (KILL SIGNAL): OS signaled '${program_command[$key]}' likely due to a SEGFAULT"
+            program_state[$key]="SIGSEGV" 
+            msg=""
+            msg+="${key} returned $retcode (SIGSEGV):\n"
+            msg+="Program '${program_command[$key]}' signalled with segmentation fault by OS\n"
+            msg+="Valgrind output from '${program_valgfile[$key]}'\n"
+            msg+=$(cat ${program_valgfile[$key]})
             fail_messages+=("$msg")
 
             # printf "FAILURE $msg\n"
@@ -818,7 +824,7 @@ function run_testy_multi_session(){
                 # printf '%s\n' '- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
                 printf '%s\n' '-----------------------------------------------------------------------------------------------'
                 printf "* FAILURE %d\n" "$fidx"
-                printf "%s\n" "${msg}"                # should be %b
+                printf "%b\n" "${msg}"
                 printf "\n"
                 ((fidx++))
             done
@@ -952,9 +958,9 @@ function run_test_session(){
             status="$FAIL_STATUS"
             fail_messages+=("FAILURE($retcode) due to TIMEOUT: Runtime exceeded maximum of '$timeout'")
             ;;
-        "$RETCODE_KILLED")
+        "$RETCODE_SEGFAULT")
             status="$FAIL_STATUS"
-            fail_messages+=("FAILURE($retcode) due to Kill Signal from OS: likely a SEGFAULT occured")
+            fail_messages+=("FAILURE($retcode) due to SIGSEGV (segmentation fault) from OS")
             ;;
     esac        
 
@@ -1159,7 +1165,6 @@ deps="timeout stdbuf awk $SEDCMD grep diff"           # check for baseline neces
 for dep in $deps; do
     checkdep_fail "$dep"
 done
-
 
 rm -f ./test-fifo.fifo /tmp/test-fifo.fifo              # Test FIFO creation, often fails for Windows file systems on WSL, can
 if !  mkfifo ./test-fifo.fifo &> /dev/null ; then       # FIFOs in current directory?
