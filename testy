@@ -635,7 +635,9 @@ function diff_expect_actual () {
     actual_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' $actual_file)
     expect_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' $expect_file)
     col_width=$((actual_width > expect_width ? actual_width : expect_width))
-    total_width=$((col_width*2 + 3))                  # width to pass to diff as -W
+    # total_width=$((col_width*2 + 3))                  # width to pass to diff as -W
+    total_width=$((actual_width + expect_width + 5))    # width to pass to diff as -W, tighter than previous
+
     debug "actual_width $actual_width expect_width $expect_width"
     debug "col_width $col_width total_width $total_width"
     
