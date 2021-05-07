@@ -368,6 +368,10 @@ function program_start () {
     cmd="$TIMEOUTCMD $timeout $STDBUF $VALGRIND $progcmd <${program_input__fifo[$key]} &> ${program_output_file[$key]}"
     debug "running: '$cmd'"
     (
+        for sig in ${suppress_signals[@]} ${exit_signals[@]}; do
+            trap - $sig                                # reset trap/signal handling
+        done                                           # in child procresses to default
+
         for tofd in "${program_input__fifo_fd[@]}"; do # close fds for input to other programs so only
             if [[ "$tofd" != "CLOSED" ]]; then         # testy owns the input
                 exec {tofd}>&-
@@ -1102,7 +1106,7 @@ function run_test_session(){
 }
 
 function signal_exit (){                              # function to run on exit signals
-    printf 'testy was signaled: Exiting\n' > /dev/stderr
+    printf '\ntesty was signaled: Exiting\n' > /dev/stderr
     exit 1
 }
 
