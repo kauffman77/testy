@@ -758,13 +758,13 @@ function run_testy_multi_session(){
     max_out_width=${#out_file}                         # valgrind files now in same column as output files
 
     for key in "${program_keys[@]}"; do
-        cmd_str="${program_command[$key]}" # peel of raw directory
+        cmd_str="${program_command[$key]}"
         cmd_width=${#cmd_str}
         if (( $cmd_width > $max_cmd_width )); then
             max_cmd_width=$cmd_width
         fi
 
-        out_file="${program_output_file[$key]}"        # include local path to make it easier to recognize file location
+        out_file="${program_output_file[$key]#${resultdir}/}"      # include raw/ path to make it easier to recognize file location
         out_width=${#out_file}
         debug "File '$outfile' with width $outwidth"
         if (( $out_width > $max_out_width )); then
@@ -772,8 +772,8 @@ function run_testy_multi_session(){
             debug "File '$out_file' has new max width $out_width"
         fi
 
-        out_file="${program_valgfile[$key]}"           # print output file/valg files in the same column
-        out_width=${#out_file}                         # so assign the same max width as out files
+        out_file="${program_valgfile[$key]#${resultdir}/}"         # print output file/valg files in the same column
+        out_width=${#out_file}                                     # so assign the same max width as out files
         if (( $out_width > $max_out_width )); then
             max_out_width=$out_width
         fi
@@ -803,14 +803,14 @@ function run_testy_multi_session(){
             printf "| %-${cw}s " "${program_command[$key]}"
             printf "| %3s "      "${program_retcode[$key]}"
             printf "| %-10s "    "${program_state[$key]}"
-            printf "| %-${ow}s " "${program_output_file[$key]}"
+            printf "| %-${ow}s " "${program_output_file[$key]#${resultdir}/}" # local path for out file under raw/...
             printf "| \n"
 
             printf "| %-8s "     ""                    # print a blank row ending with the valgrind file
             printf "| %-${cw}s " ""
             printf "| %3s "      ""
             printf "| %-10s "    ""
-            printf "| %-${ow}s " "${program_valgfile[$key]}"
+            printf "| %-${ow}s " "${program_valgfile[$key]#${resultdir}/}"    # local path for valg file under raw/...
             printf "| \n"
         done
         printf "\n"
