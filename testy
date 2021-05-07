@@ -507,14 +507,16 @@ function program_check_failures () {
             msg=""
             msg+="Valgrind found errors for program ${key} ($progcmd : return code $retcode[VALG_ERROR])\n"
             msg+="Valgrind output from '${program_valgfile[$key]}'\n"
+            msg+="#+BEGIN_SRC text\n"                  # org mode source block for vlagrind output
             msg+=$(cat ${program_valgfile[$key]})
+            msg+="#+END_SRC\n"
             fail_messages+=("$msg")
             ;;
         "$RETCODE_TIMEOUT")
             status="$FAIL_STATUS"
             msg=""
             msg+="${key} returned $retcode (TIMEOUT):\n"
-            msg+="Program '${program_command[$key]}' still running after $timeout seconds"
+            msg+="Program '${program_command[$key]}' still running after $timeout seconds\n"
             fail_messages+=("$msg")
             ;;
         "$RETCODE_SEGFAULT")
@@ -522,8 +524,10 @@ function program_check_failures () {
             msg=""
             msg+="${key} returned $retcode (SIGSEGV):\n"
             msg+="Program '${program_command[$key]}' signalled with segmentation fault by OS\n"
+            msg+="#+BEGIN_SRC text\n"                  # org mode source block for vlagrind output
             msg+="Valgrind output from '${program_valgfile[$key]}'\n"
             msg+=$(cat ${program_valgfile[$key]})
+            msg+="#+END_SRC\n"
             fail_messages+=("$msg")
             ;;
     esac        
@@ -646,7 +650,7 @@ function diff_expect_actual () {
         printf "%s\n" "- Acutal output in: $actual_file" 
         printf "%s\n" "- Differing lines have a character like '|' and '<' in the middle"
         printf "\n"
-        printf "%s\n" "#+BEGIN_SRC diff"
+        printf "%s\n" "#+BEGIN_SRC text"
         printf "%-${col_width}s   %-${col_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
         $SDIFF -W $total_width $expect_file $actual_file 
         printf "%s\n" "#+END_SRC"
@@ -751,9 +755,8 @@ function run_testy_multi_session(){
     cmd_str="COMMAND"                                 # start with width of headings for several columns
     max_cmd_width=${#cmd_str}
     out_file="OUTPUT FILE"                            
-    max_out_width=${#out_file}
-    valg_file="VALGRIND"
-    max_valg_width=${#valg_file}
+    max_out_width=${#out_file}                         # valgrind files now in same column as output files
+
     for key in "${program_keys[@]}"; do
         cmd_str="${program_command[$key]}" # peel of raw directory
         cmd_width=${#cmd_str}
@@ -761,7 +764,7 @@ function run_testy_multi_session(){
             max_cmd_width=$cmd_width
         fi
 
-        out_file="${program_output_file[$key]#${resultraw}/}" # peel of raw directory
+        out_file="${program_output_file[$key]}"        # include local path to make it easier to recognize file location
         out_width=${#out_file}
         debug "File '$outfile' with width $outwidth"
         if (( $out_width > $max_out_width )); then
@@ -769,10 +772,10 @@ function run_testy_multi_session(){
             debug "File '$out_file' has new max width $out_width"
         fi
 
-        valg_file="${program_valgfile[$key]#${resultraw}/}"
-        valg_width=${#valg_file}
-        if (( $valg_width > $max_valg_width )); then
-            max_valg_width=$valg_width
+        out_file="${program_valgfile[$key]}"           # print output file/valg files in the same column
+        out_width=${#out_file}                         # so assign the same max width as out files
+        if (( $out_width > $max_out_width )); then
+            max_out_width=$out_width
         fi
     done
 
@@ -793,20 +796,24 @@ function run_testy_multi_session(){
         printf "| %-${cw}s " "COMMAND"
         printf "| %3s "  "RET"
         printf "| %-10s " "STATE"
-        printf "| %-${ow}s " "OUTPUT-FILE"
-        printf "| %-${vw}s " "VALGRIND"
+        printf "| %-${ow}s " "OUTPUT/VALGRIND FILES"
         printf "| \n"
         for key in ${program_keys[@]}; do
             printf "| %-8s "  "$key"
             printf "| %-${cw}s " "${program_command[$key]}"
-            printf "| %3s "  "${program_retcode[$key]}"
-            printf "| %-10s " "${program_state[$key]}"
-            printf "| %-${ow}s " "${program_output_file[$key]#${resultraw}/}" # prune test-results/raw to shorten name
-            printf "| %-${vw}s " "${program_valgfile[$key]#${resultraw}/}"
+            printf "| %3s "      "${program_retcode[$key]}"
+            printf "| %-10s "    "${program_state[$key]}"
+            printf "| %-${ow}s " "${program_output_file[$key]}"
+            printf "| \n"
+
+            printf "| %-8s "     ""                    # print a blank row ending with the valgrind file
+            printf "| %-${cw}s " ""
+            printf "| %3s "      ""
+            printf "| %-10s "    ""
+            printf "| %-${ow}s " "${program_valgfile[$key]}"
             printf "| \n"
         done
         printf "\n"
-        # printf "%s\n" "--------------------"
 
         if [[ "$status" == "$PASS_STATUS" ]]; then          # test passed
             printf "ALL OK\n"
