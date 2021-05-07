@@ -814,7 +814,7 @@ function run_testy_multi_session(){
                 # printf '%s\n' '- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
                 printf '%s\n' '-----------------------------------------------------------------------------------------------'
                 printf "* FAILURE %d\n" "$fidx"
-                printf "%s\n" "${msg}"
+                printf "%s\n" "${msg}"                # should be %b
                 printf "\n"
                 ((fidx++))
             done
@@ -1101,11 +1101,26 @@ function run_test_session(){
     return 0;
 }
 
+function signal_exit (){                              # function to run on exit signals
+    printf 'testy was signaled: Exiting\n' > /dev/stderr
+    exit 1
+}
 
 ################################################################################
 # BEGIN main processing
 
 unset BASH_ENV                                        # ensure subshells don't spit out extra gunk
+
+suppress_signals=(SIGSEGV SIGFPE SIGILL SIGBUS)       # trap these signals to suppress child processes
+for sig in ${suppress_signals[@]}; do                 # from generating bash error messages when they 
+    trap "" $sig                                      # receive these signals; testy should not generate
+done                                                  # these signals but child processes might
+
+exit_signals=(SIGINT SIGTERM)                         # signals that will cause testy to exit
+for sig in ${exit_signals[@]}; do
+    trap "signal_exit" $sig
+done
+
 
 funcs=$(declare -x -F | awk '{print $3}')             # eliminate any exported functions in bash
 for f in $funcs; do                                   # as these are output with the -v option

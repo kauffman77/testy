@@ -21,6 +21,47 @@
   robust. Use the DEBUG output to see when the last line of the
   session is missed
 
+* Avoiding Subshell Error messages During TESTY_MULTI
+During TESTY_MULTI if a child processes segfault bash will report
+the error and it is devilishly hard to subdue this reporting. It
+looks like
+#+BEGIN_SRC sh
+> ./testy test_blather.org 1
+============================================================
+== testy test_blather.org
+== Running 1 / 20 tests
+./testy: line 224: 1372111 Segmentation fault      ( { for tofd in "${program_input__fifo_fd[@]}";
+do
+    if [[ "$tofd" != "CLOSED" ]]; then
+        exec {tofd}>&-;
+    fi;
+done; eval exec $cmd; } )
+1)  Server Start/End                : FAIL -> results in file 'test-results/blather-01-result.tmp'
+============================================================
+RESULTS: 0 / 1 tests passed
+...
+#+END_SRC
+
+- Exploring options to solve this by examining the source code for bash
+  downloaded here: file:/home/kauffman/Downloads/bash-src/
+- Notable is the ~notify_of_job_status()~ function which prints the
+  error message according criteria here:
+  file:/home/kauffman/Downloads/bash-src/jobs.c::4320
+  1. Not interactive; have tried starting testy with ~bash -i~ but
+     this leads to other problems
+  2. Signal that killed the program is trapped by testy; this works
+     out alright, don't generally expect that testy will generate
+     these errors but need to check whether
+     - trap a signal that needs to be sent to the program
+     - signaled program should die on this
+     - can't kill testy with signaling
+Using the trap solution for now as after testing this with blather and
+commando, it does not seem to have any major problems and does indeed
+suppress the error messages I wanted silenced.
+
+May need to revisit this as the child processes inherit the traps and
+if they are bash processes, may change their behavior.
+
 * Multi Process testing
 
 #+BEGIN_SRC text
