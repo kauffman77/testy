@@ -243,10 +243,16 @@ function program_wait () {
         0)                                            # no action for normal return code
             ;;
         "$RETCODE_TIMEOUT")
+            program_state[$key]="Timeout"
             printf "Return Code %s: TIMEOUT, program killed, not complete within %s sec limit\n" "$retcode" "$timeout"
             ;;
         "$RETCODE_SEGFAULT")
+            program_state[$key]="SegFault"
             printf "Return Code %s: SIGSEGV (segmentation fault) from OS\n" "$retcode"
+            ;;
+        "$VALG_ERROR")
+            program_state[$key]="ValgErr"
+            printf "Return Code %s: Valgrind Detected Errors\n" "$retcode"
             ;;
         *)
             printf "Non-zero return code %s\n" "$retcode"
@@ -279,7 +285,7 @@ function program_wait () {
 # fi
 function program_alive () {
     key="$1"
-    if [[ "${program_state[$key]}" == "Done" ]]; then
+    if [[ "${program_state[$key]}" != "Running" ]]; then
         printf "Program '$key' has already died\n"
         return 0
     fi
@@ -498,38 +504,27 @@ function program_check_failures () {
     case "$retcode" in                                # inspect return code for errors
         "$VALG_ERROR")
             status="$FAIL_STATUS"
-            program_state[$key]="ValgErr"
             msg=""
             msg+="Valgrind found errors for program ${key} ($progcmd : return code $retcode[VALG_ERROR])\n"
             msg+="Valgrind output from '${program_valgfile[$key]}'\n"
             msg+=$(cat ${program_valgfile[$key]})
             fail_messages+=("$msg")
-            
-            # msg="${key} returned $retcode (VALG_ERROR): Valgrind detected errors for '${program_command[$key}'"
-            # printf "FAILURE $msg\n"
-            # fail_messages+=("$msg")
             ;;
         "$RETCODE_TIMEOUT")
             status="$FAIL_STATUS"
-            program_state[$key]="TimeoutErr"          # should already be set when detecting timeout
             msg=""
             msg+="${key} returned $retcode (TIMEOUT):\n"
             msg+="Program '${program_command[$key]}' still running after $timeout seconds"
             fail_messages+=("$msg")
-
-            # printf "FAILURE $msg\n"
             ;;
         "$RETCODE_SEGFAULT")
             status="$FAIL_STATUS"
-            program_state[$key]="SIGSEGV" 
             msg=""
             msg+="${key} returned $retcode (SIGSEGV):\n"
             msg+="Program '${program_command[$key]}' signalled with segmentation fault by OS\n"
             msg+="Valgrind output from '${program_valgfile[$key]}'\n"
             msg+=$(cat ${program_valgfile[$key]})
             fail_messages+=("$msg")
-
-            # printf "FAILURE $msg\n"
             ;;
     esac        
 
