@@ -13,3 +13,22 @@ The ultimate answer is 42
 #+END_SRC
 
 
+* Failure Demo
+This test will fail and produce output associated to show the
+side-by-side diff that primarily reports failures.
+
+#+BEGIN_SRC sh
+>> echo "Matching Line"
+Matching Line
+>> echo "Mismatching Line"
+Misma____ Li__
+>> echo "Extra line in ACTUAL"
+>> echo "Extra line in EXPECT"
+This is the extra line
+Extra line in EXPECT
+>> printf "Matches fine\nAnd again\n"
+Matches fine
+And again
+#+END_SRC
+
+

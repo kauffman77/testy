@@ -21,7 +21,30 @@
   robust. Use the DEBUG output to see when the last line of the
   session is missed
 
-* Avoiding Subshell Error messages During TESTY_MULTI
+* Bad File Descriptors
+When programs in a TESTY_MULTI session segfault, sometimes get bad
+file descriptors during reads in testy itself which leads to errors
+printing. Not sure how this could be happening so will need to do some
+sleuthing.
+
+#+BEGIN_SRC sh
+val (master) [solution-p2-4061]% pwd
+/home/kauffman/4061-S2021/projects/p2-blather/solution-p2-4061
+
+val (master) [solution-p2-4061]% make test
+./testy test_blather.org
+============================================================
+== test_blather.org : Blather Application Tests
+== Running 20 / 20 tests
+1)  Server Start/End                : FAIL -> results in file 'test-results/blather-01-result.tmp'
+2)  Single Client Join / Depart     : FAIL -> results in file 'test-results/blather-02-result.tmp'
+3)  Single Client Join + Shutdown   : FAIL -> results in file 'test-results/blather-03-result.tmp'
+./testy: line 713: read: read error: 0: Bad file descriptor
+4)  Single Client Messages          : FAIL -> results in file 'test-results/blather-04-result.tmp'
+..
+#+END_SRC
+
+* DONE Avoiding Subshell Error messages During TESTY_MULTI
 During TESTY_MULTI if a child processes segfault bash will report
 the error and it is devilishly hard to subdue this reporting. It
 looks like

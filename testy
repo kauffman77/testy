@@ -9,15 +9,87 @@ read -r -d '' usage <<EOF
 usage:    testy <testfile.org> [test# test# ...]
           testy --help
 
-examples: testy test_prob1.org        # runs all tests in file
-          testy test_prob1.org 3 5 7  # runs tests 3,5,7 in file
-          testy test_prob1.org 5      # runs only test 5 and shows failures to stdout
-          SHOW=1 test_prob1.org       # runs tests and prints all failures to stdout
+examples: testy test_prob1.org          # runs all tests in file
+          testy test_prob1.org 3 5 7    # runs tests 3,5,7 in file
+          testy test_prob1.org 5        # runs only test 5 and shows failures to stdout
+          SHOW=1 testy test_prob1.org   # runs tests and prints all failures to stdout
+          DEBUG=1 testy test_prob1.org  # runs printing LOTS of debug messages
 
 Run tests for a shell program specified in an org-like file and report
 the results.
 
---- INPUT FORMAT ---
+
+----------------------------------------
+--- RUNNING TESTS ---
+----------------------------------------
+
+Running a test is done from the command line and will default to
+running all tests in a provided test file. Output shows each test with
+a pass/fail and failures have results files indicating what went
+wrong. Below is an example from the examples/ directory:
+
+>> cd examples/
+>> ../testy bash_tests.org
+============================================================
+== testy bash_tests.org
+== Running 2 / 2 tests
+1)  Output Tests         : ok
+2)  Failure Demo         : FAIL -> results in file 'test-results/test-02-result.tmp'
+============================================================
+RESULTS: 1 / 2 tests passed
+
+Inspecting the failure file indicated (always under freshly created
+directory 'test-results/' ) shows the following output (plain text but
+easier easier to read in org-mode):
+
+----------------------------------------
+>> cat test-results/test-02-result.tmp
+* (TEST 2) Failure Demo
+COMMENTS:
+This test will fail and produce output associated to show the
+side-by-side diff that primarily reports failures.
+
+** program: bash -v
+
+** --- Failure messages ---
+- FAILURE: Output Mismatch at lines marked
+
+** --- Side by Side Differences ---
+- Expect output in: test-results/raw/test-02-expect.tmp
+- Actual output in: test-results/raw/test-02-actual.tmp
+- Differing lines have a character like '|' '>' or '<' in the middle
+#+BEGIN_SRC sbs-diff
+==== EXPECT ====                        ==== ACTUAL ====
+>> echo "Matching Line"                 >> echo "Matching Line"
+Matching Line                           Matching Line
+>> echo "Mismatching Line"              >> echo "Mismatching Line"
+Misma____ Li__                        | Mismatching Line
+>> echo "Extra line in ACTUAL"          >> echo "Extra line in ACTUAL"
+                                      > Extra line in ACTUAL
+>> echo "Extra line in EXPECT"          >> echo "Extra line in EXPECT"
+This is the extra line                <
+Extra line in EXPECT                    Extra line in EXPECT
+>> printf "Matches fine\nAnd again\n"   >> printf "Matches fine\nAnd again\n"
+Matches fine                            Matches fine
+And again                               And again
+#+END_SRC
+
+** --- Line Differences ---
+EXPECT:   4) Misma____ Li__
+ACTUAL:   4) Mismatching Line
+ACTUAL:   6) Extra line in ACTUAL
+EXPECT:   7) This is the extra line
+----------------------------------------
+
+The main section in the middle of the file is a side-by-side diff of
+expected and actual output with the center column indicating what
+differences were detected.  Generally whitespace differences are
+ignored.
+
+
+----------------------------------------
+--- TEST FILE FORMAT ---
+----------------------------------------
 
 Tests are specified in org-like files. Each top-level section starts
 with a * with a test title, followed by comments and test sessions of
@@ -26,13 +98,15 @@ found it is run. If the session fails, subsequent sessions for that
 test are not run.
 
 Sample input file (sample_tests.org):
-================
+----------------------------------------
 #+TITLE: Sample Tests
 
 * Test echo
 Check that the 'echo' command in bash is working.
 
-The 'sh' is not honored in testy; it is for easy editing in Emacs.
+The org-mode 'sh' param is not honored in testy; it is for easy
+editing/formatting in Emacs but does not reflect what program will
+actually run the and can be replaced with whatever.
 
 #+BEGIN_SRC sh
 >> echo 'hello'
@@ -76,33 +150,42 @@ use of #+TESTY expression to change the program for this test.
 >> 3*5+12
 27
 #+END_SRC
-================
+----------------------------------------
 
+
+----------------------------------------
 --- BEHAVIOR / ENVIRONMENT VARIABLES ---
+----------------------------------------
+
 The following variables can be specified in test files via lines like
   #+TESTY: var="value"
-or on via an environment variable during a program run as in
+or via an environment variable during a program run as in
   > VAR="value" testy testfile.org
+or via exporting an environment variable as in
+  > export VAR="value"
+  > testy testfile.org
 
 They will change the behavior of how the test data is interpreted.
 
-Global variables that are usually specified at the beginning of a test
+GLOBAL VARIABLES that are usually specified at the beginning of a test
 file before any other tests.
 
-PROGRAM="bash -v"        : program to run/test; input is fed to this program
-PROMPT=">>"              : prompt that indicates input to the program
-ECHOING="input"          : {input, both} for program input echoing style,
-                           "input" means the program echoes only input provided by testy, testy will add back in prompts
-                           "both" echoes both prompt and input so testy won't add back anything
-                            NOTE: testy does not support mocked interaction tests for programs that don't echo input
-                            as this is generally hard to do
-PREFIX="test"            : prefix for output files, often changed to reflect program name like 'myprog'
-RESULTDIR="test-results" : directory where the results will be written
-TIMEOUT="5s"             : maximum time to complete test before it is failed due to timeout
-POST_FILTER=""           : program to adjust output from test before evaluating, run as 'cat output | post_filter > actual.tmp'
-USE_VALGRIND="0"         : set to 1 to run programs under Valgrind which checks for memory errors
-VALGRIND_REACHABLE="1"   : under valgrind, report errors if memory is still reachable at the end of the program
-SKIPDIFF="0"             : skip diffing results, useful if checking valgrind but actual output can vary
+PROGRAM="bash -v"         : program to run/test; input is fed to this program
+PROMPT=">>"               : prompt that indicates input to the program
+ECHOING="input"           : {input, both} for program input echoing style,
+                            "input" means the program echoes only input provided by testy, testy will add back in prompts
+                            "both" echoes both prompt and input so testy won't add back anything
+                             NOTE: testy does not support mocked interaction tests for programs that don't echo input
+                             as this is generally hard to do
+PREFIX="test"             : prefix for test output files, often changed to reflect program name like 'myprog'
+RESULTDIR="test-results"  : directory where the results will be written
+RESULTRAW="RESULTDIR/raw" : directory where actual / expect / valgrind results are stored
+TIMEOUT="5s"              : maximum time to complete test before it is failed due to timeout; passed to the 'timeout' utility
+POST_FILTER=""            : program to adjust output from test before evaluating, run as 'cat output | post_filter > actual.tmp'
+USE_VALGRIND="0"          : set to 1 to run programs under Valgrind which checks for memory errors; useful for C programs especially
+VALGRIND_REACHABLE="1"    : under valgrind, report errors if memory is still reachable at the end of the program
+VALGRIND_OPTS=""          : pass additional options to valgrind such as '--suppressions=test_valgrind.supp' to use a suppression file
+SKIPDIFF="0"              : skip diffing results, useful if checking only valgrind with actual output varying between runs
 
 Each of the above Global variables can be set Locally during a single
 test by setting their lower-case version. For example:
@@ -119,7 +202,97 @@ SHOW=0            : set to 1 to print test error results after completing
 DEBUG=0           : set to 1 to print LOTS of debugging messages
 REPORT_FRACTION=0 : report the fraction of tests passed rather than the count
 
+
+----------------------------------------
+--- TESTY MULTI ---
+----------------------------------------
+
+Standard tests are for a single program running at a time. If several
+programs need to run concurrently and coordinated during a test, one
+can use the special program line
+  #+TESTY: PROGRAM='TESTY_MULTI'
+for all tests or
+  #+TESTY: program='TESTY_MULTI'
+for a single test.
+
+The test itself then takes as input a series of commands which dictate
+when to start programs, feed them input, sned them signals, and wait
+for them to shut down.
+
+--- TESTY_MULTI Commands are (briefly) ---
+- START <key> <program> [args]
+  >> START server ./banter_server gotham      : runs program 'banter_server gotham' and refers to it via key 'server'
+  >> START bruce ./banter_client gotham bruce : runs program 'banter_client gotham bruce' and refers to it via key 'bruce'
+
+- SIGNAL <key> <sigspec>
+  >> SIGNAL server -15                        : sends program w/ key 'server' signal 15 (TERM)
+  >> SIGNAL bruce -INT                        : sends program w/ key 'server' a keyboard interrupt signal (15)
+
+- INPUT <key> text text text
+  >> INPUT bruce Robin? Barbara?              : sends text input to program w/ key 'bruce'
+  >> INPUT clark <EOF>                        : sends End of Input to program w/ key 'clark'
+
+- WAIT <key>
+  >> WAIT server                              # causes testy to wait for program w/ key 'server' to complete
+
+- WAIT_ALL
+  >> WAIT_ALL                                 # waits for all programs to complete
+
+- OUTPUT <key> <filter>
+  >> OUTPUT server cat                        # testy prints the output for program w/ key 'server' passing to through filter 'cat'
+  >> OUTPUT bruce ./test_filter_client_output # ditto but passes through the specified filter program
+
+- OUTPUT_ALL
+  >> OUTPUT_ALL cat                           # testy prints output for all programs for comparison in the test results; filtered through 'cat'
+  >> OUTPUT_ALL ./test_filter_client_output   # ditto but passes through the specified filter program
+
+- CHECK_FAILURES <key> <filter>
+  >> CHECK_FAILURES server cat                # for 'server', prints any failures like timeout, non-zero return, valgrind problems, etc. 
+                                              # prints nothing if no failures detected
+
+- CHECK_ALL <filter>
+  >> CHECK_ALL cat                            # checks failures in all programs that are part of test passing through 'cat' as a filter
+
+- SHELL cmd cmd cmd
+  >> SHELL rm some-file.txt                   # runs a shell command in the middle of the test in this case removing a file
+----------------------------------------
+
+An example of a TESTY_MULTI testing file is in
+
+  testy/examples/banter_tests.org
+
+which tests a tiny chat server/client written in bash. A server is
+started and several clients 'join' the server and exchange messages.
+
+TESTY_MULTI has a few more control global variables to dictate
+behaviors specific to it.
+
+TICKTIME="0.1"            # amount of time to wait in between test commands during a TESTY_MULTI session
+VALGRIND_START_TICKS="8"  # number of ticks to wait during TESTY_MULTI when starting a program under valgrind
+                          # valgrind slows things down so it takes more time for programs to start up
+
+Depending on system speed, one may wish to lengthen these parameters
+through setting them globally at the top of the testy file as in:
+  #+TESTY: TICKTIME=0.1
+  #+TESTY: VALGRIND_START_TICKS=8
+
+
+----------------------------------------
+--- CAVEATS ---
+----------------------------------------
+
+testy is in ALPHA stage and actively being developed. For that reason
+no guarantees are made about its reliability. Especially TESTY_MULTI
+sessions have some known failings not to mention the fact that relying
+on a tick time to coordinate programs is doomed to fail at some point.
+
+All the same, enjoy!
+- Chris
+
 EOF
+
+################################################################################
+# BASIC GLOBALS
 
 # some global options/programs
 STDBUF="stdbuf -i 0 -o 0 -e 0"                        # disables standard IO buffering for a program
@@ -647,7 +820,7 @@ function diff_expect_actual() {
         printf "%s\n" "- Actual output in: $actual_file"
         printf "%s\n" "- Differing lines have a character like '|' and '<' in the middle"
         printf "\n"
-        printf "%s\n" "#+BEGIN_SRC text"
+        printf "%s\n" "#+BEGIN_SRC sbs-diff"
         printf "%-${col_width}s   %-${col_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
         $SDIFF -W $total_width "$expect_file" "$actual_file"
         printf "%s\n" "#+END_SRC"
@@ -1058,24 +1231,28 @@ function run_test_session() {
     else
         debug "FAILURE cleanup"                       # test failed for some reason
         {                                             # begin capturing output for results file
-           printf '(TEST %d) %s\n' "$testnum" "$test_title"
+           printf '* (TEST %d) %s\n' "$testnum" "$test_title"
            printf 'COMMENTS:\n'
-           printf "%b\n" "${comments}"
-           printf 'program: %s\n' "$program"
-           printf "Failure messages:\n"
+           printf "%b" "${comments}"
+           printf '** program: %s\n' "$program"
+           printf "\n"
+           printf '** --- Failure messages --- \n'
            for msg in "${fail_messages[@]}"; do       # iterate through failure messages
                printf "%s\n" "- $msg"
            done
            printf "\n"
 
            if [[ "$diffreturn" != "0" ]]; then        # show differences between expect and actual
-               printf "%s\n" "--- Side by Side Differences ---"
+               printf "%s\n" "** --- Side by Side Differences ---"
                printf "%s\n" "- Expect output in: $expect_file"
                printf "%s\n" "- Actual output in: $actual_file"
                printf "%s\n" "- Differing lines have a character like '|' '>' or '<' in the middle"
+               printf "%s\n" "#+BEGIN_SRC sbs-diff"
                printf "%-${col_width}s   %-${col_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
                $SDIFF -W $total_width "$expect_file" "$actual_file"
-               printf "%s\n" "--- Line Differences ---"
+               printf "%s\n" "#+END_SRC"
+               printf "\n"
+               printf "%s\n" "** --- Line Differences ---"
                printf "%s\n" "$diffresult"
                printf "\n"
            fi

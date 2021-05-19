@@ -3,7 +3,9 @@
 * Test echo
 Check that the 'echo' command in bash is working.
 
-The 'sh' is not honored in testy; it is for easy editing in Emacs.
+The org-mode 'sh' param is not honored in testy; it is for easy
+editing/formatting in Emacs but does not reflect what program will
+actually run the and can be replaced with whatever.
 
 #+BEGIN_SRC sh
 >> echo 'hello'
