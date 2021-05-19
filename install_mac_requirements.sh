@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Gets the environment's location of bash instead of assuming it to be /bin/bash (Shebang must be the first line). Do NOT change to zsh.
 
+# Author: Nikunj Chawla <chawl025@umn.edu>
+
 # Prevents the user from executing this script as root as homebrew does not play well with root
 if [ "$(whoami)" == "root" ]; then
     printf "This script cannot be run as root. Please try again as the local user or without running commands such as sudo.\n\n";

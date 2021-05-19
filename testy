@@ -3,7 +3,7 @@
 # A script to automate testing programs on the command line.
 # author:  Chris Kauffman <kauffman@umn.edu>
 # license: GPLv3-or-later
-# RELEASE: Thu Jan  7 10:16:07 AM CST 2021 
+# RELEASE: Tue May 18 08:50:47 PM CDT 2021
 
 read -r -d '' usage <<EOF
 usage:    testy <testfile.org> [test# test# ...]
@@ -61,7 +61,7 @@ failure in a file.
 >> echo 'hi'
 hi
 >> printf 'INTENTIONAL fail\n'
-INTENTIONALly fails
+INTENTIONAL fail
 #+END_SRC
 
 * Test bc
@@ -84,20 +84,20 @@ The following variables can be specified in test files via lines like
 or on via an environment variable during a program run as in
   > VAR="value" testy testfile.org
 
-They will change the behavior of how the test data is interpretted.
+They will change the behavior of how the test data is interpreted.
 
 Global variables that are usually specified at the beginning of a test
 file before any other tests.
 
 PROGRAM="bash -v"        : program to run/test; input is fed to this program
 PROMPT=">>"              : prompt that indicates input to the program
-ECHOING="input"          : {input, both} for program input echoing style, 
+ECHOING="input"          : {input, both} for program input echoing style,
                            "input" means the program echoes only input provided by testy, testy will add back in prompts
                            "both" echoes both prompt and input so testy won't add back anything
-                            NOTE: testy does not support mocked interaction tests for programs that don't echo input 
+                            NOTE: testy does not support mocked interaction tests for programs that don't echo input
                             as this is generally hard to do
 PREFIX="test"            : prefix for output files, often changed to reflect program name like 'myprog'
-RESULTDIR="test-results" : directory where the resutls will be written
+RESULTDIR="test-results" : directory where the results will be written
 TIMEOUT="5s"             : maximum time to complete test before it is failed due to timeout
 POST_FILTER=""           : program to adjust output from test before evaluating, run as 'cat output | post_filter > actual.tmp'
 USE_VALGRIND="0"         : set to 1 to run programs under Valgrind which checks for memory errors
@@ -105,10 +105,10 @@ VALGRIND_REACHABLE="1"   : under valgrind, report errors if memory is still reac
 SKIPDIFF="0"             : skip diffing results, useful if checking valgrind but actual output can vary
 
 Each of the above Global variables can be set Locally during a single
-test by setting their lower-case version. For exaxmple:
+test by setting their lower-case version. For example:
 
   * Test 5: A test of bc
-  #+TESTY: program="bc -i" 
+  #+TESTY: program="bc -i"
 
 will send input to the program "bc -i" and check output rather than
 the default PROGRAM. The lower case options are reset during each test
@@ -128,7 +128,7 @@ DIFF="diff -bB \
            --unchanged-line-format='' \
            --old-line-format='EXPECT:%4dn) %L' \
            --new-line-format='ACTUAL:%4dn) %L'"       # diff which will show prepend EXPECT/ACTUAL to differing lines
-TIMEOUTCMD="timeout --signal KILL"                    # kills user programs after a certain duration  of 'timeout'  
+TIMEOUTCMD="timeout --signal KILL"                    # kills user programs after a certain duration  of 'timeout'
 VALG_ERROR="13"                                       # error code that valgrind should return on detecting errors
 
 VALGRIND_PROG="valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=13 --track-origins=yes"
@@ -153,14 +153,14 @@ PROGRAM=${PROGRAM:-"bash -v"}                         # program to run if no opt
 PROMPT=${PROMPT:-">>"}                                # prompt to honor if none is specified
 ECHOING=${ECHOING:-"input"}                           # {input, both} for program input echoing style
 PREFIX=${PREFIX:-"test"}                              # prefix for the files that are produced by testy
-RESULTDIR=${RESULTDIR:-"test-results"}                # directory where the resutls will be written
+RESULTDIR=${RESULTDIR:-"test-results"}                # directory where the results will be written
 RESULTRAW=${RESULTRAW:-"$RESULTDIR/raw"}              # directory where actual / expect / valgrind results are stored
 TIMEOUT=${TIMEOUT:-"5s"}                              # time after which to kill a test, passed to 'timeout' command and program_wait();
-POST_FILTER=${POST_FILTER:-""}                        # run this progam on output to adjust it if needed
+POST_FILTER=${POST_FILTER:-""}                        # run this program on output to adjust it if needed
 USE_VALGRIND=${USE_VALGRIND:-"0"}                     # use valgrind while testing
 VALGRIND_REACHABLE=${VALGRIND_REACHABLE:-"1"}         # report valgrind errors if memory is still reachable
 SKIPDIFF=${SKIPDIFF:-"0"}                             # skip diffing results, useful if checking valgrind but actual output can vary
-VALGRIND_OPTS=${VALGRIND_OPTS:-""}                    # additional options to valgrind, 
+VALGRIND_OPTS=${VALGRIND_OPTS:-""}                    # additional options to valgrind,
 TICKTIME=${TICKTIME:-"0.1"}                           # multi: amount of time to wait in between test commands
 VALGRIND_START_TICKS=${VALGRIND_START_TICKS:-"8"}     # multi: number of ticks to wait when starting valgrind programs which take a while
 # VALGRIND_OPTS="--suppressions=test_valg_suppress_leak.conf"
@@ -174,7 +174,7 @@ PASS_STATUS="ok"                                      # status message associate
 FAIL_STATUS="FAIL"                                    # default status message associated with failing a test, anything not $PASS_STATUS is a failure though
 TEST_TITLE_WIDTH=20                                   # initial width for test test_titles, set to widest during initial parsing
 
-function reset_options(){                             # reset options to defaults, run before each test session
+function reset_options() {                            # reset options to defaults, run before each test session
     program=$PROGRAM
     prompt=$PROMPT
     echoing=$ECHOING
@@ -186,54 +186,53 @@ function reset_options(){                             # reset options to default
     use_valgrind=$USE_VALGRIND
     valgrind_reachable=$VALGRIND_REACHABLE
     skipdiff=$SKIPDIFF
-    valgrind_opts=$VALGRIND_OPTS    
+    valgrind_opts=$VALGRIND_OPTS
     ticktime=$TICKTIME
     valgrind_start_ticks=$VALGRIND_START_TICKS
     # input_style=$NORMAL
     # longticks=$LONGTICKS
-}    
+}
 
 # fail if a tool is not found, used to check for utilities like timeout and valgrind
-function checkdep_fail () {
+function checkdep_fail() {
     dep="$1"
-    if ! command -v "$dep" >& /dev/null ; then
+    if ! command -v "$dep" >&/dev/null; then
         echo "ERROR: testy requires the program '$dep', which does not appear to be installed"
         echo "Consult your OS docs and install '$dep' before proceeding"
         echo "If '$dep' is installed, adjust your PATH variable so '$dep' can be found using 'which $dep'"
         which "$dep"                                  # Intentionally using 'which' as it shows the program name
-        exit 1                                        # and path on stderr to help diagnose missing programs 
+        exit 1                                        # and path on stderr to help diagnose missing programs
     fi
 }
 
-function debug(){                                     # print a debug message
+function debug() {                                    # print a debug message
     if [[ -n "$DEBUG" ]]; then
-        echo "==DBG== $1" > /dev/stderr
+        echo "==DBG== $1" >/dev/stderr
     fi
 }
-function updateline(){                                # processes $line to set some other global variables
+function updateline() {                               # processes $line to set some other global variables
     line="$REPLY"                                     # copy from REPLY built-in variable to avoid losing whitespace
-    ((linenum++))                                     # update the current line number 
-    first="${line%% *}"                               # extracts the first word on the line 
+    ((linenum++))                                     # update the current line number
+    first="${line%% *}"                               # extracts the first word on the line
     rest="${line#* }"                                 # extracts remainder of line
-}    
-
+}
 
 ################################################################################
 # Multi test functions
 
 function tick() {                                     # pause execution during multi test sessions
-    sleep $ticktime
+    sleep "$ticktime"
 }
 
 # Calls wait on program with given key, captures return value of
 # program from wait, marks it as no longer running. If program is
 # unresponsive for TIMEOUT seconds, kills it and marks it as timed
 # out.
-function program_wait () {
+function program_wait() {
     debug "program_wait '$1'"
     key="$1"
 
-    wait "${program_pid[$key]}" &> /dev/null          # wait on the child to finish, safe as its done
+    wait "${program_pid[$key]}" &>/dev/null           # wait on the child to finish, safe as its done
     retcode=$?
     debug "wait on '$key' pid ${program_pid[$key]} gave retcode: $retcode"
     program_retcode[$key]=$retcode
@@ -259,7 +258,6 @@ function program_wait () {
             ;;
     esac
 
-
     if [[ "${program_input__fifo_fd[$key]}" != "CLOSED" ]]; then
         to="${program_input__fifo_fd[$key]}"          # input_fifo still open in testy, close
         debug "closing $to"
@@ -279,21 +277,21 @@ function program_wait () {
 # delivered and a 1 error code if not. A return value from this of 0
 # indicates success (program is still alive) and nonzero indicates the
 # program is dead. Use in conditional constructs like:
-# 
+#
 # if ! program_alive "server"; then
 #   printf "It's dead, Jim"
 # fi
-function program_alive () {
+function program_alive() {
     key="$1"
     if [[ "${program_state[$key]}" != "Running" ]]; then
         printf "Program '$key' has already died\n"
         return 0
     fi
     pid=${program_pid[$key]}
-    output=$(kill -0 $pid 2>&1)
+    output=$(kill -0 "$pid" 2>&1)
     ret=$?                                            # capture return val for kill: 0 for alive, 1 for dead
     if [[ "$ret" != "0" ]]; then
-        printf "Program '$key' is not alive: $output\n"
+        printf "Program '%s' is not alive: %s\n" "$key" "$output"
         program_wait "$key"                           # wait on program and mark as dead
     fi
     return $ret
@@ -308,7 +306,7 @@ function program_alive () {
 # program when starting programs as this would not allow one deliver
 # signals. However, on further experimentation, a program sequence
 # like
-# 
+#
 # > timeout 1000s valgrind gwc < in.fifo &
 #
 # can be passed signals which are forwarded on to the program
@@ -316,7 +314,6 @@ function program_alive () {
 # for programs which is likely to be somewhat more robust though the
 # timeout utility is not present everywhere. Likely SWITCH TO TIMEOUT
 # UTILITY at some point in the future for simplicity.
-
 
 SHELL_SYMBOLS='.*(>|<|\||&|&&|\|\|).*' # regular expression used to detect commands that contain shell symbols which are barred
 
@@ -327,22 +324,22 @@ SHELL_SYMBOLS='.*(>|<|\||&|&&|\|\|).*' # regular expression used to detect comma
 # used, then starts the program under Valgrind and waits a longer time
 # (VALGRIND_START_TICKS) before checking on it as Valgrind usually
 # takes much longer to start up programs.
-function program_start () {
+function program_start() {
     debug "program_start '$1' '$2'"
     key="$1"
     progcmd="$2"
 
     if [[ "$progcmd" =~ $SHELL_SYMBOLS ]]; then
         {
-            printf "ERROR with '%s'\n" "$progcmd" 
+            printf "ERROR with '%s'\n" "$progcmd"
             printf "TESTY_MULTI does not support program commands with shell redirects, pipes, booleans, or backgrounds\n"
-            printf "The following symbols in program comands will trigger this error: > < | & || && \n"
+            printf "The following symbols in program commands will trigger this error: > < | & || && \n"
             printf "Please rework the test file to avoid this\n"
-        } > /dev/stderr
+        } >/dev/stderr
         exit 1
     fi
-    
-    program_keys+=($key)
+
+    program_keys+=("$key")
     debug "Adding program w/ key '$key' command '$progcmd'"
     program_command[$key]="$progcmd"
     program_name[$key]="${progcmd%% *}"
@@ -351,8 +348,8 @@ function program_start () {
     if [[ -n "$TMPFIFOS" ]]; then                       # use /tmp instead, likely due to Windows/WSL
         program_input__fifo[$key]=$(printf "%s/%s-%02d-%s_input__fifo.tmp" "${TMPFIFOS}" "$prefix" "$testnum" "$key")
     fi
-    
-    if [[ "$use_valgrind" = 1 ]]; then
+
+    if [[ "$use_valgrind" == 1 ]]; then
         program_valgfile[$key]=$(printf "%s/%s-%02d-%s_valgrd.tmp" "$resultraw" "$prefix" "$testnum" "$key")
         VALGRIND="${VALGRIND_PROG} ${VALGRIND_OPTS} --log-file=${program_valgfile[$key]}"
         # program_valgfile[$key]=$(mktemp $resultraw/testy_valg.XXXXXX)
@@ -362,9 +359,9 @@ function program_start () {
         VALGRIND=""
     fi
 
-    rm -f ${program_input__fifo[$key]} ${program_output_file[$key]} # remove just in case
-    mkfifo ${program_input__fifo[$key]}                             # create the fifo going to the program
-    
+    rm -f "${program_input__fifo[$key]}" "${program_output_file[$key]}" # remove just in case
+    mkfifo "${program_input__fifo[$key]}"                               # create the fifo going to the program
+
     # Below block starts a subshell to close extraneous file
     # descriptors then exec's the actual program. MUST close the other
     # program file descriptors otherwise when testy closes an input
@@ -383,26 +380,25 @@ function program_start () {
                 exec {tofd}>&-
             fi
         done
-        eval exec $cmd                                 # exec replaces current image with child process
-    ) &                                                # in a subshell, started in background
+        eval exec $cmd                                 # exec replaces current image with child process in a 
+    ) &                                                # subshell, started in background, no quoting to all redirect
     program_pid[$key]=$!
     debug "PID is '${program_pid[$key]}'"
     program_state[$key]="Running"
     program_retcode[$key]="?"
 
-    exec {to}>${program_input__fifo[$key]}             # open connection to fifo for writing
+    exec {to}>"${program_input__fifo[$key]}"            # open connection to fifo for writing
     program_input__fifo_fd[$key]=$to
     debug "to: $to   program_input__fifo_fd: ${program_input__fifo_fd[$key]}"
 
     if [[ "$use_valgrind" == "1" ]]; then
         debug "use_valgrind=1, long ticks while starting program"
-        for i in $(seq ${valgrind_start_ticks}); do
+        for i in $(seq "${valgrind_start_ticks}"); do
             tick
         done
     else
         tick
     fi
-
 
     # NOTE: Below code checks for the subprocess starting up BUT this
     # is a race condition as if the program finishes before the check,
@@ -419,11 +415,11 @@ function program_start () {
 # will close the FIFO used for input which should give the program end
 # of input. Checks that the program is alive before sending and if not
 # prints and error message.  Calls tick() before returning.
-function program_send_input () {
+function program_send_input() {
     key="$1"
     msg="$2"
     debug "program_send_input '$key' '$msg'"
-    
+
     if ! program_alive "$key"; then
         printf "Can't send INPUT to dead program '%s' (%s)\n" "$key" "${program_command[$key]}"
         return 1
@@ -457,28 +453,27 @@ function program_signal() {
     fi
 
     cmd="kill $prog_rest ${program_pid[$prog_key]}"
-    eval $cmd
+    eval "$cmd"
     tick
 }
-
 
 # Show the output for program with given key. Makes use of the output
 # file found in the program_output_file[] array. Second argument is a
 # filter to use, most often 'cat' to just show the output though other
 # commands/scripts can be passed to adjust the output as desired.
-function program_get_output () {
+function program_get_output() {
     debug "program_get_output '$1' '$2'"
     key="$1"
     filter="$2"
     outfile=${program_output_file[$key]}
-    debug "output for '$key' via  '$filter $outfile'"
-    $filter $outfile                                  # output the program by passing through given filter, usually 'cat'
+    debug "output for '$key' is file '$outfile' with filter '$filter'"
+    $filter "$outfile"                                # output the program by passing through given filter, usually 'cat'
     return $?
 }
 
 # TODO: checks several output codes which do not have to do with
 # valgrind, may want to convert this to 'program_failure_checks'
-# instead. 
+# instead.
 
 # TODO: need to make compatible with the failures for the overall test
 # though could rely on the output.
@@ -489,7 +484,7 @@ function program_get_output () {
 # the output though other commands/scripts can be passed to adjust the
 # output as desired.  This function is affected by several options
 # that dictate Valgrind applications most notably 'use_valgrind'.
-function program_check_failures () {
+function program_check_failures() {
     debug "program_check_failures '$1' '$2'"
     # if [[ "$use_valgrind" == "0" ]]; then             # check for use of valgrind first
     #     printf "Valgrind Disabled\n"
@@ -505,7 +500,7 @@ function program_check_failures () {
         "$VALG_ERROR")
             status="$FAIL_STATUS"
             msg=""
-            msg+="Valgrind found errors for program ${key} ($progcmd : return code $retcode[VALG_ERROR])\n"
+            msg+="Valgrind found errors for program ${key} ($progcmd : return code ${retcode[VALG_ERROR]})\n"
             msg+="Valgrind output from '${program_valgfile[$key]}'\n"
             msg+="#+BEGIN_SRC text\n"                  # org mode source block for vlagrind output
             msg+=$(cat ${program_valgfile[$key]})
@@ -530,9 +525,9 @@ function program_check_failures () {
             msg+="#+END_SRC\n"
             fail_messages+=("$msg")
             ;;
-    esac        
+    esac
 
-    if [[ "$use_valgrind" = "1" ]]; then                        # if valgrind is enabled, check its output
+    if [[ "$use_valgrind" == "1" ]]; then                       # if valgrind is enabled, check its output
         valgfile="${program_valgfile[$key]}"
         debug "use_valgrind: $use_valgrind, valgfile: $valgfile"
         $filter $valgfile > ${valgfile/.tmp/.filtered.tmp}      # create a filtered version of the valgrind file to 
@@ -540,14 +535,14 @@ function program_check_failures () {
         mv ${valgfile/.tmp/.filtered.tmp} $valgfile             # remove spurious errors and use that output instead
         debug "Checking Valgrind '$key' ($progcmd) filter '$filter' valgfile '$valgfile'"
 
-        if [[ "$valgrind_reachable" = "1" ]] &&                 # and checking for reachable memory
-             ! awk '/still reachable:/{if($4 != 0){exit 1;}}' ${valgfile}
+        if [[ "$valgrind_reachable" == "1" ]] &&                # and checking for reachable memory
+            ! awk '/still reachable:/{if($4 != 0){exit 1;}}' ${valgfile};
         then                                                    # valgrind log does not contain 'reachable: 0 bytes'
             status="$FAIL_STATUS"                               
             program_state[$key]="ReachErr"
             msg=""
             msg+="${key} MEMORY REACHABLE: Valgrind reports '${program_command[$key]}' has\n"
-            msg+="reachable memory, may need to add free() or fclose() beore exiting\n"
+            msg+="reachable memory, may need to add free() or fclose() before exiting\n"
             msg+="\n"
             msg+="Valgrind output from file '${program_valgfile[$key]}'\n"
             msg+="--------------------\n"
@@ -569,7 +564,7 @@ function program_check_failures () {
 function handle_multi_command() {
     debug "handle_multi_command: '$1'"
     multi_line="$1"
-    multi_cmd="${multi_line%% *}"                          # extracts the first word on the line 
+    multi_cmd="${multi_line%% *}"                          # extracts the first word on the line
     multi_rest="${multi_line#* }"                          # extracts remainder of line
     prog_key="${multi_rest%% *}"                           # key to identify program, only applicable to some lines
     prog_rest="${multi_rest#* }"                           # remainder of program line, only applicable to some lines
@@ -605,10 +600,10 @@ function handle_multi_command() {
                 program_check_failures "$pk" "$prog_key"   # second arg is a filter to run all valgrind checks through
             done
             ;;
-        "WAIT")           
+        "WAIT")
             program_wait "$prog_key"
             ;;
-        "WAIT_ALL")           
+        "WAIT_ALL")
             for pk in "${program_keys[@]}"; do
                 printf "<testy> WAIT for %s\n" "$pk"
                 program_wait "$pk"
@@ -618,54 +613,54 @@ function handle_multi_command() {
             eval "$multi_rest"
             ;;
         *)
-            printf "TESTY FAILURE in handle_multi_command():\n" > /dev/stderr
-            printf "Unknown command '%s' in line '%s'\n" > /dev/stderr
-            printf "Aborting testy\n" > /dev/stderr
+            printf "TESTY FAILURE in handle_multi_command():\n" >/dev/stderr
+            printf "Unknown command '%s' in line '%s'\n" "$multi_cmd" "$linenum" >/dev/stderr
+            printf "Aborting testy\n" >/dev/stderr
             exit 1
             ;;
     esac
     return $?
 }
 
-function diff_expect_actual () {
-    debug "diff_exepct_actual '$1' '$2'"
+function diff_expect_actual() {
+    debug "diff_expect_actual '$1' '$2'"
     expect_file="$1"
     actual_file="$2"
-    
-    actual_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' $actual_file)
-    expect_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' $expect_file)
+
+    actual_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$actual_file")
+    expect_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$expect_file")
     col_width=$((actual_width > expect_width ? actual_width : expect_width))
     # total_width=$((col_width*2 + 3))                  # width to pass to diff as -W
     total_width=$((actual_width + expect_width + 5))    # width to pass to diff as -W, tighter than previous
 
     debug "actual_width $actual_width expect_width $expect_width"
     debug "col_width $col_width total_width $total_width"
-    
+
     diff_file=$(printf "%s/%s-%02d-diff.tmp" "$resultraw" "$prefix" "$testnum")
     diffcmd="$DIFF ${expect_file} ${actual_file}"     # run standard diff to check for differences
-    diffresult=$(eval "$diffcmd")                     
+    diffresult=$(eval "$diffcmd")
     diffreturn="$?"                                   # capture return value for later tests
     debug "diffreturn: $diffreturn"
     {                                                 # create diff file
         printf "TEST OUTPUT MISMATCH: Side by Side Differences shown below \n"
-        printf "%s\n" "- Expect output in: $expect_file" 
-        printf "%s\n" "- Acutal output in: $actual_file" 
+        printf "%s\n" "- Expect output in: $expect_file"
+        printf "%s\n" "- Actual output in: $actual_file"
         printf "%s\n" "- Differing lines have a character like '|' and '<' in the middle"
         printf "\n"
         printf "%s\n" "#+BEGIN_SRC text"
         printf "%-${col_width}s   %-${col_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
-        $SDIFF -W $total_width $expect_file $actual_file 
+        $SDIFF -W $total_width "$expect_file" "$actual_file"
         printf "%s\n" "#+END_SRC"
         printf "\n"
         printf "%s\n" "--- Line Differences ---"
         printf "%s" "$diffresult"
-    } > $diff_file
+    } >"$diff_file"
     if [[ "$skipdiff" == "1" ]]; then                 # skipping diff
         debug "Skipping diff (skipdiff=$skipdiff)"
         diffreturn=0
     elif [[ "$diffreturn" != "0" ]]; then
-        status="$FAIL_STATUS"                         # differences found, triger failure
-        msg="$(cat $diff_file)"
+        status="$FAIL_STATUS"                         # differences found, trigger failure
+        msg="$(cat "$diff_file")"
         fail_messages+=("$msg")
     fi
     return $diffreturn
@@ -676,7 +671,7 @@ function diff_expect_actual () {
 # comprises a set of commands on when to start programs and what input
 # should be given them at what time. The function is run in a context
 # where 'read' will extract lines from the test session.
-function run_testy_multi_session(){
+function run_test_multi_session() {
     # Set up the global arrays used in multi testing to track
     # input/output/state for all programs involved in the test.
     indexed_arrays=(
@@ -694,25 +689,25 @@ function run_testy_multi_session(){
         program_valgfile             # valgrind output files for programs
     )
 
-    for a in ${indexed_arrays[@]}; do
+    for a in "${indexed_arrays[@]}"; do
         unset "$a"                                    # remove any existing binding
         declare -g -a "$a"                            # declare as -g global, -a indexed array
     done
-    for a in ${assoc_arrays[@]}; do
+    for a in "${assoc_arrays[@]}"; do
         unset "$a"                                    # remove any existing binding
         declare -g -A "$a"                            # declare as -g global, -A Associative array
     done
-    
+
     # Set up the testing environment
-    mkdir -p $resultdir                               # set up test results directory
-    mkdir -p $resultraw                               # set up raw directory for temporary files/raw output
+    mkdir -p "$resultdir"                             # set up test results directory
+    mkdir -p "$resultraw"                             # set up raw directory for temporary files/raw output
     result_file=$(printf "%s/%s-%02d-result.tmp" "$resultdir" "$prefix" "$testnum")
     actual_file=$(printf "%s/%s-%02d-actual.tmp" "$resultraw" "$prefix" "$testnum")
     expect_file=$(printf "%s/%s-%02d-expect.tmp" "$resultraw" "$prefix" "$testnum")
 
     status="$PASS_STATUS"                             # initial status, change to 'FAIL' if things go wrong
     fail_messages=()                                  # array accumulating failure messages
-    session_beg_line=$((linenum+1))                   # mark start of session to allow it to be extracted
+    session_beg_line=$((linenum + 1))                 # mark start of session to allow it to be extracted
 
     # main input loop to read lines and handle them
     while read -r; do                                 # read a line from the test session
@@ -736,22 +731,21 @@ function run_testy_multi_session(){
                 debug "^^ expected output"
                 ;;
         esac
-    done > ${actual_file}                             # redirect output of printf/echo into actual output
-    session_end_line=$((linenum-1))                   # note the line session ends on to enable #+TESTY_RERUN:
+    done >"${actual_file}"                            # redirect output of printf/echo into actual output
+    session_end_line=$((linenum - 1))                 # note the line session ends on to enable #+TESTY_RERUN:
 
     for key in "${program_keys[@]}"; do               # clean up files and other artifacts for each program
         if [[ "${program_state[$key]}" == "Running" ]]; then
             program_wait "$key"
         fi
-    done >> ${actual_file}                            # capture failures of any unresponsive_programs
+    done >>"${actual_file}"                           # capture failures of any unresponsive_programs
 
     # extract expected output from test file, filter #+TESTY_ , store result in expect_file
-    cat $specfile | \
-        sed -n "${session_beg_line},${session_end_line}p" | \
+    $SEDCMD -n "${session_beg_line},${session_end_line}p" <"$specfile" |
         grep -v '^#+TESTY_' \
-        > ${expect_file}
+        >"${expect_file}"
 
-    diff_expect_actual "$expect_file" "$actual_file"  # diff expect/actual output, sets 'status' 
+    diff_expect_actual "$expect_file" "$actual_file"  # diff expect/actual output, sets 'status'
 
     # Calculate the Width of various table fields tight
     cmd_str="COMMAND"                                 # start with width of headings for several columns
@@ -762,14 +756,14 @@ function run_testy_multi_session(){
     for key in "${program_keys[@]}"; do
         cmd_str="${program_command[$key]}"
         cmd_width=${#cmd_str}
-        if (( $cmd_width > $max_cmd_width )); then
+        if ((cmd_width > max_cmd_width)); then
             max_cmd_width=$cmd_width
         fi
 
         out_file="${program_output_file[$key]#${resultdir}/}"      # include raw/ path to make it easier to recognize file location
         out_width=${#out_file}
         debug "File '$outfile' with width $outwidth"
-        if (( $out_width > $max_out_width )); then
+        if ((out_width > max_out_width)); then
             max_out_width=$out_width
             debug "File '$out_file' has new max width $out_width"
         fi
@@ -794,14 +788,14 @@ function run_testy_multi_session(){
         printf '%s\n' '-----------------------------------------------------------------------------------------------'
         printf "* Summary Program Information\n"
         printf "\n"
-        printf "| %-8s "  "KEY"
+        printf "| %-8s " "KEY"
         printf "| %-${cw}s " "COMMAND"
-        printf "| %3s "  "RET"
+        printf "| %3s " "RET"
         printf "| %-10s " "STATE"
         printf "| %-${ow}s " "OUTPUT/VALGRIND FILES"
         printf "| \n"
-        for key in ${program_keys[@]}; do
-            printf "| %-8s "  "$key"
+        for key in "${program_keys[@]}"; do
+            printf "| %-8s " "$key"
             printf "| %-${cw}s " "${program_command[$key]}"
             printf "| %3s "      "${program_retcode[$key]}"
             printf "| %-10s "    "${program_state[$key]}"
@@ -834,9 +828,9 @@ function run_testy_multi_session(){
             done
             printf "\n"
             fail_files+=("${result_file}")                  # test failed, add to files to show later
-            status="FAIL -> results in file '$result_file'" # show results file on command line 
+            status="FAIL -> results in file '$result_file'" # show results file on command line
         fi
-    }  > ${result_file}
+    } >"${result_file}"
 
     # TODO: may need to clean up files that were created during
     # testing at this point and are not needed for results
@@ -854,10 +848,10 @@ function run_testy_multi_session(){
 # - program
 # - tag
 # - prompt
-# 
+#
 # The function is run in a context where 'read' will extract lines
 # from the test session.
-function run_test_session(){
+function run_test_session() {
 
     mkdir -p "$resultdir"                               # set up test results directory
     mkdir -p "$resultraw"
@@ -899,14 +893,14 @@ function run_test_session(){
     pid=$!
     debug "child pid: $pid"
 
-    # open to after running the program or testy will stall 
+    # open to after running the program or testy will stall
     exec {to}>"${toprog_fifo}"                        # open connection to fifo for writing
     debug "to fd: $to"
 
     status="$PASS_STATUS"                             # initial status, change to 'FAIL' if things go wrong
     fail_messages=()                                  # array accumulating failure messages
     all_input=()                                      # array accumulating input fed to program
-    session_beg_line=$((linenum+1))
+    session_beg_line=$((linenum + 1))
     eof_set=0
 
     # LOOP to feed lines of input to the program, output is fed to a
@@ -924,7 +918,7 @@ function run_test_session(){
                 debug "^^ eof_set=1"
                 ;;
             "$prompt")                                # test input, feed to program
-                if [[ "$eof_set" = "0" ]]; then
+                if [[ "$eof_set" == "0" ]]; then
                     input="$rest"
                     all_input+=("$input")                 # append to all_input array for later processing
                     debug "^^ sending input"
@@ -937,18 +931,18 @@ function run_test_session(){
                 debug "^^ expected output"
                 ;;
         esac                                          # DONE with test input, either pass or fail
-    done;
+    done
 
-    session_end_line=$((linenum-1))                   # note the line session ends on to enable #+TESTY_RERUN:
+    session_end_line=$((linenum - 1))                 # note the line session ends on to enable #+TESTY_RERUN:
     debug "session lines: beg $session_beg_line end $session_end_line"
 
     debug "closing to fifo fd ${to}"
     exec {to}>&-                                      # closes to fifo
 
-    debug "waiting on finished child"                 
-    wait $pid &> /dev/null                            # wait on the child to finish
+    debug "waiting on finished child"
+    wait $pid &>/dev/null                             # wait on the child to finish
     retcode="$?"                                      # capture return code from program run
-    debug "wait returned: $retcode"                   
+    debug "wait returned: $retcode"
 
     debug "removing to fifo"
     rm -f "${toprog_fifo}"                                 # ${toprog_fifo}
@@ -966,20 +960,20 @@ function run_test_session(){
             status="$FAIL_STATUS"
             fail_messages+=("FAILURE($retcode) due to SIGSEGV (segmentation fault) from OS")
             ;;
-    esac        
+    esac
 
-    if [[ "$use_valgrind" = "1" ]] &&                 # if valgrind is on
-       [[ "$valgrind_reachable" = "1" ]] &&           # and checking for reachable memory
-       ! awk '/still reachable:/{if($4 != 0){exit 1;}}' "${valgrd_file}";
+    if [[ "$use_valgrind" == "1" ]] &&                # if valgrind is on
+        [[ "$valgrind_reachable" == "1" ]] &&         # and checking for reachable memory
+        ! awk '/still reachable:/{if($4 != 0){exit 1;}}' "${valgrd_file}";
     then                                              # valgrind log does not contain 'reachable: 0 bytes'
-        status="$FAIL_STATUS"                               
+        status="$FAIL_STATUS"
         fail_messages+=("FAILURE: Valgrind reports reachable memory, may need to add free() or fclose()")
     fi
 
     cp "${fromprog_file}" ~/fromprog.tmp
 
     # ADDING IN PROMPTS TO ECHOED INPUT
-    # 
+    #
     # NOTE: The code below handles adding prompts to input lines that
     # are echoed without it.  Originally was trying to do this with
     # sed or awk but the quoting becomes a huge mess: any input lines
@@ -991,26 +985,26 @@ function run_test_session(){
     # do this with { } construct).  This approach can be fooled: if an
     # output line matches an input line, the prompt may be added at
     # the wrong spot.
-    if [[ "$echoing" = "input" ]]; then               # program may only echo input necessitating adding prompts to output
-        idx=0                                         # index for input line
+    if [[ "$echoing" == "input" ]]; then               # program may only echo input necessitating adding prompts to output
+        idx=0                                          # index for input line
         exec {mod}>"${fromprog_file}.mod"
-        while read -r || [[ "$REPLY" != "" ]]; do     # read from output file into default REPLY var, second condition catches last line which may not end with a newline char
-            if (( idx < ${#all_input[@]} )) &&        # still in bounds for input lines
-               [[ "${all_input[idx]}" = "$REPLY" ]];  # input line matches the program output
+        while read -r || [[ "$REPLY" != "" ]]; do      # read from output file into default REPLY var, second condition catches last line which may not end with a newline char
+            if ((idx < ${#all_input[@]})) &&           # still in bounds for input lines
+                [[ "${all_input[idx]}" == "$REPLY" ]]; # input line matches the program output
             then
-                REPLY="$prompt $REPLY";               # add the prompt to this line
-                ((idx++))                             # move to the next input to look for
+                REPLY="$prompt $REPLY"                 # add the prompt to this line
+                ((idx++))                              # move to the next input to look for
                 debug "added prompt to input $idx: $REPLY"
-            fi;
-            printf '%s\n' "$REPLY" >&$mod             # output the (un)modified line into the modified file
-        done < "${fromprog_file}"                       # reading from the original output file
-        exec {mod}>&-                                 # close the modified file
-        mv "${fromprog_file}.mod" "${fromprog_file}"      # copy modified file back to original
+            fi
+            printf '%s\n' "$REPLY" >&$mod              # output the (un)modified line into the modified file
+        done <"${fromprog_file}"                       # reading from the original output file
+        exec {mod}>&-                                  # close the modified file
+        mv "${fromprog_file}.mod" "${fromprog_file}"   # copy modified file back to original
     fi
 
-    if [[ "$post_filter" != "" ]]; then               # use a filter to post-process the output
+    if [[ "$post_filter" != "" ]]; then                # use a filter to post-process the output
         debug "running post filter '$post_filter'"
-        cat "${fromprog_file}" | ${post_filter} > "${fromprog_file}.tmp"
+        cat "${fromprog_file}" | ${post_filter} >"${fromprog_file}.tmp"
         mv "${fromprog_file}.tmp" "${fromprog_file}"
     fi
 
@@ -1021,10 +1015,9 @@ function run_test_session(){
     mv "${fromprog_file}" "${actual_file}"                # copy temp file to final destination
 
     # extract expected output from test file, filter #+TESTY_ , store result in expect_file
-    cat "$specfile" | \
-        $SEDCMD -n "${session_beg_line},${session_end_line}p" | \
+    $SEDCMD -n "${session_beg_line},${session_end_line}p" <"$specfile" |
         grep -v '^#+TESTY_' \
-        > "${expect_file}"
+        >"${expect_file}"
 
     # Try to compute the width of expected/actual outputs to make the
     # side-by-side diff as narrow as possible. 'diff -y -W' is a bit
@@ -1038,18 +1031,18 @@ function run_test_session(){
     actual_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$actual_file")
     expect_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$expect_file")
     col_width=$((actual_width > expect_width ? actual_width : expect_width))
-    total_width=$((col_width*2 + 3))                  # width to pass to diff as -W
+    total_width=$((col_width * 2 + 3))                # width to pass to diff as -W
     debug "actual_width $actual_width"
     debug "expect_width $expect_width"
     debug "col_width $col_width"
     debug "total_width $total_width"
-    
+
     diffcmd="$DIFF ${expect_file} ${actual_file}"     # run standard diff to check for differences
-    diffresult=$(eval "$diffcmd")                     
+    diffresult=$(eval "$diffcmd")
     diffreturn="$?"                                   # capture return value for later tests
     debug "diffresult: $diffresult"
     debug "diffreturn: $diffreturn"
-    if [[ "$skipdiff" == "1" ]]; then # skipping diff
+    if [[ "$skipdiff" == "1" ]]; then                 # skipping diff
         debug "Skipping diff (skipdiff=$skipdiff)"
         diffreturn=0
     elif [[ "$diffreturn" != "0" ]]; then
@@ -1057,27 +1050,27 @@ function run_test_session(){
         fail_messages+=("FAILURE: Output Mismatch at lines marked")
     fi
 
-    if [[ "$status" = "$PASS_STATUS" ]]; then         # test passed
+    if [[ "$status" == "$PASS_STATUS" ]]; then        # test passed
         debug "NORMAL cleanup"                        # normal finish
         debug "Checking child status with kill -0"
-        kill -0 $pid  >& /dev/null                    # check that the child is dead, return value 1
+        kill -0 $pid >&/dev/null                      # check that the child is dead, return value 1
         debug "kill returned: $?"
     else
         debug "FAILURE cleanup"                       # test failed for some reason
-        {                                             # begin capturnig output for results file
+        {                                             # begin capturing output for results file
            printf '(TEST %d) %s\n' "$testnum" "$test_title"
            printf 'COMMENTS:\n'
            printf "%b\n" "${comments}"
            printf 'program: %s\n' "$program"
            printf "Failure messages:\n"
-           for msg in "${fail_messages[@]}"; do       # iterate through faiure messages
+           for msg in "${fail_messages[@]}"; do       # iterate through failure messages
                printf "%s\n" "- $msg"
            done
            printf "\n"
 
            if [[ "$diffreturn" != "0" ]]; then        # show differences between expect and actual
                printf "%s\n" "--- Side by Side Differences ---"
-               printf "%s\n" "- Expect output in: $expect_file" 
+               printf "%s\n" "- Expect output in: $expect_file"
                printf "%s\n" "- Actual output in: $actual_file"
                printf "%s\n" "- Differing lines have a character like '|' '>' or '<' in the middle"
                printf "%-${col_width}s   %-${col_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
@@ -1087,12 +1080,12 @@ function run_test_session(){
                printf "\n"
            fi
 
-           if [[ "$use_valgrind" = "1" ]]; then       # show valgrind log if enabled and test failed
+           if [[ "$use_valgrind" == "1" ]]; then      # show valgrind log if enabled and test failed
                printf "%s\n" "--- Valgrind Log from: $valgrd_file ---"
                cat "$valgrd_file"
                printf "\n"
            fi
-        } &> "${result_file}"                           # end of results file output
+        } &>"${result_file}"                          # end of results file output
 
         # The below eliminate extra spaces in diff results mostly for
         # the left EXPECT column that would make the output very wide.
@@ -1101,8 +1094,8 @@ function run_test_session(){
         # mitigated by NOT changing anything in the first
         # $actual_width columns of the output file.
         if ((actual_width - expect_width > 10)); then
-            extra_space_width=$((actual_width-expect_width))
-            extra_space_width=$((extra_space_width-5))
+            extra_space_width=$((actual_width - expect_width))
+            extra_space_width=$((extra_space_width - 5))
             debug "Eliminating $extra_space_width spaces from result file"
             $SEDCMD -i -E "s/(.{$expect_width})[ ]{$extra_space_width}/\1 /" "$result_file"
         fi
@@ -1111,8 +1104,8 @@ function run_test_session(){
         status="FAIL -> results in file '$result_file'"
     fi
 
-    comments=""                                     # clear comments for next session
-    return 0;
+    comments=""                                       # clear comments for next session
+    return 0
 }
 
 function signal_exit (){                              # function to run on exit signals
@@ -1138,11 +1131,10 @@ done
 
 funcs=$(declare -x -F | awk '{print $3}')             # eliminate any exported functions in bash
 for f in $funcs; do                                   # as these are output with the -v option
-    unset -f "$f";
+    unset -f "$f"
 done
 
-
-if [[ "$#" -lt 1 ]]; then                               # check for presence of at least 1 argument
+if [[ "$#" -lt 1 ]]; then                             # check for presence of at least 1 argument
     printf "usage: testy <testspec> [testnum]\n"
     printf "       testy --help\n"
     exit 1
@@ -1153,15 +1145,15 @@ specfile=$1                                           # gather test file
 shift                                                 # shift test file off the command line
 alltests="$*"                                         # remaining args are tests to run
 debug "Testing $specfile"
-debug "alltests='$alltests"                           
+debug "alltests='$alltests"
 
-if [[ "$specfile" = "--help" ]]; then                 # check for --help option
+if [[ "$specfile" == "--help" ]]; then                # check for --help option
     printf "%s\n" "$usage"                            # print usage and exit
     exit 0
 fi
 
 if [[ ! -r "$specfile" ]]; then                       # check specfile exists / readable
-    printf "ERROR: could not open '%s' for reading\n" "$specfile" > /dev/stderr
+    printf "ERROR: could not open '%s' for reading\n" "$specfile" >/dev/stderr
     exit 1
 fi
 
@@ -1173,11 +1165,11 @@ done
 rm -f ./test-fifo.fifo /tmp/test-fifo.fifo              # Test FIFO creation, often fails for Windows file systems on WSL, can
 if !  mkfifo ./test-fifo.fifo &> /dev/null ; then       # FIFOs in current directory?
     debug "Can't create fifos in $PWD"
-    if ! mkfifo /tmp/test-fifo.fifo &> /dev/null ; then # FIFOs in /tmp?
+    if ! mkfifo /tmp/test-fifo.fifo &>/dev/null; then # FIFOs in /tmp?
         printf "ERROR: Can't create FIFOs in %s or /tmp; Bailing out\n" "$PWD"
         rm -f ./test-fifo.fifo /tmp/test-fifo.fifo
         exit 1
-    else                                                # use FIFOS in /tmp
+    else                                              # use FIFOS in /tmp
         TMPFIFOS="/tmp"
         debug "Local dir $PWD can't handle FIFOs, Creating FIFOs in /tmp"
     fi
@@ -1185,7 +1177,7 @@ fi
 rm -f ./test-fifo.fifo /tmp/test-fifo.fifo
 
 ##################################################
-# first procesing loop: read whole file into testdata array which will
+# first processing loop: read whole file into testdata array which will
 # contain the text of each test. Record ONLY the start/end lines of
 # each test to be used later.  Other side effects: evaluate any global
 # #+TESTY: expressions, calculate the widest test title width for nice
@@ -1202,8 +1194,8 @@ while read -r; do                                     # read from test file, -r 
         "*")
             debug "^^ Test Start"
             eval_test_expr=0                          # in a test, wait to evaluate #+TESTY: expr until during test
-            if (( testnum > 0 )); then                # if not the first test
-                endline=$(( linenum-1 ))
+            if ((testnum > 0)); then                  # if not the first test
+                endline=$((linenum - 1))
                 test_end_line+=("$endline")
                 beg=${test_beg_line[testnum]}
                 end=${test_end_line[testnum]}
@@ -1211,19 +1203,19 @@ while read -r; do                                     # read from test file, -r 
             fi
             ((testnum++))                             # reset and start collecting text for the new test
             test_beg_line+=("$linenum")
-            if (( ${#rest} > $TEST_TITLE_WIDTH ));    # calculate maximum width of any title
+            if ((${#rest} > TEST_TITLE_WIDTH));       # calculate maximum width of any title
             then
                 TEST_TITLE_WIDTH=${#rest}
             fi
             ;;
         "#+TESTY:")                                   # evaluate global expressions
-            if [[ "$eval_testy_expr" = "1" ]]; then
+            if [[ "$eval_testy_expr" == "1" ]]; then
                 debug "Evaluating '$rest'"
                 eval "$rest"
             fi
             testtext="$testtext\n$line"               # append line to current test text as it may be a local test option
             ;;
-        "#+TITLE:"|"#+title:")
+        "#+TITLE:" | "#+title:")
             global_title="$rest"
             debug "^^ setting global_title"
             ;;
@@ -1231,9 +1223,9 @@ while read -r; do                                     # read from test file, -r 
             debug "^^ Ignoring line in first pass"
             ;;
     esac
-done < "$specfile"
+done <"$specfile"
 
-endline=$(( linenum ))                                # append the last test end
+endline=$((linenum))                                  # append the last test end
 test_end_line+=("$endline")
 beg=${test_beg_line[testnum]}
 end=${test_end_line[testnum]}
@@ -1246,17 +1238,16 @@ for i in $(seq "$testnum"); do
     debug "-----TEST $i: beg ${test_beg_line[i]} end: ${test_end_line[i]} -----"
     while read -r; do                                # iterate over all lines of test
         debug ":TEST $i: $REPLY"
-    done <<< "$($SEDCMD -n "${test_beg_line[i]},${test_end_line[i]}p" "$specfile")"
+    done <<<"$($SEDCMD -n "${test_beg_line[i]},${test_end_line[i]}p" "$specfile")"
 done
 
 ##################################################
 # Second loop: run tests
 
-
 if [[ -z "$alltests" ]]; then                         # no individual tests specified on the command line
-    alltests=$(seq "$totaltests")                       # so run all tests
+    alltests=$(seq "$totaltests")                     # so run all tests
 fi
-ntests=$(wc -w <<< "$alltests")                       # count how many tests will be run
+ntests=$(wc -w <<<"$alltests")                        # count how many tests will be run
 
 if [[ "$ntests" == "1" && "$SHOW" == "" ]]; then
     debug "Running single test, setting SHOW=1 to display single test results"
@@ -1266,22 +1257,21 @@ fi
 testcount=0
 failcount=0
 
-# Print header info 
-
+# Print header info
 
 printf "============================================================\n"
-if [[ "$global_title" = "" ]]; then
+if [[ "$global_title" == "" ]]; then
     printf "== testy %s\n" "$specfile"
 else
     printf "== $specfile : %s\n" "$global_title"
-fi    
+fi
 printf "== Running %d / %d tests\n" "$ntests" "$totaltests"
 
 for testnum in $alltests; do                          # Iterate over all tests to be run
     ((testcount++))                                   # increment # of tests attempted
     reset_options
     comments=""                                       # initialize comments
-    linenum=$((test_beg_line[testnum]-1))
+    linenum=$((test_beg_line[testnum] - 1))
     debug ":TEST $testnum: START at line $linenum"
 
     while read -r; do                                 # iterate over all lines of test
@@ -1300,7 +1290,7 @@ for testnum in $alltests; do                          # Iterate over all tests t
             "#+BEGIN_SRC")                            # test session starting
                 debug ":TEST $testnum: Begin testing session"
                 if [[ "$program" == "TESTY_MULTI" ]]; then
-                    run_testy_multi_session
+                    run_test_multi_session
                 else
                     run_test_session
                 fi
@@ -1312,28 +1302,28 @@ for testnum in $alltests; do                          # Iterate over all tests t
             "#+TESTY_RERUN:")                         # eval some code to set options
                 old_linenum=$linenum
                 beg=$((session_beg_line))             # #+BEGIN_SRC line
-                end=$((session_end_line+1))           # #+END_SRC line
-                linenum=$((beg-1))
+                end=$((session_end_line + 1))         # #+END_SRC line
+                linenum=$((beg - 1))
                 debug "^^ Re-running session on lines $beg to $end"
-                if (( $beg == 0 )); then
+                if ((beg == 0)); then
                     {
-                        printf "ERROR in test %s with directive '#+TESTY_RERUN'\n" "$testnum" 
-                        printf "Alas, testy does not support rerunning a test that hasn't already been run\n" 
+                        printf "ERROR in test %s with directive '#+TESTY_RERUN'\n" "$testnum"
+                        printf "Alas, testy does not support rerunning a test that hasn't already been run\n"
                         printf "Try running all tests instead\n"
-                    } > /dev/stderr
+                    } >/dev/stderr
                     exit 1
                 fi
 
                 if [[ "$program" == "TESTY_MULTI" ]]; then
-                    run_testy_multi_session <<< "$(sed -n "${beg},${end}p" $specfile)"
+                    run_test_multi_session <<<"$($SEDCMD -n "${beg},${end}p" "$specfile")"
                 else
-                    run_test_session <<< "$(sed -n "${beg},${end}p" $specfile)"
+                    run_test_session <<<"$($SEDCMD -n "${beg},${end}p" "$specfile")"
                 fi
                 debug "Done re-running session on lines $beg to $end"
                 linenum=$old_linenum
 
                 if [[ "$status" != "$PASS_STATUS" ]]; then # this block should be here, right?
-                    ((failcount++))                   # test failed, bail out of this test
+                    ((failcount++))                        # test failed, bail out of this test
                     break
                 fi
                 ;;
@@ -1344,15 +1334,15 @@ for testnum in $alltests; do                          # Iterate over all tests t
                 fi
                 ;;
         esac
-    done <<< "$($SEDCMD -n "${test_beg_line[testnum]},${test_end_line[testnum]}p" "$specfile")"
+    done <<<"$($SEDCMD -n "${test_beg_line[testnum]},${test_end_line[testnum]}p" "$specfile")"
 
     # report the final status of this test
     printf "%-3s %-${TEST_TITLE_WIDTH}s : %s\n" "${testnum})" "$test_title" "$status"
-done    
+done
 
 ########################################
 # Final Output
-passcount=$((testcount-failcount))                    # calculate number of tests passed
+passcount=$((testcount - failcount))                  # calculate number of tests passed
 if [[ "$REPORT_FRACTION" == "1" ]]; then              # reporting fraction of tests passed
     passcount=$(awk "BEGIN{printf(\"%0.2f\n\",$passcount / $testcount)}")
     testcount="1.00"
@@ -1367,8 +1357,8 @@ if [[ "$SHOW" == "1" && "${#fail_files[@]}" -gt 0 ]]; then # show failure result
     printf "============================================================\n"
     printf "== FAILURE RESULTS\n"
     # printf "%s\n" "----------------------------------------"
-    for f in "${fail_files[@]}"; do                   # iteratre overa ll failure files outputing them
+    for f in "${fail_files[@]}"; do                        # iterate over all failure files outputting them
         printf "============================================================\n"
-        cat $f
+        cat "$f"
     done
 fi
