@@ -1,6 +1,6 @@
 * Testy
 A script to run tests for interactive terminal programs. Tests are
-specified Emacs Org-like files.
+specified in Emacs Org-like files.
 
 * Usage
 Best represented by the help message shown via ~testy --help~ (which
