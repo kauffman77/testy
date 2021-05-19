@@ -221,16 +221,16 @@ for them to shut down.
 
 --- TESTY_MULTI Commands are (briefly) ---
 - START <key> <program> [args]
-  >> START server ./banter_server gotham      : runs program 'banter_server gotham' and refers to it via key 'server'
-  >> START bruce ./banter_client gotham bruce : runs program 'banter_client gotham bruce' and refers to it via key 'bruce'
+  >> START server ./banter_server gotham      # runs program 'banter_server gotham' and refers to it via key 'server'
+  >> START bruce ./banter_client gotham bruce # runs program 'banter_client gotham bruce' and refers to it via key 'bruce'
 
 - SIGNAL <key> <sigspec>
-  >> SIGNAL server -15                        : sends program w/ key 'server' signal 15 (TERM)
-  >> SIGNAL bruce -INT                        : sends program w/ key 'server' a keyboard interrupt signal (15)
+  >> SIGNAL server -15                        # sends program w/ key 'server' signal 15 (TERM)
+  >> SIGNAL bruce -INT                        # sends program w/ key 'server' a keyboard interrupt signal (15)
 
 - INPUT <key> text text text
-  >> INPUT bruce Robin? Barbara?              : sends text input to program w/ key 'bruce'
-  >> INPUT clark <EOF>                        : sends End of Input to program w/ key 'clark'
+  >> INPUT bruce Robin? Barbara?              # sends text input to program w/ key 'bruce'
+  >> INPUT clark <EOF>                        # sends End of Input to program w/ key 'clark'
 
 - WAIT <key>
   >> WAIT server                              # causes testy to wait for program w/ key 'server' to complete
