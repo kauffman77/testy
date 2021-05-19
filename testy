@@ -845,6 +845,10 @@ function diff_expect_actual() {
 # should be given them at what time. The function is run in a context
 # where 'read' will extract lines from the test session.
 function run_test_multi_session() {
+    if [[ "$use_valgrind" == 1 ]]; then
+        checkdep_fail "valgrind"     # only check for valgrind if the test requires it
+    fi
+
     # Set up the global arrays used in multi testing to track
     # input/output/state for all programs involved in the test.
     indexed_arrays=(
