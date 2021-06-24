@@ -115,7 +115,7 @@ hello
 Hi there!
 #+END_SRC
 
-* Test printf
+* Test printf, will fail
 Tests whether printf works.
 
 #+BEGIN_SRC sh
@@ -129,13 +129,14 @@ here
 substitute me
 #+END_SRC
 
-This second session below will fail and record the results of the
-failure in a file.
+This second session below will fail (intentionally) as the output of
+the printf will not match the expected output. The results of the
+failure will be in a file which is listed by testy as the tests run.
 #+BEGIN_SRC sh
 >> echo 'hi'
 hi
 >> printf 'INTENTIONAL fail\n'
-INTENTIONAL fail
+INTENTIONALly fails
 #+END_SRC
 
 * Test bc
@@ -151,6 +152,23 @@ use of #+TESTY expression to change the program for this test.
 27
 #+END_SRC
 ----------------------------------------
+
+Running the command './testy sample_tests.org' will produce output like the following:
+
+----------------------------------------
+> ./testy sample_tests.org 
+============================================================
+== sample_tests.org : Sample Tests
+== Running 3 / 3 tests
+1)  Test echo              : ok
+2)  Test printf, will fail : FAIL -> results in file 'test-results/test-02-result.tmp'
+3)  Test bc                : ok
+============================================================
+RESULTS: 2 / 3 tests passed
+----------------------------------------
+
+The file listed will will contain information on the failure.
+
 
 
 ----------------------------------------

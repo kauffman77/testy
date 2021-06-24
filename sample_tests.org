@@ -28,8 +28,9 @@ here
 substitute me
 #+END_SRC
 
-This second session below will fail and record the results of the
-failure in a file.
+This second session below will fail (intentionally) as the output of
+the printf will not match the expected output. The results of the
+failure will be in a file which is listed by testy as the tests run.
 #+BEGIN_SRC sh
 >> echo 'hi'
 hi
