@@ -1,0 +1,37 @@
+#!/usr/bin/bash
+
+testnum=1
+testfile=$1
+prefix="test"
+
+function debug() {                                    # print a debug message
+    if [[ -n "$DEBUG" ]]; then
+        echo "==DBG== $1" >/dev/stderr
+    fi
+}
+
+while read -r; do
+    line="$REPLY"
+    printf "%s\n" "$line"
+
+    if [[ "$line" =~ 'TESTY: PREFIX' ]]; then
+        prefix=${line/*PREFIX=/}
+        prefix=${prefix//\"/}
+        debug "Found Prefix: '$prefix'"
+    fi
+
+    if [[ "$line" =~ '#+BEGIN_SRC' ]]; then
+        actual_file=$(printf "test-results/raw/%s-%02d-actual.tmp" "$prefix" "$testnum")
+        debug "Inserting actual_file '$actual_file'"
+        cat $actual_file
+        ((testnum++))
+
+        while read -r; do
+            if [[ "$REPLY" =~ '#+END_SRC' ]]; then
+                break
+            fi
+        done
+        printf "%s\n" "$REPLY"   # prints END_SRC
+
+    fi
+done < "$testfile"

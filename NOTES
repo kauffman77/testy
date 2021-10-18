@@ -20,6 +20,9 @@
   of a testing session to be missed. Try to make this a bit more
   robust. Use the DEBUG output to see when the last line of the
   session is missed
+- [ ] Test number boundary checking : none present so specifying an
+  out-of-bounds test fails with uninformative message (e.g. 4 tests
+  present, run #5)
 
 * Bad File Descriptors
 When programs in a TESTY_MULTI session segfault, sometimes get bad

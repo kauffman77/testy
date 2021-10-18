@@ -351,6 +351,7 @@ POST_FILTER=${POST_FILTER:-""}                        # run this program on outp
 USE_VALGRIND=${USE_VALGRIND:-"0"}                     # use valgrind while testing
 VALGRIND_REACHABLE=${VALGRIND_REACHABLE:-"1"}         # report valgrind errors if memory is still reachable
 SKIPDIFF=${SKIPDIFF:-"0"}                             # skip diffing results, useful if checking valgrind but actual output can vary
+CHECKRETURN=${CHECKRETURN:-"0"}                       # program exiting with a nonzero value triggers a failure
 VALGRIND_OPTS=${VALGRIND_OPTS:-""}                    # additional options to valgrind,
 TICKTIME=${TICKTIME:-"0.1"}                           # multi: amount of time to wait in between test commands
 VALGRIND_START_TICKS=${VALGRIND_START_TICKS:-"8"}     # multi: number of ticks to wait when starting valgrind programs which take a while
@@ -377,6 +378,7 @@ function reset_options() {                            # reset options to default
     use_valgrind=$USE_VALGRIND
     valgrind_reachable=$VALGRIND_REACHABLE
     skipdiff=$SKIPDIFF
+    checkreturn=$CHECKRETURN
     valgrind_opts=$VALGRIND_OPTS
     ticktime=$TICKTIME
     valgrind_start_ticks=$VALGRIND_START_TICKS
@@ -715,6 +717,16 @@ function program_check_failures() {
             msg+=$(cat ${program_valgfile[$key]})
             msg+="#+END_SRC\n"
             fail_messages+=("$msg")
+            ;;
+        *)
+            debug "checking return value '$retcode'"
+
+            if [[ "$checkreturn" == "1" && "$retcode" != "0" ]]; then
+                status="$FAIL_STATUS"
+                msg=""
+                msg+="${key} returned $retcode (non-zero) triggering failure"
+                fail_messages+=("$msg")
+            fi
             ;;
     esac
 
@@ -1155,6 +1167,14 @@ function run_test_session() {
             status="$FAIL_STATUS"
             fail_messages+=("FAILURE($retcode) due to SIGSEGV (segmentation fault) from OS")
             ;;
+        *)
+            debug "checking return value '$retcode'"
+            if [[ "$checkreturn" == "1" && "$retcode" != "0" ]]; then
+                status="$FAIL_STATUS"
+                msg="program returned $retcode (non-zero) triggering failure"
+                fail_messages+=("$msg")
+                skipdiff=0      # hack to show diffed output on non-zero return, possibly from valgrind subprocess
+            fi
     esac
 
     if [[ "$use_valgrind" == "1" ]] &&                # if valgrind is on
