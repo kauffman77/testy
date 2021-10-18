@@ -1185,8 +1185,6 @@ function run_test_session() {
         fail_messages+=("FAILURE: Valgrind reports reachable memory, may need to add free() or fclose()")
     fi
 
-    cp "${fromprog_file}" ~/fromprog.tmp
-
     # ADDING IN PROMPTS TO ECHOED INPUT
     #
     # NOTE: The code below handles adding prompts to input lines that
