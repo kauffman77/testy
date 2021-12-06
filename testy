@@ -322,7 +322,12 @@ DIFF="diff -bB \
 TIMEOUTCMD="timeout --signal KILL"                    # kills user programs after a certain duration  of 'timeout'
 VALG_ERROR="13"                                       # error code that valgrind should return on detecting errors
 
-VALGRIND_PROG="valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=13 --track-origins=yes"
+VALGRIND_PROG="valgrind"
+VALGRIND_PROG+=" --error-exitcode=13"
+VALGRIND_PROG+=" --leak-check=full"
+VALGRIND_PROG+=" --show-leak-kinds=all"
+VALGRIND_PROG+=" --track-origins=yes"
+VALGRIND_PROG+=" --keep-debuginfo=yes"
 
 # Uses gsed if available for BSD-based operating systems and sed
 # otherwise
@@ -399,7 +404,7 @@ function checkdep_fail() {
 }
 
 function debug() {                                    # print a debug message
-    if [[ -n "$DEBUG" ]]; then
+    if [[ -n "$DEBUG" || -n "$TESTY_DEBUG" ]]; then
         echo "==DBG== $1" >/dev/stderr
     fi
 }
@@ -1216,8 +1221,8 @@ function run_test_session() {
     fi
 
     if [[ "$post_filter" != "" ]]; then                # use a filter to post-process the output
-        debug "running post filter '$post_filter'"
-        cat "${fromprog_file}" | ${post_filter} >"${fromprog_file}.tmp"
+        debug "running post filter '$post_filter'"     # use of 'eval' for "grep -v "stuff here"' filters w/ spaces in command
+        cat "${fromprog_file}" | eval ${post_filter} >"${fromprog_file}.tmp"
         mv "${fromprog_file}.tmp" "${fromprog_file}"
     fi
 
@@ -1228,7 +1233,11 @@ function run_test_session() {
     mv "${fromprog_file}" "${actual_file}"                # copy temp file to final destination
 
     # extract expected output from test file, filter #+TESTY_ , store result in expect_file
-    $SEDCMD -n "${session_beg_line},${session_end_line}p" <"$specfile" |
+    range="${session_beg_line},${session_end_line}p"      # range of lines for sed to print
+    if ((session_beg_line > session_end_line)); then      # in sed, if start > end then the
+        range=""                                          # start line still gets printed so
+    fi                                                    # set range to nothing for empty output
+    $SEDCMD -n "$range" <"$specfile" |
         grep -v '^#+TESTY_' \
         >"${expect_file}"
 
