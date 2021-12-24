@@ -327,7 +327,7 @@ VALGRIND_PROG+=" --error-exitcode=13"
 VALGRIND_PROG+=" --leak-check=full"
 VALGRIND_PROG+=" --show-leak-kinds=all"
 VALGRIND_PROG+=" --track-origins=yes"
-VALGRIND_PROG+=" --keep-debuginfo=yes"
+# VALGRIND_PROG+=" --keep-debuginfo=yes"  # old valgrind on gradescope does not support this option
 
 # Uses gsed if available for BSD-based operating systems and sed
 # otherwise
@@ -1474,6 +1474,17 @@ if [[ -z "$alltests" ]]; then                         # no individual tests spec
     alltests=$(seq "$totaltests")                     # so run all tests
 fi
 ntests=$(wc -w <<<"$alltests")                        # count how many tests will be run
+
+checktests="$alltests"                                # filter out tests not in range
+alltests=""
+for t in $checktests; do
+    if ((t <= totaltests)); then
+        alltests+="$t "
+    else
+        printf "WARNING: skipping out of range test %s\n" "$t"
+    fi
+done
+ntests=$(wc -w <<<"$alltests")                        # update cout of total tests
 
 if [[ "$ntests" == "1" && "$SHOW" == "" ]]; then
     debug "Running single test, setting SHOW=1 to display single test results"
