@@ -3,7 +3,7 @@
 # A script to automate testing programs on the command line.
 # author:  Chris Kauffman <kauffman@umn.edu>
 # license: GPLv3-or-later
-# RELEASE: Tue May 18 08:50:47 PM CDT 2021
+# RELEASE: Wed Jan 26 09:39:43 PM CST 2022 
 
 read -r -d '' usage <<EOF
 usage:    testy <testfile.org> [test# test# ...]
@@ -1050,6 +1050,25 @@ function run_test_multi_session() {
     return 0
 }
 
+# Handle a #+BEGIN_QUoTE region which will create a file with the
+# specified name in it and place text in the region in file. Useful
+# for creating small-ish input files on the fly during tess. This
+# output is also echoed into the comments for the test results. 
+function catfile_session() {                   # for #+BEGIN_QUOTE some-file-name.txt
+    debug "catfile_session: $line"
+    outfilename="${line##* }"                  # extract last token from the line as file name
+    debug "outfilename: $outfilename"
+    comments="${comments}${line}\n"
+    while read -r; do                          # read a line from the test session
+        updateline
+        comments="${comments}${line}\n"
+        if [[ "$first" == '#+END_QUOTE' ]]; then
+            break
+        fi
+        printf "%s\n" "$line"
+    done > "$outfilename"
+}
+
 ################################################################################
 # Run a Test Session for a Single Program
 #
@@ -1535,6 +1554,9 @@ for testnum in $alltests; do                          # Iterate over all tests t
                     ((failcount++))                   # test failed, bail out of this test
                     break
                 fi
+                ;;
+            "#+BEGIN_QUOTE")                          # create a file with the quoted material in it
+                catfile_session
                 ;;
             "#+TESTY_RERUN:")                         # eval some code to set options
                 old_linenum=$linenum
