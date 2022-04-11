@@ -1457,6 +1457,10 @@ while read -r; do                                     # read from test file, -r 
             if [[ "$eval_testy_expr" == "1" ]]; then
                 debug "Evaluating '$rest'"
                 eval "$rest"
+                if [[ $? != 0 ]]; then                # check syntax error, print error message
+                    printf "%s: line %d: Syntax error in test file, bailing out\n" "$specfile" "$linenum"
+                    exit 1                            # this format used to be amenable to emacs compilation/jump to error
+                fi
             fi
             testtext="$testtext\n$line"               # append line to current test text as it may be a local test option
             ;;
