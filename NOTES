@@ -1,28 +1,34 @@
 * TODO Items
-- [ ] TESTY_MULTI commands don't work unless there is a exactly one
+- Refactor internals to merge several nearly-identical functions for
+  TESTY_MULTI and single program tests; this will ease maintenance
+- TESTY_MULTI commands don't work unless there is a exactly one
   space separating the tokens. This defies common
   convention/expectation.  Work out a function to split words on
   spaces and use it in the MULTI functionality to make this more
   robust. 
-- [ ] Re-arrange the example files into directories
+- Re-arrange the example files into directories
   - Currently all under file:examples/ but could organize these a bit
     more with its own README
-- [ ] Remove the need to pass 'cat' as the filter to various
+- Remove the need to pass 'cat' as the filter to various
   TESTY_MULTI commands
-- [ ] Add signal handling to do cleanup if needed
-- [ ] Adjust standard single tests to add failures to lists like they
-  do in TESTY_MULT
-- [ ] Explore use of Bash's built-in co-processes to see if that would
+- Explore use of Bash's built-in co-processes to see if that would
   simplify the overall design
-- [ ] Remove use of 'mkfifo', perhaps FIFOs altogether as this feature
+- Remove use of 'mkfifo', perhaps FIFOs altogether as this feature
   does not work on Windows file systems under the WSL
-- [ ] If a file doesn't end in a newline, this can cause the last line
+- Test number boundary checking : none present so specifying an
+  out-of-bounds test fails with uninformative message (e.g. 4 tests
+  present, run #5)
+- Add multi-part test handling to ~testy-regen~
+
+** Done
+- Adjust standard single tests to add failures to lists like they
+  do in TESTY_MULT
+- Add signal handling to do cleanup if needed
+- If a file doesn't end in a newline, this can cause the last line
   of a testing session to be missed. Try to make this a bit more
   robust. Use the DEBUG output to see when the last line of the
   session is missed
-- [ ] Test number boundary checking : none present so specifying an
-  out-of-bounds test fails with uninformative message (e.g. 4 tests
-  present, run #5)
+  - Pretty sure this was fixed in a commit at or before 4/11/2021
 
 * Bad File Descriptors
 When programs in a TESTY_MULTI session segfault, sometimes get bad

@@ -5,8 +5,7 @@ specified in Emacs Org-like files.
 * Usage
 Usage is best described by the help message shown via ~testy --help~
 (which is the text at the top of the ~testy~ source:
-
-: > testy --help
+# xxxxxx
 : usage:    testy <testfile.org> [test# test# ...]
 :           testy --help
 : 
@@ -116,7 +115,7 @@ Usage is best described by the help message shown via ~testy --help~
 : Hi there!
 : #+END_SRC
 : 
-: * Test printf
+: * Test printf, will fail
 : Tests whether printf works.
 : 
 : #+BEGIN_SRC sh
@@ -130,13 +129,14 @@ Usage is best described by the help message shown via ~testy --help~
 : substitute me
 : #+END_SRC
 : 
-: This second session below will fail and record the results of the
-: failure in a file.
+: This second session below will fail (intentionally) as the output of
+: the printf will not match the expected output. The results of the
+: failure will be in a file which is listed by testy as the tests run.
 : #+BEGIN_SRC sh
 : >> echo 'hi'
 : hi
 : >> printf 'INTENTIONAL fail\n'
-: INTENTIONAL fail
+: INTENTIONALly fails
 : #+END_SRC
 : 
 : * Test bc
@@ -152,6 +152,23 @@ Usage is best described by the help message shown via ~testy --help~
 : 27
 : #+END_SRC
 : ----------------------------------------
+: 
+: Running the command './testy sample_tests.org' will produce output like the following:
+: 
+: ----------------------------------------
+: > ./testy sample_tests.org 
+: ============================================================
+: == sample_tests.org : Sample Tests
+: == Running 3 / 3 tests
+: 1)  Test echo              : ok
+: 2)  Test printf, will fail : FAIL -> results in file 'test-results/test-02-result.tmp'
+: 3)  Test bc                : ok
+: ============================================================
+: RESULTS: 2 / 3 tests passed
+: ----------------------------------------
+: 
+: The file listed will will contain information on the failure.
+: 
 : 
 : 
 : ----------------------------------------
@@ -289,26 +306,40 @@ Usage is best described by the help message shown via ~testy --help~
 : 
 : All the same, enjoy!
 : - Chris
-
+: 
+# xxxxxx
 
 * License
 ~testy~ is released under the terms of the *GNU General Public License
 v3.0-or-later (GPLv3-or-later)*. A copy of the GPLv3-or-later is
 included in the file ~LICENSE~ in the source repository.
   
-
 * Planned Additions
+- Refactor internals to merge several nearly-identical functions for
+  TESTY_MULTI and single program tests; this will ease maintenance
 - Remove the need to pass 'cat' as the filter to various
   TESTY_MULTI commands
 - Adjust standard single tests to add failures to lists like they
   do in TESTY_MULT (refactoring)
 - Explore use of Bash's built-in co-processes to see if that would
   simplify the overall design 
-- Catch signals and clean up files if interrupt/term signal is given
 - Add version number reporting
 - Add documentation for TESTY_MULTI
+- Add multi-process testing to allow for concurrent execution of
+  tests; this would likely involve significant redesign and may not
+  provide much benefit but is worthwhile to explore for the efficiency
+  gains from utilizing multiple cores
 
 * Completed Additions
+- Added Immediate files via the BEGIN_QUOTE tag to quickly and easily
+  generate test input files that are baked into the test themselves
+- Added ~testy-regen~ which is a simple script to regenerate all test
+  results using the current "actual" results as the new "expect"
+  results; fails for multi-part tests but otherwise a time-saver
+- Catch syntax errors in testy sources for ~eval~ expressions in
+  blocks and report a syntax error on the associated line in the test
+  file; previously this just led to garbage errors being printed
+- Catch signals and clean up files if interrupt/term signal is given
 - Add support for Valgrind: re-run previous test to check for valgrind
   results
 - Added support for testing multiple programs at once via TESTY_MULTI

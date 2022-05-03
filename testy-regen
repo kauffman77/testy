@@ -1,5 +1,10 @@
 #!/usr/bin/bash
 
+if [[ "$#" -lt 1 ]]; then                             # check for presence of at least 1 argument
+    printf "usage: testy-regen <testspec>\n"
+    exit 1
+fi
+
 testnum=1
 testfile=$1
 prefix="test"
