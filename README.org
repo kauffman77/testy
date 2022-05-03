@@ -351,3 +351,9 @@ included in the file ~LICENSE~ in the source repository.
     commands in emacs.
 - Re-checked example files in file:examples/ to guarantee that all of
   them work as expected
+
+* Here are notes
+Checking of github supoorts Org-Mode include syntax
+#+include: ./NOTES src text
+After notes
+
