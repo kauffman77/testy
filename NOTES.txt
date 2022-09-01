@@ -1,3 +1,5 @@
+-*- mode: Org;-*-
+
 * TODO Items
 - Refactor internals to merge several nearly-identical functions for
   TESTY_MULTI and single program tests; this will ease maintenance
@@ -29,6 +31,81 @@
   robust. Use the DEBUG output to see when the last line of the
   session is missed
   - Pretty sure this was fixed in a commit at or before 4/11/2021
+
+* Design Ideas for Multiple Processes
+- May want to start multiple processes each running its own test
+- Improve efficiency a la ~make -j~
+- Makes sense for some codes though though must make sure tests are
+  independent - could improve this by making directories for each
+  running test
+
+** Design based on Child Processes
+- Must start child processes from parent testy
+- Could have a special mode in which testy is invoked with a --child
+  argument which puts it in child mode
+- All the child process does is pick up the test file, run the given
+  test funneling output into the expect / actual files
+- Testy itself can ~wait~ for a finishing jobs and note the
+  correspondence of child PID to test numbers
+- Track completed tests in an array and print out results of ok / FAIL
+  up to the highest completed ID; if tests finish out of order will
+  stall at a lower number but this will preserve the ordering of
+  output
+- On completing a test with the child exiting, testy can check if
+  there is another test to run and launch another child on a test
+- An initial loop to start a number of child processes equal to the
+  specified number of jobs will cause the above loop to keep that
+  number of children live
+- Pseudocode 
+#+BEGIN_SRC text
+assoc array childpid_to_testnum[]
+      array testnum_status[]
+
+for nexttest=1 to min(maxchild, length(tests))
+  childpid = testy --child testfile.org i
+  childpid_to_testnum[childpid] = nexttest
+done
+nexttest = 1 + min(maxchild, length(tests))
+
+
+for i=1 to length(tests)
+  testnum_status[i] = "running"
+done
+
+curtest = 1
+
+for i=1 to length(tests)  
+  wait -n -p childpid
+  testid = childpid_to_testnum[childpid]
+  testnum_status[testid] = "ok/fail"
+
+  if nexttest <= length(tests)
+    childpid = testy --child testfile.org nexttest
+    childpid_to_testnum[childpid] = nexttest
+    nexttest++
+  fi
+
+  while testnum_status[curtest] != "running"
+    print "Test $curtest : $testnum_status[$curtest]\n"
+    curtest++
+  done
+done
+#+END_SRC
+- This design involves no fancy coronation, will only stall printing
+  on a very long early test, should be reasonably robust
+- Requires certain state to be transmitted between child proc and
+  parent testy, namely test result, but may be able to do this in a
+  file, pipe, through captured output, or something like that
+- Avoids any need for fancy terminal manipulations which will
+  mean it works fine in emacs shells / compiles as well
+
+
+
+* Add Output for Correct/Passing Tests
+- For regularity, produce output for passing tests as well
+- Perhaps show diff with matching
+- In output files at top (title), show PASS or FAIL
+
 
 * Bad File Descriptors
 When programs in a TESTY_MULTI session segfault, sometimes get bad
@@ -94,7 +171,7 @@ suppress the error messages I wanted silenced.
 May need to revisit this as the child processes inherit the traps and
 if they are bash processes, may change their behavior.
 
-* Multi Process testing
+* DONE Multi Process testing
 
 #+BEGIN_SRC text
 > START server ./bl_server gotham
