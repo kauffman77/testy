@@ -370,14 +370,14 @@ runs like the following: =#+TESTY: use_valgrind=0=
 To run the above installation script, you may run the following:
 
 #+begin_src sh
-bash <( curl -fsSL "https://raw.githubusercontent.com/nik312123/testy/master/install_mac_requirements.sh" )
+bash <( curl -fsSL "https://raw.githubusercontent.com/kauffman77/testy/master/install_mac_requirements.sh" )
 #+end_src
 
 To run the script in verbose mode (prints commands being run and their
 outputs) add the =-v= flag like so:
 
 #+begin_src sh
-bash <( curl -fsSL "https://raw.githubusercontent.com/nik312123/testy/master/install_mac_requirements.sh" ) -v
+bash <( curl -fsSL "https://raw.githubusercontent.com/kauffman77/testy/master/install_mac_requirements.sh" ) -v
 #+end_src
 
 You may also simply download the script and run it as follows:
