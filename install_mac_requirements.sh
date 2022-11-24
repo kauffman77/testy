@@ -73,11 +73,11 @@ else
     printf "Installing homebrew... (Please be patient. This may take some time.) 🍺\n\n"
     
     if $echoOn; then
-        printf "> /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)\"\n\n"
+        printf "> yes \"\" | INTERACTIVE=1 /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)\"\n\n"
     fi
     
     # Install homebrew if it does not exist and exits the script if an error occurs in the installation
-    if ! /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" </dev/null >&3 2>&4; then
+    if ! yes "" | INTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" >&3 2>&4; then
         printf "\nAn error occurred in the installation of homebrew.\n"
         printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
         exit 1
