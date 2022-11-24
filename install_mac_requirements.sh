@@ -126,18 +126,18 @@ else
 fi
 
 # Checks if homebrew's bash is in the list of available Terminal shells and adds it if not
-if grep -q "/usr/local/bin/bash" /etc/shells; then
+if grep -q "$(brew --prefix)/bin/bash" /etc/shells; then
     printf "The updated bash is in the list of available Terminal shells! ✅\n\n"
 else
     printf "The updated bash is not in the list of available Terminal shells. ❌\n\n"
     printf "Adding the updated bash to the list of Terminal shells... 📜\n\n"
     
     if $echoOn; then
-        printf "> sudo sh -c 'printf \"\\\n/usr/local/bin/bash\\\n\" >> /etc/shells'\n\n"
+        printf "> sudo sh -c 'printf \"\\\n\$(brew --prefix)/bin/bash\\\n\" >> /etc/shells'\n\n"
     fi
     
-    # Attempts to add /usr/local/bin/bash or homebrew's bash to /etc/shells or the list of available Terminal shells
-    if ! sudo sh -c 'printf "\n/usr/local/bin/bash\n" >> /etc/shells'; then
+    # Attempts to add Homebrew's bash to /etc/shells or the list of available Terminal shells
+    if ! sudo sh -c 'printf "\n$(brew --prefix)/bin/bash\n" >> /etc/shells'; then
         printf "\nAn error occurred when trying to add the updated bash to the list of available Terminal shells.\n"
         printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
         exit 1
@@ -155,11 +155,11 @@ else
     
     if [ "$SHELL" = "/bin/bash" ]; then
         if $echoOn; then
-            printf "> chsh -s /usr/local/bin/bash\n\n"
+            printf "> chsh -s \"\$(brew --prefix)/bin/bash\"\n\n"
         fi
         
         # Attempts to set the current default shell to use the updated bash and spits an error if it fails
-        if ! chsh -s /usr/local/bin/bash >&3 2>&4; then
+        if ! chsh -s "$(brew --prefix)/bin/bash" >&3 2>&4; then
             printf "\nAn error occurred when trying to update your terminal shell.\n"
             printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
             exit 1
@@ -253,20 +253,20 @@ else
     printf "gcc is installed! ✅\n\n"
 fi
 
-# Checks to ensure that the brew gcc is symlinked to /usr/local/bin/gcc and, if not, links it (made to be compatible with future versions of gcc)
-if [ -f "/usr/local/bin/gcc" ]; then
+# Checks to ensure that the brew gcc is symlinked, and if not, links it (made to be compatible with future versions of gcc)
+if [ -f "$(brew --prefix)/bin/gcc" ]; then
     printf "gcc is symlinked correctly! ✅\n\n"
 else
     printf "gcc is not symlinked. ❌\n\n"
-    printf "Symlinking homebrew's gcc to /usr/local/bin/gcc... 🔗\n\n"
+    printf "Symlinking homebrew's gcc to %s/bin/gcc... 🔗\n\n" "$(brew --prefix)"
     
     if $echoOn; then
-        printf "> gccString=\$(find /usr/local/bin | while read -r f; do if [[ \$(basename \"\$f\") =~ ^gcc-[0-9]+$ ]]; then basename \"\$f\"; fi; done)\n\n"
+        printf "> gccString=\$(find \"\$(brew --prefix)/bin\" | while read -r f; do if [[ \$(basename \"\$f\") =~ ^gcc-[0-9]+$ ]]; then basename \"\$f\"; fi; done)\n\n"
     fi
     
-    # Gets all of the files under /usr/local/bin, executes the basename command on each to get the filename without the path, 
+    # Gets all of the files under Homebrew's binary directory, executes the basename command on each to get the filename without the path, 
     # checks if it matches "gcc-" followed by any number of digits, and stores it into gccString
-    gccString=$(find /usr/local/bin | while read -r f; do if [[ $(basename "$f") =~ ^gcc-[0-9]+$ ]]; then basename "$f"; fi; done)
+    gccString=$(find "$(brew --prefix)/bin" | while read -r f; do if [[ $(basename "$f") =~ ^gcc-[0-9]+$ ]]; then basename "$f"; fi; done)
     
     if $echoOn; then
         printf "> readarray -t gccStringArray <<< \"\$gccString\"\n\n"
@@ -275,7 +275,7 @@ else
     # Creates an array called gccStringArray and stores all "gcc-" followed by digits strings into it (Credits to tinyurl.com/wtgkay2)
     readarray -t gccStringArray <<< "$gccString"
     
-    # If there is more than one version of gcc in /usr/local/bin, then get the newest version
+    # If there is more than one version of gcc in Homebrew's binary directory, then get the newest version
     if [ ${#gccStringArray[@]} -ne 1 ]; then
         if $echoOn; then
             printf "> highestNum = 0\n\n"
@@ -309,11 +309,11 @@ else
     fi
     
     if $echoOn; then
-        printf "> ln -s \"/usr/local/bin/%s\" /usr/local/bin/gcc\n\n" "$gccString"
+        printf "> ln -s \"\$(brew --prefix)/bin/%s\" \$(brew --prefix)/bin/gcc\n\n" "$gccString"
     fi
     
-    # Attempts to symlink the highest gcc version available to /usr/local/bin/gcc and spits an error if it doesn't work
-    if ! ln -s "/usr/local/bin/$gccString" /usr/local/bin/gcc >&3 2>&4; then
+    # Attempts to symlink the highest gcc version available and spits an error if it doesn't work
+    if ! ln -s "$(brew --prefix)/bin/$gccString" "$(brew --prefix)/bin/gcc" >&3 2>&4; then
         printf "An error occurred in the symlinking of gcc.\n"
         printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
         exit 1
