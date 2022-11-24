@@ -86,8 +86,17 @@ else
     printf "\nHomebrew is installed! ✅\n\n"
 fi
 
-# Checks to see if Homebrew's binary directory is in your path (or at least has a higher presence than /usr/bin) and puts it in your path if not
-if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]]; then
+if brew help >/dev/null 2>&1; then
+    usrBin="/usr/bin"
+    brewBin="$(brew --prefix)/bin"
+    remainderUsrBin="${PATH#*"$usrBin"}"
+    remainderBrewBin="${PATH#*"$brewBin"}"
+    usrBinPos="$(( ${#PATH} - ${#remainderUsrBin} - ${#usrBin} ))"
+    brewBinPos="$(( ${#PATH} - ${#remainderBrewBin} - ${#brewBin} ))"
+fi
+
+# Checks to see if Homebrew's binary directory is in your path (and at least has a higher presence than /usr/bin) and puts it at the beginning of your path if not
+if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] || [ "$usrBinPos" -lt "$brewBinPos" ]; then
     printf "\$(brew --prefix)/bin/ is not in your \$PATH. ❌\n\n"
     printf "Adding \$(brew --prefix)/bin/ to your \$PATH... 📝\n\n"
     
