@@ -86,6 +86,82 @@ else
     printf "\nHomebrew is installed! ✅\n\n"
 fi
 
+# Checks to see if Homebrew's binary directory is in your path (or at least has a higher presence than /usr/bin) and puts it in your path if not
+if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]]; then
+    printf "\$(brew --prefix)/bin/ is not in your \$PATH. ❌\n\n"
+    printf "Adding \$(brew --prefix)/bin/ to your \$PATH... 📝\n\n"
+    
+    # If ~/.bash_profile does not exist, create it!
+    if ! [ -f "$HOME/.bash_profile" ]; then
+        printf "~/.bash_profile could not be found. Creating it for you... 📝\n\n"
+        
+        if $echoOn; then
+            printf "> touch \"\$HOME/.bash_profile\"\n\n"
+        fi
+        
+        # Create ~/.bash_profile and spit out an error if it fails
+        if ! touch "$HOME/.bash_profile"; then
+            printf "An error occurred in creating ~/.bash_profile.\n"
+            printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+            exit 1
+        fi
+        
+        printf "~/.bash_profile created!\n\n"
+    fi
+    
+    # If ~/.zprofile does not exist, create it!
+    if ! [ -f "$HOME/.zprofile" ]; then
+        printf "~/.zprofile could not be found. Creating it for you... 📝\n\n"
+        
+        if $echoOn; then
+            printf "> touch \"\$HOME/.zprofile\"\n\n"
+        fi
+        
+        # Create ~/.zprofile and spit out an error if it fails
+        if ! touch "$HOME/.zprofile"; then
+            printf "An error occurred in creating ~/.zprofile.\n"
+            printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+            exit 1
+        fi
+        
+        printf "~/.zprofile created!\n\n"
+    fi
+    
+    # Retrieve brew prefix
+    if [ -d "/opt/homebrew" ]; then
+        brew_prefix="/opt/homebrew"
+    else
+        brew_prefix="/usr/local"
+    fi
+    
+    if $echoOn; then
+        printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"\\\$(brew --prefix)/bin/brew\\\\\" shellenv)\\\\\"\\\n\" >> ~/.bash_profile\n\n"
+    fi
+    
+    # Adds Homebrew's binary directory to the beginning of your $PATH variable and spits an error if it fails
+    if ! printf "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brew_prefix" >> ~/.bash_profile; then
+        printf "An error occurred in trying to write to ~/.bash_profile.\n"
+        printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+        exit 1
+    fi
+    
+    if $echoOn; then
+        printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"\\\$(brew --prefix)/bin/brew\\\\\" shellenv)\\\\\"\\\n\" >> ~/.zprofile\n\n"
+    fi
+    
+    # Adds Homebrew's binary directory to the beginning of your $PATH variable and spits an error if it fails
+    if ! printf "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brew_prefix" >> ~/.zprofile; then
+        printf "An error occurred in trying to write to ~/.zprofile.\n"
+        printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+        exit 1
+    fi
+    
+    # Add Homebrew's binary directory to path for the purposes of the rest of this script as well
+    eval "$("$brew_prefix/bin/brew" shellenv)"
+fi
+
+printf "%s/bin/ is in your \$PATH! ✅\n\n" "$(brew --prefix)"
+
 # Installs a higher version of bash through homebrew if not already using homebrew's bash
 if brew list bash >/dev/null 2>&1; then
     printf "Homebrew's bash is installed! ✅\n\n"
@@ -169,50 +245,9 @@ else
     fi
     
     printf "Your bash version is up to date for your shell! ✅\n\n"
-    printf "Now, please rerun this script so it uses the appropriate version of bash.\n\n"
+    printf "Now, please quit Terminal and rerun this script so it uses the appropriate version of bash.\n\n"
     exit 1
 fi
-
-# Checks to see if /usr/local/bin/ is in your path (or at least has a higher presence than /usr/bin) and puts it in your path if not
-if [[ "$(command -v bash)" != "/usr/local/bin/bash" ]]; then
-    printf "/usr/local/bin/ is not in your \$PATH. ❌\n\n"
-    printf "Adding /usr/local/bin/ to your \$Path... 📝\n\n"
-    
-    # If ~/.bash_profile does not exist, create it!
-    if ! [ -f "$HOME/.bash_profile" ]; then
-
-        printf "~/.bash_profile could not be found. Creating it for you... 📝\n\n"
-        
-        if $echoOn; then
-            printf "> touch \"\$HOME/.bash_profile\"\n\n"
-        fi
-        
-        # Create ~/.bash_profile and spit out an error if it fails
-        if ! touch "$HOME/.bash_profile"; then
-            printf "An error occurred in creating ~/.bash_profile.\n"
-            printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
-            exit 1
-        fi
-
-        printf "~/.bash_profile created!\n\n"
-    fi
-    
-    if $echoOn; then
-        printf "> printf \"\\\nexport PATH=/usr/local/bin:\$PATH\\\n\" >> ~/.bash_profile\n\n"
-    fi
-    
-    # Adds /usr/local/bin/ to the beginning of your $PATH variable and spits an error if it fails
-    if ! printf "\nexport PATH=/usr/local/bin:\$PATH\n" >> ~/.bash_profile; then
-        printf "An error occurred in trying to write to ~/.bash_profile.\n"
-        printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
-        exit 1
-    fi
-    
-    # Add /usr/local/bin to path for the purposes of the rest of this script as well
-    export PATH=/usr/local/bin:$PATH
-fi
-
-printf "/usr/local/bin/ is in your \$PATH! ✅\n\n"
 
 # Installs the real gcc (not clang) through homebrew if it isn't already installed or update it if it is
 if brew list gcc >/dev/null 2>&1; then
@@ -437,4 +472,5 @@ fi
 
 # Edit: Previously, I had an experimental version of valgrind installed on macOS here. However, it had too many issues for me to consider worth it. Use valgrind on a CSE labs machine or Ubuntu machine/VM
 
-printf "Congratulations! Your computer should be completely set up! 💻\n\n";
+printf "Congratulations! Your computer should be completely set up! 💻\n\n"
+printf "Please quit and reopen the Terminal to finalize the process.\n\n"
