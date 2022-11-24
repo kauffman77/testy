@@ -101,6 +101,8 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] || [
     
     # If ~/.bash_profile does not exist, create it!
     if ! [ -f "$HOME/.bash_profile" ]; then
+        # shellcheck disable=SC2088
+        # Disabled b/c ~/ is not meant to be expanded here
         printf "~/.bash_profile could not be found. Creating it for you... 📝\n\n"
         
         if $echoOn; then
@@ -114,11 +116,15 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] || [
             exit 1
         fi
         
+        # shellcheck disable=SC2088
+        # Disabled b/c ~/ is not meant to be expanded here
         printf "~/.bash_profile created!\n\n"
     fi
     
     # If ~/.zprofile does not exist, create it!
     if ! [ -f "$HOME/.zprofile" ]; then
+        # shellcheck disable=SC2088
+        # Disabled b/c ~/ is not meant to be expanded here
         printf "~/.zprofile could not be found. Creating it for you... 📝\n\n"
         
         if $echoOn; then
@@ -132,6 +138,8 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] || [
             exit 1
         fi
         
+        # shellcheck disable=SC2088
+        # Disabled b/c ~/ is not meant to be expanded here
         printf "~/.zprofile created!\n\n"
     fi
     
