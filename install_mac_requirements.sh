@@ -127,6 +127,14 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]]; the
         printf "~/.zprofile created!\n\n"
     fi
     
+    if $echoOn; then
+        printf "> if [ -d \"/opt/homebrew\" ]; then\n"
+        printf ">     brew_prefix=\"/opt/homebrew\"\n"
+        printf "> else\n"
+        printf ">    brew_prefix=\"/usr/local\"\n"
+        printf "> fi\n\n"
+    fi
+    
     # Retrieve brew prefix
     if [ -d "/opt/homebrew" ]; then
         brew_prefix="/opt/homebrew"
@@ -135,7 +143,7 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]]; the
     fi
     
     if $echoOn; then
-        printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"\\\$(brew --prefix)/bin/brew\\\\\" shellenv)\\\\\"\\\n\" >> ~/.bash_profile\n\n"
+        printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" shellenv)\\\\\"\\\n\" \"\$brew_prefix\" >> ~/.bash_profile\n\n"
     fi
     
     # Adds Homebrew's binary directory to the beginning of your $PATH variable and spits an error if it fails
@@ -146,7 +154,7 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]]; the
     fi
     
     if $echoOn; then
-        printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"\\\$(brew --prefix)/bin/brew\\\\\" shellenv)\\\\\"\\\n\" >> ~/.zprofile\n\n"
+        printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" shellenv)\\\\\"\\\n\" \"\$brew_prefix\" >> ~/.zprofile\n\n"
     fi
     
     # Adds Homebrew's binary directory to the beginning of your $PATH variable and spits an error if it fails
