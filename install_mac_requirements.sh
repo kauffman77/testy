@@ -146,7 +146,7 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]]; the
         printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" shellenv)\\\\\"\\\n\" \"\$brewPrefix\" >> ~/.bash_profile\n\n"
     fi
     
-    # Adds Homebrew's binary directory to the beginning of your $PATH variable and spits an error if it fails
+    # Adds Homebrew's binary directory to the beginning of your $PATH variable in your .bash_profile and spits an error if it fails
     if ! printf "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brewPrefix" >> ~/.bash_profile; then
         printf "An error occurred in trying to write to ~/.bash_profile.\n"
         printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
@@ -157,7 +157,7 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]]; the
         printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" shellenv)\\\\\"\\\n\" \"\$brewPrefix\" >> ~/.zprofile\n\n"
     fi
     
-    # Adds Homebrew's binary directory to the beginning of your $PATH variable and spits an error if it fails
+    # Adds Homebrew's binary directory to the beginning of your $PATH variable in your .zprofile and spits an error if it fails
     if ! printf "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brewPrefix" >> ~/.zprofile; then
         printf "An error occurred in trying to write to ~/.zprofile.\n"
         printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
