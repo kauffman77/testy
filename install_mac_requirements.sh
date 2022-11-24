@@ -129,43 +129,43 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]]; the
     
     if $echoOn; then
         printf "> if [ -d \"/opt/homebrew\" ]; then\n"
-        printf ">     brew_prefix=\"/opt/homebrew\"\n"
+        printf ">     brewPrefix=\"/opt/homebrew\"\n"
         printf "> else\n"
-        printf ">    brew_prefix=\"/usr/local\"\n"
+        printf ">    brewPrefix=\"/usr/local\"\n"
         printf "> fi\n\n"
     fi
     
     # Retrieve brew prefix
     if [ -d "/opt/homebrew" ]; then
-        brew_prefix="/opt/homebrew"
+        brewPrefix="/opt/homebrew"
     else
-        brew_prefix="/usr/local"
+        brewPrefix="/usr/local"
     fi
     
     if $echoOn; then
-        printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" shellenv)\\\\\"\\\n\" \"\$brew_prefix\" >> ~/.bash_profile\n\n"
+        printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" shellenv)\\\\\"\\\n\" \"\$brewPrefix\" >> ~/.bash_profile\n\n"
     fi
     
     # Adds Homebrew's binary directory to the beginning of your $PATH variable and spits an error if it fails
-    if ! printf "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brew_prefix" >> ~/.bash_profile; then
+    if ! printf "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brewPrefix" >> ~/.bash_profile; then
         printf "An error occurred in trying to write to ~/.bash_profile.\n"
         printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
         exit 1
     fi
     
     if $echoOn; then
-        printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" shellenv)\\\\\"\\\n\" \"\$brew_prefix\" >> ~/.zprofile\n\n"
+        printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" shellenv)\\\\\"\\\n\" \"\$brewPrefix\" >> ~/.zprofile\n\n"
     fi
     
     # Adds Homebrew's binary directory to the beginning of your $PATH variable and spits an error if it fails
-    if ! printf "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brew_prefix" >> ~/.zprofile; then
+    if ! printf "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brewPrefix" >> ~/.zprofile; then
         printf "An error occurred in trying to write to ~/.zprofile.\n"
         printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
         exit 1
     fi
     
     # Add Homebrew's binary directory to path for the purposes of the rest of this script as well
-    eval "$("$brew_prefix/bin/brew" shellenv)"
+    eval "$("$brewPrefix/bin/brew" shellenv)"
 fi
 
 printf "%s/bin/ is in your \$PATH! ✅\n\n" "$(brew --prefix)"
