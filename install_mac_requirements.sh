@@ -159,22 +159,28 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] || [
     fi
     
     if $echo_on; then
-        printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" shellenv)\\\\\"\\\n\" \"\$brew_prefix\" >> ~/.bash_profile\n\n"
+        printf "> printf -v load_homebrew_string \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" shellenv)\\\\\"\\\n\\\" \"\$brew_prefix\"\n\n"
+    fi
+    
+    printf -v load_homebrew_string "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brew_prefix"
+    
+    if $echo_on; then
+        printf "> printf \"\$load_homebrew_string\" >> ~/.bash_profile\n\n"
     fi
     
     # Adds Homebrew's binary directory to the beginning of your $PATH variable in your .bash_profile and spits an error if it fails
-    if ! printf "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brew_prefix" >> ~/.bash_profile; then
+    if ! printf "$load_homebrew_string" >> ~/.bash_profile; then
         printf "An error occurred in trying to write to ~/.bash_profile.\n"
         printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
         exit 1
     fi
     
     if $echo_on; then
-        printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" shellenv)\\\\\"\\\n\" \"\$brew_prefix\" >> ~/.zprofile\n\n"
+        printf "printf \"\$load_homebrew_string\" >> ~/.zprofile\n\n"
     fi
     
     # Adds Homebrew's binary directory to the beginning of your $PATH variable in your .zprofile and spits an error if it fails
-    if ! printf "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brew_prefix" >> ~/.zprofile; then
+    if ! printf "$load_homebrew_string" >> ~/.zprofile; then
         printf "An error occurred in trying to write to ~/.zprofile.\n"
         printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
         exit 1
@@ -345,10 +351,10 @@ else
         
         if $echo_on; then
             printf "> for (( i=0; i<\${#gcc_string_array[@]}; ++i )); do\n"
-            printf "      if [[ \${gcc_string_array[\$i]##*-} -gt \$highest_num ]]; then\n"
-            printf "          highest_num=\${gcc_string_array[\$i]##*-}\n"
-            printf "      fi\n"
-            printf "  done\n\n"
+            printf ">     if [[ \${gcc_string_array[\$i]##*-} -gt \$highest_num ]]; then\n"
+            printf ">         highest_num=\${gcc_string_array[\$i]##*-}\n"
+            printf ">     fi\n"
+            printf "> done\n\n"
         fi
         
         # Iterates through each of the "gcc-" strings
