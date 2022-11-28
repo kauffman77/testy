@@ -347,67 +347,87 @@ else
     printf "gcc is installed! ✅\n\n"
 fi
 
+# The below pertains to getting brew's newest version of gcc
+
+if $echo_on; then
+    printf "> gcc_string=\$(find \"\$(brew --prefix)/bin\" | while read -r f; do if "
+    printf "[[ \$(basename \"\$f\") =~ ^gcc-[0-9]+$ ]]; then basename \"\$f\"; fi; done)\n\n"
+fi
+
+# Gets all of the files under Homebrew's binary directory, executes the basename command on each
+# to get the filename without the path, checks if it matches "gcc-" followed by any number of
+# digits, and stores it
+gcc_string=$(find "$(brew --prefix)/bin" | while read -r f; \
+do if [[ $(basename "$f") =~ ^gcc-[0-9]+$ ]]; then basename "$f"; fi; done)
+
+if $echo_on; then
+    printf "> readarray -t gcc_string_array <<< \"\$gcc_string\"\n\n"
+fi
+
+# Creates an array and stores all "gcc-" followed by digits strings into it
+# (Credit to tinyurl.com/wtgkay2)
+readarray -t gcc_string_array <<< "$gcc_string"
+
+# If there is more than one version of gcc in Homebrew's binary directory, then get the newest
+# version
+if [ ${#gcc_string_array[@]} -ne 1 ]; then
+    if $echo_on; then
+        printf "> highest_num = 0\n\n"
+    fi
+    
+    # Defines the highest gcc version, which is by default '0'
+    highest_num=0
+    
+    if $echo_on; then
+        printf "> for (( i=0; i<\${#gcc_string_array[@]}; ++i )); do\n"
+        printf ">     if [[ \${gcc_string_array[\$i]##*-} -gt \$highest_num ]]; then\n"
+        printf ">         highest_num=\${gcc_string_array[\$i]##*-}\n"
+        printf ">     fi\n"
+        printf "> done\n\n"
+    fi
+    
+    # Iterates through each of the "gcc-" strings
+    for (( i=0; i<${#gcc_string_array[@]}; ++i )); do
+        # If the number following the "gcc-" part of the string is greater than highest_num, set
+        # highest_num to that greater value (compared arithmetically, not lexicographically)
+        if [[ ${gcc_string_array[$i]##*-} -gt $highest_num ]]; then
+            highest_num=${gcc_string_array[$i]##*-}
+        fi
+    done
+    
+    if $echo_on; then
+        printf "> gcc_string=\"gcc-\$highest_num\"\n\n"
+    fi
+    
+    # Sets the gcc string to the highest gcc version
+    gcc_string="gcc-$highest_num"
+fi
+
+gcc_major_version="$(gcc --version | grep "^gcc" | head -n 1 | sed "s/.* //" | sed "s/\..*//")"
+
 # Checks to ensure that the brew gcc is symlinked, and if not, links it (made to be compatible with
 # future versions of gcc)
-if [ -f "$(brew --prefix)/bin/gcc" ]; then
+if [ -f "$(brew --prefix)/bin/gcc" ] || [ "$gcc_major_version" -ge "$highest_num" ]; then
     printf "gcc is symlinked correctly! ✅\n\n"
 else
     printf "gcc is not symlinked. ❌\n\n"
+    
+    if [ -f "$(brew --prefix)/bin/gcc" ]; then
+        printf "Removing old symlink... 🗑️\n\n"
+        
+        if $echo_on; then
+            printf "> rm \"\$(brew --prefix)/bin/gcc\"\n\n"
+        fi
+        
+        if ! rm "$(brew --prefix)/bin/gcc" >&3 2>&4; then
+            printf "An error occurred in the removal of the old symlink.\n"
+            printf "Try running the script again, and if the problem still occurs, "
+            printf "contact chawl025@umn.edu\n\n"
+            exit 1
+        fi
+    fi
+    
     printf "Symlinking homebrew's gcc to %s/bin/gcc... 🔗\n\n" "$(brew --prefix)"
-    
-    if $echo_on; then
-        printf "> gcc_string=\$(find \"\$(brew --prefix)/bin\" | while read -r f; do if "
-        printf "[[ \$(basename \"\$f\") =~ ^gcc-[0-9]+$ ]]; then basename \"\$f\"; fi; done)\n\n"
-    fi
-    
-    # Gets all of the files under Homebrew's binary directory, executes the basename command on each
-    # to get the filename without the path, checks if it matches "gcc-" followed by any number of
-    # digits, and stores it
-    gcc_string=$(find "$(brew --prefix)/bin" | while read -r f; \
-    do if [[ $(basename "$f") =~ ^gcc-[0-9]+$ ]]; then basename "$f"; fi; done)
-    
-    if $echo_on; then
-        printf "> readarray -t gcc_string_array <<< \"\$gcc_string\"\n\n"
-    fi
-    
-    # Creates an array and stores all "gcc-" followed by digits strings into it
-    # (Credit to tinyurl.com/wtgkay2)
-    readarray -t gcc_string_array <<< "$gcc_string"
-    
-    # If there is more than one version of gcc in Homebrew's binary directory, then get the newest
-    # version
-    if [ ${#gcc_string_array[@]} -ne 1 ]; then
-        if $echo_on; then
-            printf "> highest_num = 0\n\n"
-        fi
-        
-        # Defines the highest gcc version, which is by default '0'
-        highest_num=0
-        
-        if $echo_on; then
-            printf "> for (( i=0; i<\${#gcc_string_array[@]}; ++i )); do\n"
-            printf ">     if [[ \${gcc_string_array[\$i]##*-} -gt \$highest_num ]]; then\n"
-            printf ">         highest_num=\${gcc_string_array[\$i]##*-}\n"
-            printf ">     fi\n"
-            printf "> done\n\n"
-        fi
-        
-        # Iterates through each of the "gcc-" strings
-        for (( i=0; i<${#gcc_string_array[@]}; ++i )); do
-            # If the number following the "gcc-" part of the string is greater than highest_num, set
-            # highest_num to that greater value (compared arithmetically, not lexicographically)
-            if [[ ${gcc_string_array[$i]##*-} -gt $highest_num ]]; then
-                highest_num=${gcc_string_array[$i]##*-}
-            fi
-        done
-        
-        if $echo_on; then
-            printf "> gcc_string=\"gcc-\$highest_num\"\n\n"
-        fi
-        
-        # Sets the gcc string to the highest gcc version
-        gcc_string="gcc-$highest_num"
-    fi
     
     if $echo_on; then
         printf "> ln -s \"\$(brew --prefix)/bin/%s\" \$(brew --prefix)/bin/gcc\n\n" "$gcc_string"
