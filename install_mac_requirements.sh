@@ -52,6 +52,10 @@ else
     # Installs Xcode Command Line Tools (if the user follows the prompt that shows up)
     xcode-select --install >&3 2>&4
     
+    if $echo_on; then
+        printf "\n"
+    fi
+    
     printf "After the installation of the Xcode Command Line Tools is complete, "
     printf "execute this script again.\n\n"
     exit 1
