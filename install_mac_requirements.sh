@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Gets the environment's location of bash instead of assuming it to be /bin/bash (Shebang must be the first line). Do NOT change to zsh.
+# Gets the environment's location of bash instead of assuming it to be /bin/bash (Shebang must be
+# the first line). Do NOT change to zsh.
 
 # Author: Nikunj Chawla <chawl025@umn.edu>
 
 # Prevents the user from executing this script as root as homebrew does not play well with root
 if [ "$(whoami)" == "root" ]; then
-    printf "This script cannot be run as root. Please try again as the local user or without running commands such as sudo.\n\n"
+    printf "This script cannot be run as root. "
+    printf "Please try again as the local user or without running commands such as sudo.\n\n"
     exit 1
 fi
 
@@ -13,20 +15,23 @@ fi
 if [ "$#" -gt 1 ]; then
     printf "This script only supports up to one command-line arguments.\n\n"
     exit 1
-# Otherwise, if one command-line argument was entered, throw an error if it is not "-v" and enable echoing/verbose mode otherwise
+# Otherwise, if one command-line argument was entered, throw an error if it is not "-v" and enable
+# echoing/verbose mode otherwise
 elif [ "$#" -eq 1 ]; then
     if [ "$1" != "-v" ]; then
         printf "The only command line argument accepted is the '-v' flag.\n\n"
         exit 1
     fi
     
-    # File descriptor 3 is used to redirect stdout to stdout in this case and 4 to redirect stderr to stderr
+    # File descriptor 3 is used to redirect stdout to stdout in this case and 4 to redirect stderr
+    # to stderr
     exec 3>&1
     exec 4>&2
     echo_on=true
 # If no command-line arguments were entered, don't enable echoing
 else
-    # File descriptor 3 is used to redirect stdout to /dev/null in this case and 4 to redirect stderr to /dev/null
+    # File descriptor 3 is used to redirect stdout to /dev/null in this case and 4 to redirect
+    # stderr to /dev/null
     exec 3>/dev/null
     exec 4>&3
     echo_on=false
@@ -47,7 +52,8 @@ else
     # Installs Xcode Command Line Tools (if the user follows the prompt that shows up)
     xcode-select --install >&3 2>&4
     
-    printf "After the installation of the Xcode Command Line Tools is complete, execute this script again.\n\n"
+    printf "After the installation of the Xcode Command Line Tools is complete, "
+    printf "execute this script again.\n\n"
     exit 1
 fi
 
@@ -73,13 +79,18 @@ else
     printf "Installing homebrew... (Please be patient. This may take some time.) 🍺\n\n"
     
     if $echo_on; then
-        printf "> yes \"\" | INTERACTIVE=1 /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)\"\n\n"
+        printf "> yes \"\" | INTERACTIVE=1 /bin/bash -c \"\$(curl -fsSL "
+        printf "https://raw.githubusercontent.com/Homebrew/install/master/install.sh)\"\n\n"
     fi
     
-    # Install homebrew if it does not exist and exits the script if an error occurs in the installation
-    if ! yes "" | INTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" >&3 2>&4; then
+    # Install homebrew if it does not exist and exits the script if an error occurs in the
+    # installation
+    if ! yes "" | INTERACTIVE=1 /bin/bash -c \
+    "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" >&3 2>&4; \
+    then
         printf "\nAn error occurred in the installation of homebrew.\n"
-        printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+        printf "Try running the script again, and if the problem still occurs, "
+        printf "contact chawl025@umn.edu\n\n"
         exit 1
     fi
     
@@ -94,8 +105,10 @@ if brew help >/dev/null 2>&1; then
     usr_bin_brew_bin_position_diff="$(( ${#remainder_brew_bin} - ${#remainder_usr_bin} ))"
 fi
 
-# Checks to see if Homebrew's binary directory is in your path (and at least has a higher presence than /usr/bin) and puts it at the beginning of your path if not
-if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] || [ "$usr_bin_brew_bin_position_diff" -lt "0" ]; then
+# Checks to see if Homebrew's binary directory is in your path (and at least has a higher presence
+# than /usr/bin) and puts it at the beginning of your path if not
+if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] \
+|| [ "$usr_bin_brew_bin_position_diff" -lt "0" ]; then
     printf "\$(brew --prefix)/bin/ is not in your \$PATH. ❌\n\n"
     printf "Adding \$(brew --prefix)/bin/ to your \$PATH... 📝\n\n"
     
@@ -112,7 +125,8 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] || [
         # Create ~/.bash_profile and spit out an error if it fails
         if ! touch "$HOME/.bash_profile"; then
             printf "An error occurred in creating ~/.bash_profile.\n"
-            printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+            printf "Try running the script again, and if the problem still occurs, "
+            printf "contact chawl025@umn.edu\n\n"
             exit 1
         fi
         
@@ -134,7 +148,8 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] || [
         # Create ~/.zprofile and spit out an error if it fails
         if ! touch "$HOME/.zprofile"; then
             printf "An error occurred in creating ~/.zprofile.\n"
-            printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+            printf "Try running the script again, and if the problem still occurs, "
+            printf "contact chawl025@umn.edu\n\n"
             exit 1
         fi
         
@@ -159,7 +174,8 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] || [
     fi
     
     if $echo_on; then
-        printf "> printf -v load_homebrew_string \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" shellenv)\\\\\"\\\n\\\" \"\$brew_prefix\"\n\n"
+        printf "> printf -v load_homebrew_string \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" "
+        printf "shellenv)\\\\\"\\\n\\\" \"\$brew_prefix\"\n\n"
     fi
     
     printf -v load_homebrew_string "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brew_prefix"
@@ -168,10 +184,12 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] || [
         printf "> printf \"\$load_homebrew_string\" >> ~/.bash_profile\n\n"
     fi
     
-    # Adds Homebrew's binary directory to the beginning of your $PATH variable in your .bash_profile and spits an error if it fails
+    # Adds Homebrew's binary directory to the beginning of your $PATH variable in your .bash_profile
+    # and spits an error if it fails
     if ! printf "$load_homebrew_string" >> ~/.bash_profile; then
         printf "An error occurred in trying to write to ~/.bash_profile.\n"
-        printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+        printf "Try running the script again, and if the problem still occurs, "
+        printf "contact chawl025@umn.edu\n\n"
         exit 1
     fi
     
@@ -179,10 +197,12 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] || [
         printf "printf \"\$load_homebrew_string\" >> ~/.zprofile\n\n"
     fi
     
-    # Adds Homebrew's binary directory to the beginning of your $PATH variable in your .zprofile and spits an error if it fails
+    # Adds Homebrew's binary directory to the beginning of your $PATH variable in your .zprofile and
+    # spits an error if it fails
     if ! printf "$load_homebrew_string" >> ~/.zprofile; then
         printf "An error occurred in trying to write to ~/.zprofile.\n"
-        printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+        printf "Try running the script again, and if the problem still occurs, "
+        printf "contact chawl025@umn.edu\n\n"
         exit 1
     fi
     
@@ -220,7 +240,8 @@ else
     # Installs brew if it did not exist and exits the script if an error occurs in the installation
     if ! brew install bash >&3 2>&4; then
         printf "An error occurred in the installation of bash.\n"
-        printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+        printf "Try running the script again, and if the problem still occurs, "
+        printf "contact chawl025@umn.edu\n\n"
         exit 1
     fi
     
@@ -244,15 +265,18 @@ else
     
     # Attempts to add Homebrew's bash to /etc/shells or the list of available Terminal shells
     if ! sudo sh -c 'printf "\n$(brew --prefix)/bin/bash\n" >> /etc/shells'; then
-        printf "\nAn error occurred when trying to add the updated bash to the list of available Terminal shells.\n"
-        printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+        printf "\nAn error occurred when trying to add the updated bash to the list of available "
+        printf "Terminal shells.\n"
+        printf "Try running the script again, and if the problem still occurs, "
+        printf "contact chawl025@umn.edu\n\n"
         exit 1
     fi
     
     printf "\nThe updated bash is in the list of available Terminal shells! ✅\n\n"
 fi
 
-# If your bash version is not 5.0+, link Terminal to the newest version installed if /bin/bash is the default
+# If your bash version is not 5.0+, link Terminal to the newest version installed if /bin/bash is
+# the default
 if [[ ${BASH_VERSION%%.*} -gt 4 ]]; then
     printf "Your bash version is up to date in your current shell! ✅\n\n"
 else
@@ -264,10 +288,12 @@ else
             printf "> chsh -s \"\$(brew --prefix)/bin/bash\"\n\n"
         fi
         
-        # Attempts to set the current default shell to use the updated bash and spits an error if it fails
+        # Attempts to set the current default shell to use the updated bash and spits an error if it
+        # fails
         if ! chsh -s "$(brew --prefix)/bin/bash" >&3 2>&4; then
             printf "\nAn error occurred when trying to update your terminal shell.\n"
-            printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+            printf "Try running the script again, and if the problem still occurs, "
+        printf "contact chawl025@umn.edu\n\n"
             exit 1
         fi
         
@@ -275,11 +301,13 @@ else
     fi
     
     printf "Your bash version is up to date for your shell! ✅\n\n"
-    printf "Now, please quit Terminal and rerun this script so it uses the appropriate version of bash.\n\n"
+    printf "Now, please quit Terminal and rerun this script so "
+    printf "it uses the appropriate version of bash.\n\n"
     exit 1
 fi
 
-# Installs the real gcc (not clang) through homebrew if it isn't already installed or update it if it is
+# Installs the real gcc (not clang) through homebrew if it isn't already installed or update it if
+# it is
 if brew list gcc >/dev/null 2>&1; then
     printf "gcc is installed! ✅\n\n"
     printf "Updating gcc... (Please be patient. This may take some time.) 🔧\n\n"
@@ -307,7 +335,8 @@ else
     # Installs gcc if it did not exist and exits the script if an error occurs in the installation
     if ! brew install gcc >&3 2>&4; then
         printf "An error occurred in the installation of gcc.\n"
-        printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+        printf "Try running the script again, and if the problem still occurs, "
+        printf "contact chawl025@umn.edu\n\n"
         exit 1
     fi
     
@@ -318,7 +347,8 @@ else
     printf "gcc is installed! ✅\n\n"
 fi
 
-# Checks to ensure that the brew gcc is symlinked, and if not, links it (made to be compatible with future versions of gcc)
+# Checks to ensure that the brew gcc is symlinked, and if not, links it (made to be compatible with
+# future versions of gcc)
 if [ -f "$(brew --prefix)/bin/gcc" ]; then
     printf "gcc is symlinked correctly! ✅\n\n"
 else
@@ -326,21 +356,26 @@ else
     printf "Symlinking homebrew's gcc to %s/bin/gcc... 🔗\n\n" "$(brew --prefix)"
     
     if $echo_on; then
-        printf "> gcc_string=\$(find \"\$(brew --prefix)/bin\" | while read -r f; do if [[ \$(basename \"\$f\") =~ ^gcc-[0-9]+$ ]]; then basename \"\$f\"; fi; done)\n\n"
+        printf "> gcc_string=\$(find \"\$(brew --prefix)/bin\" | while read -r f; do if "
+        printf "[[ \$(basename \"\$f\") =~ ^gcc-[0-9]+$ ]]; then basename \"\$f\"; fi; done)\n\n"
     fi
     
-    # Gets all of the files under Homebrew's binary directory, executes the basename command on each to get the filename without the path, 
-    # checks if it matches "gcc-" followed by any number of digits, and stores it
-    gcc_string=$(find "$(brew --prefix)/bin" | while read -r f; do if [[ $(basename "$f") =~ ^gcc-[0-9]+$ ]]; then basename "$f"; fi; done)
+    # Gets all of the files under Homebrew's binary directory, executes the basename command on each
+    # to get the filename without the path, checks if it matches "gcc-" followed by any number of
+    # digits, and stores it
+    gcc_string=$(find "$(brew --prefix)/bin" | while read -r f; \
+    do if [[ $(basename "$f") =~ ^gcc-[0-9]+$ ]]; then basename "$f"; fi; done)
     
     if $echo_on; then
         printf "> readarray -t gcc_string_array <<< \"\$gcc_string\"\n\n"
     fi
     
-    # Creates an array and stores all "gcc-" followed by digits strings into it (Credits to tinyurl.com/wtgkay2)
+    # Creates an array and stores all "gcc-" followed by digits strings into it
+    # (Credit to tinyurl.com/wtgkay2)
     readarray -t gcc_string_array <<< "$gcc_string"
     
-    # If there is more than one version of gcc in Homebrew's binary directory, then get the newest version
+    # If there is more than one version of gcc in Homebrew's binary directory, then get the newest
+    # version
     if [ ${#gcc_string_array[@]} -ne 1 ]; then
         if $echo_on; then
             printf "> highest_num = 0\n\n"
@@ -359,7 +394,8 @@ else
         
         # Iterates through each of the "gcc-" strings
         for (( i=0; i<${#gcc_string_array[@]}; ++i )); do
-            # If the number following the "gcc-" part of the string is greater than highest_num, set highest_num to that greater value (compared arithmetically, not lexicographically)
+            # If the number following the "gcc-" part of the string is greater than highest_num, set
+            # highest_num to that greater value (compared arithmetically, not lexicographically)
             if [[ ${gcc_string_array[$i]##*-} -gt $highest_num ]]; then
                 highest_num=${gcc_string_array[$i]##*-}
             fi
@@ -380,7 +416,8 @@ else
     # Attempts to symlink the highest gcc version available and spits an error if it doesn't work
     if ! ln -s "$(brew --prefix)/bin/$gcc_string" "$(brew --prefix)/bin/gcc" >&3 2>&4; then
         printf "An error occurred in the symlinking of gcc.\n"
-        printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+        printf "Try running the script again, and if the problem still occurs, "
+        printf "contact chawl025@umn.edu\n\n"
         exit 1
     fi
     
@@ -412,10 +449,12 @@ else
         printf "> brew install coreutils\n\n"
     fi
     
-    # Installs coreutils if it did not exist and exits the script if an error occurs in the installation
+    # Installs coreutils if it did not exist and exits the script if an error occurs in the
+    # installation
     if ! brew install coreutils >&3 2>&4; then
         printf "An error occurred in the installation of coreutils.\n"
-        printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+        printf "Try running the script again, and if the problem still occurs, "
+        printf "contact chawl025@umn.edu\n\n"
         exit 1
     fi
     
@@ -451,10 +490,12 @@ else
         printf "> brew install gnu-sed\n\n"
     fi
     
-    # Installs gnu-sed if it did not exist and exits the script if an error occurs in the installation
+    # Installs gnu-sed if it did not exist and exits the script if an error occurs in the
+    # installation
     if ! brew install gnu-sed >&3 2>&4; then
         printf "An error occurred in the installation of gnu-sed.\n"
-        printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+        printf "Try running the script again, and if the problem still occurs, "
+        printf "contact chawl025@umn.edu\n\n"
         exit 1
     fi
     
@@ -493,14 +534,17 @@ else
     # Installs gawk if it did not exist and exits the script if an error occurs in the installation
     if ! brew install gawk >&3 2>&4; then
         printf "An error occurred in the installation of gawk.\n"
-        printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
+        printf "Try running the script again, and if the problem still occurs, "
+        printf "contact chawl025@umn.edu\n\n"
         exit 1
     fi
     
     printf "gawk is installed! ✅\n\n"
 fi
 
-# Edit: Previously, I had an experimental version of valgrind installed on macOS here. However, it had too many issues for me to consider worth it. Use valgrind on a CSE labs machine or Ubuntu machine/VM
+# Edit: Previously, I had an experimental version of valgrind installed on macOS here. However, it
+# had too many issues for me to consider worth it. Use valgrind on a CSE labs machine or Ubuntu
+# machine/VM
 
 printf "Congratulations! Your computer should be completely set up! 💻\n\n"
 printf "Please quit and reopen the Terminal to finalize the process.\n\n"
