@@ -181,12 +181,12 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] \
     printf -v load_homebrew_string "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brew_prefix"
     
     if $echo_on; then
-        printf "> printf \"\$load_homebrew_string\" >> ~/.bash_profile\n\n"
+        printf "> printf \"%%s\" \"\$load_homebrew_string\" >> ~/.bash_profile\n\n"
     fi
     
     # Adds Homebrew's binary directory to the beginning of your $PATH variable in your .bash_profile
     # and spits an error if it fails
-    if ! printf "$load_homebrew_string" >> ~/.bash_profile; then
+    if ! printf "%s" "$load_homebrew_string" >> ~/.bash_profile; then
         printf "An error occurred in trying to write to ~/.bash_profile.\n"
         printf "Try running the script again, and if the problem still occurs, "
         printf "contact chawl025@umn.edu\n\n"
@@ -194,12 +194,12 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] \
     fi
     
     if $echo_on; then
-        printf "printf \"\$load_homebrew_string\" >> ~/.zprofile\n\n"
+        printf "printf \"%%s\" \"\$load_homebrew_string\" >> ~/.zprofile\n\n"
     fi
     
     # Adds Homebrew's binary directory to the beginning of your $PATH variable in your .zprofile and
     # spits an error if it fails
-    if ! printf "$load_homebrew_string" >> ~/.zprofile; then
+    if ! printf "%s" "$load_homebrew_string" >> ~/.zprofile; then
         printf "An error occurred in trying to write to ~/.zprofile.\n"
         printf "Try running the script again, and if the problem still occurs, "
         printf "contact chawl025@umn.edu\n\n"
