@@ -23,13 +23,13 @@ elif [ "$#" -eq 1 ]; then
     # File descriptor 3 is used to redirect stdout to stdout in this case and 4 to redirect stderr to stderr
     exec 3>&1
     exec 4>&2
-    echoOn=true
+    echo_on=true
 # If no command-line arguments were entered, don't enable echoing
 else
     # File descriptor 3 is used to redirect stdout to /dev/null in this case and 4 to redirect stderr to /dev/null
     exec 3>/dev/null
     exec 4>&3
-    echoOn=false
+    echo_on=false
 fi
 
 # Installs Xcode Command Line Tools if they are not already installed
@@ -40,7 +40,7 @@ else
     printf "Installing Xcode Command Line Tools... 🛠️\n"
     printf "Follow the prompt that pops up!\n\n"
     
-    if $echoOn; then
+    if $echo_on; then
         printf "> xcode-select --install\n\n"
     fi
     
@@ -56,14 +56,14 @@ if brew help >/dev/null 2>&1; then
     printf "Homebrew is installed! ✅\n\n"
     printf "Updating homebrew... (Please be patient. This may take some time.) 🍺\n\n"
     
-    if $echoOn; then
+    if $echo_on; then
         printf "> brew update\n\n"
     fi
     
     # Update homebrew if it already exists
     brew update >&3 2>&4
     
-    if $echoOn; then
+    if $echo_on; then
         printf "\n"
     fi
     
@@ -72,7 +72,7 @@ else
     printf "Homebrew was not found. ❌\n\n"
     printf "Installing homebrew... (Please be patient. This may take some time.) 🍺\n\n"
     
-    if $echoOn; then
+    if $echo_on; then
         printf "> yes \"\" | INTERACTIVE=1 /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)\"\n\n"
     fi
     
@@ -87,15 +87,15 @@ else
 fi
 
 if brew help >/dev/null 2>&1; then
-    usrBin="/usr/bin"
-    brewBin="$(brew --prefix)/bin"
-    remainderUsrBin="${PATH#*"$usrBin"}"
-    remainderBrewBin="${PATH#*"$brewBin"}"
-    usrBinBrewBinPosDiff="$(( ${#remainderBrewBin} - ${#remainderUsrBin} ))"
+    usr_bin="/usr/bin"
+    brew_bin="$(brew --prefix)/bin"
+    remainder_usr_bin="${PATH#*"$usr_bin"}"
+    remainder_brew_bin="${PATH#*"$brew_bin"}"
+    usr_bin_brew_bin_position_diff="$(( ${#remainder_brew_bin} - ${#remainder_usr_bin} ))"
 fi
 
 # Checks to see if Homebrew's binary directory is in your path (and at least has a higher presence than /usr/bin) and puts it at the beginning of your path if not
-if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] || [ "$usrBinBrewBinPosDiff" -lt "0" ]; then
+if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] || [ "$usr_bin_brew_bin_position_diff" -lt "0" ]; then
     printf "\$(brew --prefix)/bin/ is not in your \$PATH. ❌\n\n"
     printf "Adding \$(brew --prefix)/bin/ to your \$PATH... 📝\n\n"
     
@@ -105,7 +105,7 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] || [
         # Disabled b/c ~/ is not meant to be expanded here
         printf "~/.bash_profile could not be found. Creating it for you... 📝\n\n"
         
-        if $echoOn; then
+        if $echo_on; then
             printf "> touch \"\$HOME/.bash_profile\"\n\n"
         fi
         
@@ -127,7 +127,7 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] || [
         # Disabled b/c ~/ is not meant to be expanded here
         printf "~/.zprofile could not be found. Creating it for you... 📝\n\n"
         
-        if $echoOn; then
+        if $echo_on; then
             printf "> touch \"\$HOME/.zprofile\"\n\n"
         fi
         
@@ -143,45 +143,45 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] || [
         printf "~/.zprofile created!\n\n"
     fi
     
-    if $echoOn; then
+    if $echo_on; then
         printf "> if [ -d \"/opt/homebrew\" ]; then\n"
-        printf ">     brewPrefix=\"/opt/homebrew\"\n"
+        printf ">     brew_prefix=\"/opt/homebrew\"\n"
         printf "> else\n"
-        printf ">    brewPrefix=\"/usr/local\"\n"
+        printf ">    brew_prefix=\"/usr/local\"\n"
         printf "> fi\n\n"
     fi
     
     # Retrieve brew prefix
     if [ -d "/opt/homebrew" ]; then
-        brewPrefix="/opt/homebrew"
+        brew_prefix="/opt/homebrew"
     else
-        brewPrefix="/usr/local"
+        brew_prefix="/usr/local"
     fi
     
-    if $echoOn; then
-        printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" shellenv)\\\\\"\\\n\" \"\$brewPrefix\" >> ~/.bash_profile\n\n"
+    if $echo_on; then
+        printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" shellenv)\\\\\"\\\n\" \"\$brew_prefix\" >> ~/.bash_profile\n\n"
     fi
     
     # Adds Homebrew's binary directory to the beginning of your $PATH variable in your .bash_profile and spits an error if it fails
-    if ! printf "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brewPrefix" >> ~/.bash_profile; then
+    if ! printf "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brew_prefix" >> ~/.bash_profile; then
         printf "An error occurred in trying to write to ~/.bash_profile.\n"
         printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
         exit 1
     fi
     
-    if $echoOn; then
-        printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" shellenv)\\\\\"\\\n\" \"\$brewPrefix\" >> ~/.zprofile\n\n"
+    if $echo_on; then
+        printf "> printf \"\\\neval \\\\\"\\\$(\\\\\"%%s/bin/brew\\\\\" shellenv)\\\\\"\\\n\" \"\$brew_prefix\" >> ~/.zprofile\n\n"
     fi
     
     # Adds Homebrew's binary directory to the beginning of your $PATH variable in your .zprofile and spits an error if it fails
-    if ! printf "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brewPrefix" >> ~/.zprofile; then
+    if ! printf "\neval \"\$(\"%s/bin/brew\" shellenv)\"\n" "$brew_prefix" >> ~/.zprofile; then
         printf "An error occurred in trying to write to ~/.zprofile.\n"
         printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
         exit 1
     fi
     
     # Add Homebrew's binary directory to path for the purposes of the rest of this script as well
-    eval "$("$brewPrefix/bin/brew" shellenv)"
+    eval "$("$brew_prefix/bin/brew" shellenv)"
 fi
 
 printf "%s/bin/ is in your \$PATH! ✅\n\n" "$(brew --prefix)"
@@ -191,14 +191,14 @@ if brew list bash >/dev/null 2>&1; then
     printf "Homebrew's bash is installed! ✅\n\n"
     printf "Updating bash... (Please be patient. This may take some time.) 📺\n\n"
     
-    if $echoOn; then
+    if $echo_on; then
         printf "> brew upgrade bash\n\n"
     fi
     
     # Upgrades bash
     brew upgrade bash >&3 2>&4
     
-    if $echoOn; then
+    if $echo_on; then
         printf "\n"
     fi
     
@@ -207,7 +207,7 @@ else
     printf "Homebrew's bash was not found. ❌\n\n"
     printf "Installing homebrew's bash... (Please be patient. This may take some time.) 📺\n\n"
     
-    if $echoOn; then
+    if $echo_on; then
         printf "> brew install bash\n\n"
     fi
     
@@ -218,7 +218,7 @@ else
         exit 1
     fi
     
-    if $echoOn; then
+    if $echo_on; then
         printf "\n"
     fi
     
@@ -232,7 +232,7 @@ else
     printf "The updated bash is not in the list of available Terminal shells. ❌\n\n"
     printf "Adding the updated bash to the list of Terminal shells... 📜\n\n"
     
-    if $echoOn; then
+    if $echo_on; then
         printf "> sudo sh -c 'printf \"\\\n\$(brew --prefix)/bin/bash\\\n\" >> /etc/shells'\n\n"
     fi
     
@@ -254,7 +254,7 @@ else
     printf "Updating your current bash for your shell... 🔼\n\n"
     
     if [ "$SHELL" = "/bin/bash" ]; then
-        if $echoOn; then
+        if $echo_on; then
             printf "> chsh -s \"\$(brew --prefix)/bin/bash\"\n\n"
         fi
         
@@ -278,14 +278,14 @@ if brew list gcc >/dev/null 2>&1; then
     printf "gcc is installed! ✅\n\n"
     printf "Updating gcc... (Please be patient. This may take some time.) 🔧\n\n"
     
-    if $echoOn; then
+    if $echo_on; then
         printf "> brew upgrade gcc\n\n"
     fi
     
     # Upgrades gcc
     brew upgrade gcc >&3 2>&4
     
-    if $echoOn; then
+    if $echo_on; then
         printf "\n"
     fi
     
@@ -294,7 +294,7 @@ else
     printf "gcc (not clang/gcc) was not found. ❌\n\n"
     printf "Installing gcc... (Please be patient. This may take some time.) 🔧\n\n"
     
-    if $echoOn; then
+    if $echo_on; then
         printf "> brew install gcc\n\n"
     fi
     
@@ -305,7 +305,7 @@ else
         exit 1
     fi
     
-    if $echoOn; then
+    if $echo_on; then
         printf "\n"
     fi
     
@@ -319,60 +319,60 @@ else
     printf "gcc is not symlinked. ❌\n\n"
     printf "Symlinking homebrew's gcc to %s/bin/gcc... 🔗\n\n" "$(brew --prefix)"
     
-    if $echoOn; then
-        printf "> gccString=\$(find \"\$(brew --prefix)/bin\" | while read -r f; do if [[ \$(basename \"\$f\") =~ ^gcc-[0-9]+$ ]]; then basename \"\$f\"; fi; done)\n\n"
+    if $echo_on; then
+        printf "> gcc_string=\$(find \"\$(brew --prefix)/bin\" | while read -r f; do if [[ \$(basename \"\$f\") =~ ^gcc-[0-9]+$ ]]; then basename \"\$f\"; fi; done)\n\n"
     fi
     
     # Gets all of the files under Homebrew's binary directory, executes the basename command on each to get the filename without the path, 
-    # checks if it matches "gcc-" followed by any number of digits, and stores it into gccString
-    gccString=$(find "$(brew --prefix)/bin" | while read -r f; do if [[ $(basename "$f") =~ ^gcc-[0-9]+$ ]]; then basename "$f"; fi; done)
+    # checks if it matches "gcc-" followed by any number of digits, and stores it
+    gcc_string=$(find "$(brew --prefix)/bin" | while read -r f; do if [[ $(basename "$f") =~ ^gcc-[0-9]+$ ]]; then basename "$f"; fi; done)
     
-    if $echoOn; then
-        printf "> readarray -t gccStringArray <<< \"\$gccString\"\n\n"
+    if $echo_on; then
+        printf "> readarray -t gcc_string_array <<< \"\$gcc_string\"\n\n"
     fi
     
-    # Creates an array called gccStringArray and stores all "gcc-" followed by digits strings into it (Credits to tinyurl.com/wtgkay2)
-    readarray -t gccStringArray <<< "$gccString"
+    # Creates an array and stores all "gcc-" followed by digits strings into it (Credits to tinyurl.com/wtgkay2)
+    readarray -t gcc_string_array <<< "$gcc_string"
     
     # If there is more than one version of gcc in Homebrew's binary directory, then get the newest version
-    if [ ${#gccStringArray[@]} -ne 1 ]; then
-        if $echoOn; then
-            printf "> highestNum = 0\n\n"
+    if [ ${#gcc_string_array[@]} -ne 1 ]; then
+        if $echo_on; then
+            printf "> highest_num = 0\n\n"
         fi
         
         # Defines the highest gcc version, which is by default '0'
-        highestNum=0
+        highest_num=0
         
-        if $echoOn; then
-            printf "> for (( i=0; i<\${#gccStringArray[@]}; ++i )); do\n"
-            printf "      if [[ \${gccStringArray[\$i]##*-} -gt \$highestNum ]]; then\n"
-            printf "          highestNum=\${gccStringArray[\$i]##*-}\n"
+        if $echo_on; then
+            printf "> for (( i=0; i<\${#gcc_string_array[@]}; ++i )); do\n"
+            printf "      if [[ \${gcc_string_array[\$i]##*-} -gt \$highest_num ]]; then\n"
+            printf "          highest_num=\${gcc_string_array[\$i]##*-}\n"
             printf "      fi\n"
             printf "  done\n\n"
         fi
         
         # Iterates through each of the "gcc-" strings
-        for (( i=0; i<${#gccStringArray[@]}; ++i )); do
-            # If the number following the "gcc-" part of the string is greater than highestNum, set highestNum to that greater value (compared arithmetically, not lexicographically)
-            if [[ ${gccStringArray[$i]##*-} -gt $highestNum ]]; then
-                highestNum=${gccStringArray[$i]##*-}
+        for (( i=0; i<${#gcc_string_array[@]}; ++i )); do
+            # If the number following the "gcc-" part of the string is greater than highest_num, set highest_num to that greater value (compared arithmetically, not lexicographically)
+            if [[ ${gcc_string_array[$i]##*-} -gt $highest_num ]]; then
+                highest_num=${gcc_string_array[$i]##*-}
             fi
         done
         
-        if $echoOn; then
-            printf "> gccString=\"gcc-\$highestNum\"\n\n"
+        if $echo_on; then
+            printf "> gcc_string=\"gcc-\$highest_num\"\n\n"
         fi
         
-        # Sets the gccString to the highest gcc version
-        gccString="gcc-$highestNum"
+        # Sets the gcc string to the highest gcc version
+        gcc_string="gcc-$highest_num"
     fi
     
-    if $echoOn; then
-        printf "> ln -s \"\$(brew --prefix)/bin/%s\" \$(brew --prefix)/bin/gcc\n\n" "$gccString"
+    if $echo_on; then
+        printf "> ln -s \"\$(brew --prefix)/bin/%s\" \$(brew --prefix)/bin/gcc\n\n" "$gcc_string"
     fi
     
     # Attempts to symlink the highest gcc version available and spits an error if it doesn't work
-    if ! ln -s "$(brew --prefix)/bin/$gccString" "$(brew --prefix)/bin/gcc" >&3 2>&4; then
+    if ! ln -s "$(brew --prefix)/bin/$gcc_string" "$(brew --prefix)/bin/gcc" >&3 2>&4; then
         printf "An error occurred in the symlinking of gcc.\n"
         printf "Try running the script again, and if the problem still occurs, contact chawl025@umn.edu\n\n"
         exit 1
@@ -386,14 +386,14 @@ if brew list coreutils >/dev/null 2>&1; then
     printf "coreutils is installed! ✅\n\n"
     printf "Updating coreutils... (Please be patient. This may take some time.) 🎛\n\n"
     
-    if $echoOn; then
+    if $echo_on; then
         printf "> brew upgrade coreutils\n\n"
     fi
     
     # Upgrades coreutils
     brew upgrade coreutils >&3 2>&4
     
-    if $echoOn; then
+    if $echo_on; then
         printf "\n"
     fi
     
@@ -402,7 +402,7 @@ else
     printf "coreutils was not found. ❌\n\n"
     printf "Installing coreutils... (Please be patient. This may take some time.) 🎛\n\n"
     
-    if $echoOn; then
+    if $echo_on; then
         printf "> brew install coreutils\n\n"
     fi
     
@@ -413,7 +413,7 @@ else
         exit 1
     fi
     
-    if $echoOn; then
+    if $echo_on; then
         printf "\n"
     fi
     
@@ -425,14 +425,14 @@ if brew list gnu-sed >/dev/null 2>&1; then
     printf "gnu-sed is installed! ✅\n\n"
     printf "Updating gnu-sed... (Please be patient. This may take some time.) 🔨\n\n"
     
-    if $echoOn; then
+    if $echo_on; then
         printf "> brew upgrade gnu-sed\n\n"
     fi
     
     # Upgrades gnu-sed
     brew upgrade gnu-sed >&3 2>&4
     
-    if $echoOn; then
+    if $echo_on; then
         printf "\n"
     fi
     
@@ -441,7 +441,7 @@ else
     printf "gnu-sed was not found. ❌\n\n"
     printf "Installing gnu-sed... (Please be patient. This may take some time.) 🔨\n\n"
     
-    if $echoOn; then
+    if $echo_on; then
         printf "> brew install gnu-sed\n\n"
     fi
     
@@ -452,7 +452,7 @@ else
         exit 1
     fi
     
-    if $echoOn; then
+    if $echo_on; then
         printf "\n"
     fi
     
@@ -464,14 +464,14 @@ if brew list gawk >/dev/null 2>&1; then
     printf "gawk is installed! ✅\n\n"
     printf "Updating gawk... (Please be patient. This may take some time.) 👀\n\n"
     
-    if $echoOn; then
+    if $echo_on; then
         printf "> brew upgrade gawk\n\n"
     fi
     
     # Upgrades gawk
     brew upgrade gawk >&3 2>&4
     
-    if $echoOn; then
+    if $echo_on; then
         printf "\n"
     fi
     
@@ -480,7 +480,7 @@ else
     printf "gawk was not found. ❌\n\n"
     printf "Installing gawk... (Please be patient. This may take some time.) 👀\n\n"
     
-    if $echoOn; then
+    if $echo_on; then
         printf "> brew install gawk\n\n"
     fi
     
