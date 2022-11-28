@@ -372,51 +372,53 @@ fi
 # (Credit to tinyurl.com/wtgkay2)
 readarray -t gcc_string_array <<< "$gcc_string"
 
-# If there is more than one version of gcc in Homebrew's binary directory, then get the newest
-# version
-if [ ${#gcc_string_array[@]} -ne 1 ]; then
-    if $echo_on; then
-        printf "> highest_num = 0\n\n"
+# Get the newest version of gcc
+
+if $echo_on; then
+    printf "> highest_num = 0\n\n"
+fi
+
+# Defines the highest gcc version, which is by default '0'
+highest_num=0
+
+if $echo_on; then
+    printf "> for (( i=0; i<\${#gcc_string_array[@]}; ++i )); do\n"
+    printf ">     if [[ \${gcc_string_array[\$i]##*-} -gt \$highest_num ]]; then\n"
+    printf ">         highest_num=\${gcc_string_array[\$i]##*-}\n"
+    printf ">     fi\n"
+    printf "> done\n\n"
+fi
+
+# Iterates through each of the "gcc-" strings
+for (( i=0; i<${#gcc_string_array[@]}; ++i )); do
+    # If the number following the "gcc-" part of the string is greater than highest_num, set
+    # highest_num to that greater value (compared arithmetically, not lexicographically)
+    if [[ ${gcc_string_array[$i]##*-} -gt $highest_num ]]; then
+        highest_num=${gcc_string_array[$i]##*-}
     fi
-    
-    # Defines the highest gcc version, which is by default '0'
-    highest_num=0
-    
-    if $echo_on; then
-        printf "> for (( i=0; i<\${#gcc_string_array[@]}; ++i )); do\n"
-        printf ">     if [[ \${gcc_string_array[\$i]##*-} -gt \$highest_num ]]; then\n"
-        printf ">         highest_num=\${gcc_string_array[\$i]##*-}\n"
-        printf ">     fi\n"
-        printf "> done\n\n"
-    fi
-    
-    # Iterates through each of the "gcc-" strings
-    for (( i=0; i<${#gcc_string_array[@]}; ++i )); do
-        # If the number following the "gcc-" part of the string is greater than highest_num, set
-        # highest_num to that greater value (compared arithmetically, not lexicographically)
-        if [[ ${gcc_string_array[$i]##*-} -gt $highest_num ]]; then
-            highest_num=${gcc_string_array[$i]##*-}
-        fi
-    done
-    
-    if $echo_on; then
-        printf "> gcc_string=\"gcc-\$highest_num\"\n\n"
-    fi
-    
-    # Sets the gcc string to the highest gcc version
-    gcc_string="gcc-$highest_num"
+done
+
+if $echo_on; then
+    printf "> gcc_string=\"gcc-\$highest_num\"\n\n"
+fi
+
+# Sets the gcc string to the highest gcc version
+gcc_string="gcc-$highest_num"
+
+if $echo_on; then
+    printf "> gcc_major_version=\"\$(gcc --version | grep \"^gcc\" | head -n 1 | sed \"s/.* //\" | "
+    printf "sed \"s/\..*//\")\"\n\n"
 fi
 
 gcc_major_version="$(gcc --version | grep "^gcc" | head -n 1 | sed "s/.* //" | sed "s/\..*//")"
 
 # Checks to ensure that the brew gcc is symlinked, and if not, links it (made to be compatible with
 # future versions of gcc)
-if [ -f "$(brew --prefix)/bin/gcc" ] || [ "$gcc_major_version" -ge "$highest_num" ]; then
+if [ -f "$(brew --prefix)/bin/gcc" ] && [ "$gcc_major_version" -ge "$highest_num" ]; then
     printf "gcc is symlinked correctly! ✅\n\n"
 else
-    printf "gcc is not symlinked. ❌\n\n"
-    
     if [ -f "$(brew --prefix)/bin/gcc" ]; then
+        printf "An old version of gcc is symlinked. ❌\n\n"
         printf "Removing old symlink... 🗑️\n\n"
         
         if $echo_on; then
@@ -429,6 +431,8 @@ else
             printf "contact chawl025@umn.edu\n\n"
             exit 1
         fi
+    else
+        printf "gcc is not symlinked. ❌\n\n"
     fi
     
     printf "Symlinking homebrew's gcc to %s/bin/gcc... 🔗\n\n" "$(brew --prefix)"
