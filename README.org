@@ -352,3 +352,40 @@ included in the file ~LICENSE~ in the source repository.
 - Re-checked example files in file:examples/ to guarantee that all of
   them work as expected
 
+* Install macOS Requirements
+Note: =testy= is primarily supported for Linux/GNU.
+
+The installation script of =testy= dependencies for macOS
+([[file:install_mac_requirements.sh]]) is made by a
+[[https://github.com/nik312123/][macOS contributor]] and does not
+guarantee that =testy= will work on macOS for all use cases.
+
+The goal of the [[file:install_mac_requirements.sh]] script is to
+install the dependencies required for =testy= to work on macOS.
+At this time, due to lack of proper =valgrind= support on macOS,
+the aforementioned script does not install =valgrind= As such,
+=use_valgrind= should be set to =0= in .org files that =testy=
+runs like the following: =#+TESTY: use_valgrind=0=
+
+To run the above installation script, you may run the following:
+
+#+begin_src sh
+bash <( curl -fsSL "https://raw.githubusercontent.com/kauffman77/testy/master/install_mac_requirements.sh" )
+#+end_src
+
+To run the script in verbose mode (prints commands being run and their
+outputs) add the =-v= flag like so:
+
+#+begin_src sh
+bash <( curl -fsSL "https://raw.githubusercontent.com/kauffman77/testy/master/install_mac_requirements.sh" ) -v
+#+end_src
+
+You may also simply download the script and run it as follows:
+
+#+begin_src sh
+# Normal
+./install_mac_requirements.sh
+
+# Verbose
+./install_mac_requirements.sh -v
+#+end_src
