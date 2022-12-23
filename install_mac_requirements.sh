@@ -13,13 +13,13 @@ fi
 
 # If there are more than 1 command-line arguments entered, exit the script
 if [ "$#" -gt 1 ]; then
-    printf "This script only supports up to one command-line arguments.\n\n"
+    printf "This script only supports up to one command-line argument.\n\n"
     exit 1
 # Otherwise, if one command-line argument was entered, throw an error if it is not "-v" and enable
 # echoing/verbose mode otherwise
 elif [ "$#" -eq 1 ]; then
     if [ "$1" != "-v" ]; then
-        printf "The only command line argument accepted is the '-v' flag.\n\n"
+        printf "The only command line argument accepted is the '-v' flag for verbose mode.\n\n"
         exit 1
     fi
     
