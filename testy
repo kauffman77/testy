@@ -50,6 +50,9 @@ This test will fail and produce output associated to show the
 side-by-side diff that primarily reports failures.
 
 ** program: bash -v
+To run this individual test in GDB use the command:
+  gdb --args bash -v
+but any input to the program must be typed within the debugger
 
 ** --- Failure messages ---
 - FAILURE: Output Mismatch at lines marked
@@ -1303,6 +1306,9 @@ function run_test_session() {
            printf 'COMMENTS:\n'
            printf "%b" "${comments}"
            printf '** program: %s\n' "$program"
+           printf 'To run this individual test in GDB use the command:\n'
+           printf '  gdb --args %s\n' "$program"
+           printf 'but any input to the program must be typed within the debugger\n'
            printf "\n"
            printf '** --- Failure messages --- \n'
            for msg in "${fail_messages[@]}"; do       # iterate through failure messages

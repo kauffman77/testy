@@ -50,6 +50,9 @@ Usage is best described by the help message shown via ~testy --help~
 : side-by-side diff that primarily reports failures.
 : 
 : ** program: bash -v
+: To run this individual test in GDB use the command:
+:   gdb --args bash -v
+: but any input to the program must be typed within the debugger
 : 
 : ** --- Failure messages ---
 : - FAILURE: Output Mismatch at lines marked

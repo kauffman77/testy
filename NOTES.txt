@@ -21,6 +21,15 @@
   out-of-bounds test fails with uninformative message (e.g. 4 tests
   present, run #5)
 - Add multi-part test handling to ~testy-regen~
+- Added a message about how to run a single test in GDB but only
+  relevant to non-interactive tests; would be useful to also add
+  ability to run test with interactive input in GDB but this will
+  require more care. Need to include in the command provided the input
+  redirection. Currently input is in a FIFO rather than a file which
+  complicates the ability to run this after a test completes: the FIFO
+  will be empty. Might move towards input file rather than input FIFO
+  but that is a larger scale change than I'd want to commit to at the
+  moment. 
 
 ** Done
 - Adjust standard single tests to add failures to lists like they
