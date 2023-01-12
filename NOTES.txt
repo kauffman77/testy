@@ -30,6 +30,10 @@
   will be empty. Might move towards input file rather than input FIFO
   but that is a larger scale change than I'd want to commit to at the
   moment. 
+- Output results files even for passing tests - makes understanding
+  output easier at the minor expense of more disk space
+- Truncate output to some configurable amount; for infinite loops that
+  produce lots of output this will lead to better outcomes
 
 ** Done
 - Adjust standard single tests to add failures to lists like they
