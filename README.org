@@ -389,3 +389,10 @@ You may also simply download the script and run it as follows:
 # Verbose
 ./install_mac_requirements.sh -v
 #+end_src
+
+Note that the script can be run again without issue. It will
+automatically detect what is already installed and will not
+reinstall them again.
+
+Rather, it will ensure that all of the installed components
+are up to date!

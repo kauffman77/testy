@@ -13,27 +13,47 @@ fi
 
 # If there are more than 1 command-line arguments entered, exit the script
 if [ "$#" -gt 1 ]; then
-    printf "This script only supports up to one command-line arguments.\n\n"
+    printf "This script only supports up to one command-line argument.\n\n"
     exit 1
 # Otherwise, if one command-line argument was entered, throw an error if it is not "-v" and enable
 # echoing/verbose mode otherwise
 elif [ "$#" -eq 1 ]; then
     if [ "$1" != "-v" ]; then
-        printf "The only command line argument accepted is the '-v' flag.\n\n"
+        printf "The only command line argument accepted is the '-v' flag for verbose mode.\n\n"
         exit 1
     fi
     
     # File descriptor 3 is used to redirect stdout to stdout in this case and 4 to redirect stderr
     # to stderr
-    exec 3>&1
-    exec 4>&2
+    if ! exec 3>&1; then
+        printf "\nAn error occurred in creating file descriptor 3.\n"
+        printf "Try running the script again, and if the problem still occurs, "
+        printf "contact chawl025@umn.edu\n\n"
+        exit 1
+    fi
+    if ! exec 4>&2; then
+        printf "\nAn error occurred in creating file descriptor 4.\n"
+        printf "Try running the script again, and if the problem still occurs, "
+        printf "contact chawl025@umn.edu\n\n"
+        exit 1
+    fi
     echo_on=true
 # If no command-line arguments were entered, don't enable echoing
 else
     # File descriptor 3 is used to redirect stdout to /dev/null in this case and 4 to redirect
     # stderr to /dev/null
-    exec 3>/dev/null
-    exec 4>&3
+    if ! exec 3>/dev/null; then
+        printf "\nAn error occurred in creating file descriptor 3.\n"
+        printf "Try running the script again, and if the problem still occurs, "
+        printf "contact chawl025@umn.edu\n\n"
+        exit 1
+    fi
+    if ! exec 4>&3; then
+        printf "\nAn error occurred in creating file descriptor 4.\n"
+        printf "Try running the script again, and if the problem still occurs, "
+        printf "contact chawl025@umn.edu\n\n"
+        exit 1
+    fi
     echo_on=false
 fi
 
