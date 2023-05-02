@@ -2,7 +2,7 @@
 # Gets the environment's location of bash instead of assuming it to be /bin/bash (Shebang must be
 # the first line). Do NOT change to zsh.
 
-# Author: Nikunj Chawla <chawl025@umn.edu>
+# Author: Nikunj Chawla <tinyurl.com/nikunj-cs>
 
 # Prevents the user from executing this script as root as homebrew does not play well with root
 if [ "$(whoami)" == "root" ]; then
@@ -28,13 +28,13 @@ elif [ "$#" -eq 1 ]; then
     if ! exec 3>&1; then
         printf "\nAn error occurred in creating file descriptor 3.\n"
         printf "Try running the script again, and if the problem still occurs, "
-        printf "contact chawl025@umn.edu\n\n"
+        printf "contact tinyurl.com/nikunj-cs\n\n"
         exit 1
     fi
     if ! exec 4>&2; then
         printf "\nAn error occurred in creating file descriptor 4.\n"
         printf "Try running the script again, and if the problem still occurs, "
-        printf "contact chawl025@umn.edu\n\n"
+        printf "contact tinyurl.com/nikunj-cs\n\n"
         exit 1
     fi
     echo_on=true
@@ -45,13 +45,13 @@ else
     if ! exec 3>/dev/null; then
         printf "\nAn error occurred in creating file descriptor 3.\n"
         printf "Try running the script again, and if the problem still occurs, "
-        printf "contact chawl025@umn.edu\n\n"
+        printf "contact tinyurl.com/nikunj-cs\n\n"
         exit 1
     fi
     if ! exec 4>&3; then
         printf "\nAn error occurred in creating file descriptor 4.\n"
         printf "Try running the script again, and if the problem still occurs, "
-        printf "contact chawl025@umn.edu\n\n"
+        printf "contact tinyurl.com/nikunj-cs\n\n"
         exit 1
     fi
     echo_on=false
@@ -114,7 +114,7 @@ else
     then
         printf "\nAn error occurred in the installation of homebrew.\n"
         printf "Try running the script again, and if the problem still occurs, "
-        printf "contact chawl025@umn.edu\n\n"
+        printf "contact tinyurl.com/nikunj-cs\n\n"
         exit 1
     fi
     
@@ -150,7 +150,7 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] \
         if ! touch "$HOME/.bash_profile"; then
             printf "An error occurred in creating ~/.bash_profile.\n"
             printf "Try running the script again, and if the problem still occurs, "
-            printf "contact chawl025@umn.edu\n\n"
+            printf "contact tinyurl.com/nikunj-cs\n\n"
             exit 1
         fi
         
@@ -173,7 +173,7 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] \
         if ! touch "$HOME/.zprofile"; then
             printf "An error occurred in creating ~/.zprofile.\n"
             printf "Try running the script again, and if the problem still occurs, "
-            printf "contact chawl025@umn.edu\n\n"
+            printf "contact tinyurl.com/nikunj-cs\n\n"
             exit 1
         fi
         
@@ -213,7 +213,7 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] \
     if ! printf "%s" "$load_homebrew_string" >> ~/.bash_profile; then
         printf "An error occurred in trying to write to ~/.bash_profile.\n"
         printf "Try running the script again, and if the problem still occurs, "
-        printf "contact chawl025@umn.edu\n\n"
+        printf "contact tinyurl.com/nikunj-cs\n\n"
         exit 1
     fi
     
@@ -226,7 +226,7 @@ if ! brew help >/dev/null 2>&1 || [[ "$PATH" != *"$(brew --prefix)/bin"* ]] \
     if ! printf "%s" "$load_homebrew_string" >> ~/.zprofile; then
         printf "An error occurred in trying to write to ~/.zprofile.\n"
         printf "Try running the script again, and if the problem still occurs, "
-        printf "contact chawl025@umn.edu\n\n"
+        printf "contact tinyurl.com/nikunj-cs\n\n"
         exit 1
     fi
     
@@ -265,7 +265,7 @@ else
     if ! brew install bash >&3 2>&4; then
         printf "An error occurred in the installation of bash.\n"
         printf "Try running the script again, and if the problem still occurs, "
-        printf "contact chawl025@umn.edu\n\n"
+        printf "contact tinyurl.com/nikunj-cs\n\n"
         exit 1
     fi
     
@@ -292,7 +292,7 @@ else
         printf "\nAn error occurred when trying to add the updated bash to the list of available "
         printf "Terminal shells.\n"
         printf "Try running the script again, and if the problem still occurs, "
-        printf "contact chawl025@umn.edu\n\n"
+        printf "contact tinyurl.com/nikunj-cs\n\n"
         exit 1
     fi
     
@@ -317,7 +317,7 @@ else
         if ! chsh -s "$(brew --prefix)/bin/bash" >&3 2>&4; then
             printf "\nAn error occurred when trying to update your terminal shell.\n"
             printf "Try running the script again, and if the problem still occurs, "
-        printf "contact chawl025@umn.edu\n\n"
+        printf "contact tinyurl.com/nikunj-cs\n\n"
             exit 1
         fi
         
@@ -360,7 +360,7 @@ else
     if ! brew install gcc >&3 2>&4; then
         printf "An error occurred in the installation of gcc.\n"
         printf "Try running the script again, and if the problem still occurs, "
-        printf "contact chawl025@umn.edu\n\n"
+        printf "contact tinyurl.com/nikunj-cs\n\n"
         exit 1
     fi
     
@@ -448,7 +448,7 @@ else
         if ! rm "$(brew --prefix)/bin/gcc" >&3 2>&4; then
             printf "An error occurred in the removal of the old symlink.\n"
             printf "Try running the script again, and if the problem still occurs, "
-            printf "contact chawl025@umn.edu\n\n"
+            printf "contact tinyurl.com/nikunj-cs\n\n"
             exit 1
         fi
     else
@@ -465,7 +465,7 @@ else
     if ! ln -s "$(brew --prefix)/bin/$gcc_string" "$(brew --prefix)/bin/gcc" >&3 2>&4; then
         printf "An error occurred in the symlinking of gcc.\n"
         printf "Try running the script again, and if the problem still occurs, "
-        printf "contact chawl025@umn.edu\n\n"
+        printf "contact tinyurl.com/nikunj-cs\n\n"
         exit 1
     fi
     
@@ -502,7 +502,7 @@ else
     if ! brew install coreutils >&3 2>&4; then
         printf "An error occurred in the installation of coreutils.\n"
         printf "Try running the script again, and if the problem still occurs, "
-        printf "contact chawl025@umn.edu\n\n"
+        printf "contact tinyurl.com/nikunj-cs\n\n"
         exit 1
     fi
     
@@ -543,7 +543,7 @@ else
     if ! brew install gnu-sed >&3 2>&4; then
         printf "An error occurred in the installation of gnu-sed.\n"
         printf "Try running the script again, and if the problem still occurs, "
-        printf "contact chawl025@umn.edu\n\n"
+        printf "contact tinyurl.com/nikunj-cs\n\n"
         exit 1
     fi
     
@@ -583,7 +583,7 @@ else
     if ! brew install gawk >&3 2>&4; then
         printf "An error occurred in the installation of gawk.\n"
         printf "Try running the script again, and if the problem still occurs, "
-        printf "contact chawl025@umn.edu\n\n"
+        printf "contact tinyurl.com/nikunj-cs\n\n"
         exit 1
     fi
     
