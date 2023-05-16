@@ -104,7 +104,7 @@ for i=1 to length(tests)
   done
 done
 #+END_SRC
-- This design involves no fancy coronation, will only stall printing
+- This design involves no fancy coordination, will only stall printing
   on a very long early test, should be reasonably robust
 - Requires certain state to be transmitted between child proc and
   parent testy, namely test result, but may be able to do this in a
@@ -119,6 +119,73 @@ done
 - Perhaps show diff with matching
 - In output files at top (title), show PASS or FAIL
 
+
+* Merging Single / TESTY_MULTY functionality
+- TESTY_MULTI is more general
+- For a single test, just need to start the child process, feed it
+  input, then check the results
+- Select a single key for the main program like "MAIN"
+- Using testy_multi would allow signals, EOF to be passed to the
+  program
+
+#+BEGIN_SRC text
+>> START bruce ./banter_client bruce
+program_start key cmd  -- does cmd need valgrind etc?
+
+>> INPUT bruce Aaaaal-freeeeed!
+program_start key input  -- used in session loop to send input
+
+>> WAIT bruce
+program_wait key  -- used at end
+
+${program_input__fifo[$key]}  
+input to program via FIFO
+
+${program_output_file[$key]}  
+output for program
+
+${program_valgfile[$key]}  
+valgrind output
+
+
+#+END_SRC
+
+** run_test_multi_session
+- There are a bunch of arrays that are set up at the beginning of this
+  function that would also be required for a single session to be
+  compatible, will want to spin this into its own setup function so it
+  can be used for either single or multi sessions
+- There is a diff_expect_actual command as well which checks the
+  output produced by the multi session; could re-use this for the
+  output of the program in the single mode
+- Big difference in post processing is the need to loop over multiple
+  programs
+- Multi always produces a results file which we want anyway
+
+
+|                    | SINGLE               | MULTI                  |                                                        |
+|--------------------+----------------------+------------------------+--------------------------------------------------------|
+| Initialization     | session_setup        | ""                     | Like first part of current run_test_multi_session      |
+| Session Input Loop | session_single_input | session_multi_input    | likely cleaner to split these but possible overlap     |
+| Wrap-up            | inline, single wait  | inline, multiple waits | don't need a function for this as its relatively short |
+| diff checks        | diff_expect_actual   | ""                     | Both have output files, should be able to re-use       |
+| retcode checks     | check_return         | looped check_return    | Single function to check for failures via return code  |
+|                    |                      |                        |                                                        |
+
+** Name Collisions
+- program_status[] :: running, killed, finished etc. assoc array of all
+  programs that are part of the test
+- status :: of the test, ok / FAIL, likely rename to ~test_status~
+- PASS_STATUS :: is ok, constant string for passing test
+- FAIL_STATUS :: is FAIL, constant string for failing test
+
+** Use of read() command + Expected Output 
+- Currently being handled via sed on the test file, not great, could
+  accumulate these in arrays instead
+- Could also accumulate session commands in an array and iterate over
+  them, passing them as args or as a global variable; this would
+  likely beat the ~read~ approach with its weirdness
+-
 
 * Bad File Descriptors
 When programs in a TESTY_MULTI session segfault, sometimes get bad

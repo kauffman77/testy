@@ -369,7 +369,7 @@ VALGRIND_START_TICKS=${VALGRIND_START_TICKS:-"8"}     # multi: number of ticks t
 # INPUT_STYLE="normal"
 
 RETCODE_TIMEOUT=137                                   # code usually returned by timeout when it kills programs
-RETCODE_SEGFAULT=139                                    # code usually returned when OS kills a program
+RETCODE_SEGFAULT=139                                  # code usually returned when OS kills a program
 PASS_STATUS="ok"                                      # status message associated with passing
 FAIL_STATUS="FAIL"                                    # default status message associated with failing a test, anything not $PASS_STATUS is a failure though
 TEST_TITLE_WIDTH=20                                   # initial width for test test_titles, set to widest during initial parsing
@@ -1053,7 +1053,7 @@ function run_test_multi_session() {
     return 0
 }
 
-# Handle a #+BEGIN_QUoTE region which will create a file with the
+# Handle a #+BEGIN_QUOTE region which will create a file with the
 # specified name in it and place text in the region in file. Useful
 # for creating small-ish input files on the fly during tess. This
 # output is also echoed into the comments for the test results. 
@@ -1102,43 +1102,21 @@ function run_test_session() {
         VALGRIND=""
     fi
 
-    fromprog_file=$(printf "%s/%s-%02d-fromfile.tmp" "$resultraw" "$prefix" "$testnum")   # may wish to alter this to honor TMPDIR
-    toprog_fifo=$(printf "%s/%s-%02d-tofifo.tmp" "$resultraw" "$prefix" "$testnum")       # set up communication with the program being tested
-    if [[ -n "$TMPFIFOS" ]]; then
-        toprog_fifo=$(printf "%s/%s-%02d-tofifo.tmp" "$TMPFIFOS" "$prefix" "$testnum")    # use /tmp instead, likely due to Windows/WSL
-    fi
-    debug "toprog_fifo: $toprog_fifo"
+    toprog_file=$(printf "%s/%s-%02d-tofile.tmp" "$resultraw" "$prefix" "$testnum")       # may wish to alter this to honor TMPDIR
+    fromprog_file=$(printf "%s/%s-%02d-fromfile.tmp" "$resultraw" "$prefix" "$testnum")   # input / output files for program
+    debug "toprog_file: $toprog_file"
     debug "fromprog_file: $fromprog_file"
-    rm -f "${toprog_fifo}" "${fromprog_file}"           # remove just in case
+    rm -f "${toprog_file}" "${fromprog_file}"         # remove just in case
 
-    mkfifo "$toprog_fifo"                               # create the fifos
 
-    # RUN THE PROGRAM
-    #
-    # - timeout will kill the program after a certain duration
-    # - stdbuf disables buffering and prevents stalled output problems
-    # - valgrind may be turned on to check for memory errors
-    # - input is read from a fifo from the specfile
-    # - output is directed to a file
-
-    cmd="$TIMEOUTCMD $timeout $STDBUF $VALGRIND $program <${toprog_fifo} &> ${fromprog_file} &"
-    debug "running: '$cmd'"
-    eval "$cmd"                                       # eval is required due to the complex redirections with < and >
-    pid=$!
-    debug "child pid: $pid"
-
-    # open to after running the program or testy will stall
-    exec {to}>"${toprog_fifo}"                        # open connection to fifo for writing
-    debug "to fd: $to"
-
-    status="$PASS_STATUS"                             # initial status, change to 'FAIL' if things go wrong
-    fail_messages=()                                  # array accumulating failure messages
     all_input=()                                      # array accumulating input fed to program
     session_beg_line=$((linenum + 1))
     eof_set=0
 
-    # LOOP to feed lines of input to the program, output is fed to a
-    # file, modified later if needed to re-add the prompt
+
+    # LOOP through tests output to determine the input to the
+    # program. Input is added to a file file, modified later if needed
+    # to re-add the prompt.
     while read -r; do                                 # read a line from the test session
         updateline
         debug "$linenum: $line"
@@ -1154,9 +1132,8 @@ function run_test_session() {
             "$prompt")                                # test input, feed to program
                 if [[ "$eof_set" == "0" ]]; then
                     input="$rest"
-                    all_input+=("$input")                 # append to all_input array for later processing
-                    debug "^^ sending input"
-                    printf "%s\n" "$input" >&$to          # send input after prompt to program, printf in this way preserves embedded newlines
+                    all_input+=("$input")             # append to all_input array for later processing
+                    debug "^^ found input '$input'"
                 else
                     debug "^^ ignoring prompt after EOF"
                 fi
@@ -1170,17 +1147,34 @@ function run_test_session() {
     session_end_line=$((linenum - 1))                 # note the line session ends on to enable #+TESTY_RERUN:
     debug "session lines: beg $session_beg_line end $session_end_line"
 
-    debug "closing to fifo fd ${to}"
-    exec {to}>&-                                      # closes to fifo
+    # CREATE PROGRAM INPUT FILE by iterating through the all_input
+    # variable and ploppoing it down in a file
+    debug "creating program input file '$toprog_file'"
+    for a in "${all_input[@]}"; do
+        printf "%s\n" "$a";
+    done > ${toprog_file}
+
+
+    # RUN THE PROGRAM
+    #
+    # - timeout will kill the program after a certain duration
+    # - stdbuf disables buffering and prevents stalled output problems
+    # - valgrind may be turned on to check for memory errors
+    # - input is read from a file created above from the specfile
+    # - output is directed to a file
+    cmd="$TIMEOUTCMD $timeout $STDBUF $VALGRIND $program <${toprog_file} &> ${fromprog_file} &"
+    debug "running: '$cmd'"
+    eval "$cmd"                                       # eval is required due to the complex redirections with < and >
+    pid=$!
+    debug "child pid: $pid"
 
     debug "waiting on finished child"
     wait $pid &>/dev/null                             # wait on the child to finish
     retcode="$?"                                      # capture return code from program run
     debug "wait returned: $retcode"
 
-    debug "removing to fifo"
-    rm -f "${toprog_fifo}"                                 # ${toprog_fifo}
-
+    status="$PASS_STATUS"                             # initial status, change to 'FAIL' if things go wrong
+    fail_messages=()                                  # array accumulating failure messages
     case "$retcode" in                                # inspect return code for errors
         "$VALG_ERROR")
             status="$FAIL_STATUS"
@@ -1198,8 +1192,7 @@ function run_test_session() {
             debug "checking return value '$retcode'"
             if [[ "$checkreturn" == "1" && "$retcode" != "0" ]]; then
                 status="$FAIL_STATUS"
-                msg="program returned $retcode (non-zero) triggering failure"
-                fail_messages+=("$msg")
+                fail_messages+=("FAILURE: program returned $retcode (non-zero) triggering failure")
                 skipdiff=0      # hack to show diffed output on non-zero return, possibly from valgrind subprocess
             fi
     esac
