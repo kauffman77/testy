@@ -1,13 +1,13 @@
--*- mode: Org;-*-
+# -*- mode: Org;-*-
 
 * TODO Items
+- Refactor Mac install script to remove massive redundancy in code
 - Refactor internals to merge several nearly-identical functions for
   TESTY_MULTI and single program tests; this will ease maintenance
-- TESTY_MULTI commands don't work unless there is a exactly one
-  space separating the tokens. This defies common
-  convention/expectation.  Work out a function to split words on
-  spaces and use it in the MULTI functionality to make this more
-  robust. 
+- TESTY_MULTI commands don't work unless there is a exactly one space
+  separating the tokens. This defies common convention/expectation.
+  Work out a function to split words on spaces and use it in the MULTI
+  functionality to make this more robust.
 - Re-arrange the example files into directories
   - Currently all under file:examples/ but could organize these a bit
     more with its own README
