@@ -69,6 +69,17 @@
 - An initial loop to start a number of child processes equal to the
   specified number of jobs will cause the above loop to keep that
   number of children live
+- Need some code that would pares the results file to determine
+  overall results; essentially all that is needed is to determine if
+  the test passes or fails calculation of overall results, making sure
+  the first line of results files indicate failure should make this
+  relatively easy
+- Even in serial mode code use this device
+  - spawn a child process via --child each test to run it
+  - wait on results before launching another one
+  - would pave the way for multi-process execution and ensure
+    consistency between single and multip-process execution
+  - would make debugging harder so delay this implementation
 - Pseudocode 
 #+BEGIN_SRC text
 assoc array childpid_to_testnum[]
