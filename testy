@@ -929,8 +929,8 @@ function session_setup() {
 # comprises a set of commands on when to start programs and what input
 # should be given them at what time. The function is run in a context
 # where 'read' will extract lines from the test session.
-function run_test_multi_session() {
-    debug "run_test_multi_session"
+function session_run_multi() {
+    debug "session_run_multi"
 
     session_setup
 
@@ -1069,8 +1069,8 @@ function run_test_multi_session() {
 # specified name in it and place text in the region in file. Useful
 # for creating small-ish input files on the fly during tess. This
 # output is also echoed into the comments for the test results. 
-function catfile_session() {                   # for #+BEGIN_QUOTE some-file-name.txt
-    debug "catfile_session: $line"
+function session_catfile() {                   # for #+BEGIN_QUOTE some-file-name.txt
+    debug "session_catfile: $line"
     outfilename="${line##* }"                  # extract last token from the line as file name
     debug "outfilename: $outfilename"
     comments="${comments}${line}\n"
@@ -1561,7 +1561,7 @@ for testnum in $alltests; do                          # Iterate over all tests t
             "#+BEGIN_SRC")                            # test session starting
                 debug ":TEST $testnum: Begin testing session"
                 if [[ "$program" == "TESTY_MULTI" ]]; then
-                    run_test_multi_session
+                    session_run_multi
                 else
                     run_test_session
                 fi
@@ -1571,7 +1571,7 @@ for testnum in $alltests; do                          # Iterate over all tests t
                 fi
                 ;;
             "#+BEGIN_QUOTE")                          # create a file with the quoted material in it
-                catfile_session
+                session_catfile
                 ;;
             "#+TESTY_RERUN:")                         # eval some code to set options
                 old_linenum=$linenum
@@ -1589,7 +1589,7 @@ for testnum in $alltests; do                          # Iterate over all tests t
                 fi
 
                 if [[ "$program" == "TESTY_MULTI" ]]; then
-                    run_test_multi_session <<<"$($SEDCMD -n "${beg},${end}p" "$specfile")"
+                    session_run_multi <<<"$($SEDCMD -n "${beg},${end}p" "$specfile")"
                 else
                     run_test_session <<<"$($SEDCMD -n "${beg},${end}p" "$specfile")"
                 fi
