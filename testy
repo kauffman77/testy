@@ -550,18 +550,17 @@ function program_start() {
         program_input__fifo[$key]=$(printf "%s/%s-%02d-%s_input__fifo.tmp" "${TMPFIFOS}" "$prefix" "$testnum" "$key")
     fi
 
-    if [[ "$use_valgrind" == 1 ]]; then
+    rm -f "${program_input__fifo[$key]}" "${program_output_file[$key]}" # remove just in case
+    mkfifo "${program_input__fifo[$key]}"                               # create the fifo going to the program
+
+    if [[ "$use_valgrind" == 1 ]]; then                                 # setup valgrind file if needed
         program_valgfile[$key]=$(printf "%s/%s-%02d-%s_valgrd.tmp" "$resultraw" "$prefix" "$testnum" "$key")
+        rm -f "program_valgfile[$key]"
         VALGRIND="${VALGRIND_PROG} ${VALGRIND_OPTS} --log-file=${program_valgfile[$key]}"
-        # program_valgfile[$key]=$(mktemp $resultraw/testy_valg.XXXXXX)
-        # program_output_file[$key]=$(printf "%s/%s-%02d-%s_output_file.tmp" "$resultraw" "$prefix" "$testnum" "$key")
     else
         program_valgfile[$key]="NONE"
         VALGRIND=""
     fi
-
-    rm -f "${program_input__fifo[$key]}" "${program_output_file[$key]}" # remove just in case
-    mkfifo "${program_input__fifo[$key]}"                               # create the fifo going to the program
 
     # Below block starts a subshell to close extraneous file
     # descriptors then exec's the actual program. MUST close the other
@@ -877,12 +876,12 @@ function diff_expect_actual() {
     return $diffreturn
 }
 
-# Used when program is TESTY_MULTI. Run a test session where several
-# programs must be started and coordinated at once. The session
-# comprises a set of commands on when to start programs and what input
-# should be given them at what time. The function is run in a context
-# where 'read' will extract lines from the test session.
-function run_test_multi_session() {
+# Creates arrays and other data necessary to run a testing
+# session. This data is used for both single-program and mulit-program
+# testing sessions. 
+function session_setup() {
+    debug "session_setup"
+
     if [[ "$use_valgrind" == 1 ]]; then
         checkdep_fail "valgrind"     # only check for valgrind if the test requires it
     fi
@@ -893,7 +892,7 @@ function run_test_multi_session() {
         program_keys                 # each program has a unique key like 'server'
     )
     assoc_arrays=(
-        program_pid                  # pid of the multiple programs used during the test
+        program_pid                  # pids of the multiple programs used during the test
         program_state                # 1 for program still running, 0 for program complete/killed
         program_name                 # name of programs, 1st word in command, useful for pkill
         program_command              # full command for each program
@@ -913,15 +912,28 @@ function run_test_multi_session() {
         declare -g -A "$a"                            # declare as -g global, -A Associative array
     done
 
-    # Set up the testing environment
     mkdir -p "$resultdir"                             # set up test results directory
     mkdir -p "$resultraw"                             # set up raw directory for temporary files/raw output
     result_file=$(printf "%s/%s-%02d-result.tmp" "$resultdir" "$prefix" "$testnum")
     actual_file=$(printf "%s/%s-%02d-actual.tmp" "$resultraw" "$prefix" "$testnum")
     expect_file=$(printf "%s/%s-%02d-expect.tmp" "$resultraw" "$prefix" "$testnum")
+    rm -f "${actual_file}" "${expect_file}" "${result_file}"
 
     status="$PASS_STATUS"                             # initial status, change to 'FAIL' if things go wrong
     fail_messages=()                                  # array accumulating failure messages
+    
+}
+
+# Used when program is TESTY_MULTI. Run a test session where several
+# programs must be started and coordinated at once. The session
+# comprises a set of commands on when to start programs and what input
+# should be given them at what time. The function is run in a context
+# where 'read' will extract lines from the test session.
+function run_test_multi_session() {
+    debug "run_test_multi_session"
+
+    session_setup
+
     session_beg_line=$((linenum + 1))                 # mark start of session to allow it to be extracted
 
     # main input loop to read lines and handle them

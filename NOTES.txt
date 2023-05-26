@@ -196,7 +196,40 @@ valgrind output
 - Could also accumulate session commands in an array and iterate over
   them, passing them as args or as a global variable; this would
   likely beat the ~read~ approach with its weirdness
--
+
+
+** Handling of input / output / valgrind
+- In multi-sessions, each program has its own input/output/valgrind
+  files
+- Overkill for single session where want shorter names for raw
+  input for single program 
+- Still want to share the functionality as much as possible
+- These are not hard to adjust though, files / fifos / etc associated
+  with a program key but don't need to name them according to the same
+  convention in both single / multi
+  #+BEGIN_SRC sh
+  # SINGLE MODE
+  program_output_file["theprog"]="test-results/raw/${prefix}-05-actual.tmp"
+  # ACTUAL is the same as as single program output
+
+  # MULTI MODE
+  program_output_file[$key]="test-results/raw/${prefix}-05_${key}_output_file.tmp"
+  # ACTUAL file is distinct as it is output produced by the testy multi handler
+  #+END_SRC
+- Actually can't do the above because ~program_start()~ has its own
+  convention for naming; could symlink or hardlink actual_file after
+  the fact - e.g. 
+  #+BEGIN_SRC sh
+  ln "${program_output_file["theprog"]}" "$actual_file"
+  if [[ use_valgrind ]]; then
+      ln "${program_valgfile["theprog"]}" "valgrind_file"
+  fi
+  #+END_SRC
+- Note the modest conflict/overlap between single test outputs and
+  multi test outputs and the ACTUAL file
+- May be able to extract expected input and simply cat the file into
+  the input pipe for the program so no need to do things differently
+  between single and multi
 
 * Bad File Descriptors
 When programs in a TESTY_MULTI session segfault, sometimes get bad
