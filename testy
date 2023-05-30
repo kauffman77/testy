@@ -851,36 +851,25 @@ function diff_expect_actual() {
     debug "diff_expect_actual '$1' '$2'"
     expect_file="$1"
     actual_file="$2"
-    outfile="$3"
+    outfile_sbs="$3"
+    outfile_line="$4"
 
     actual_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$actual_file")
     expect_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$expect_file")
     col_width=$((actual_width > expect_width ? actual_width : expect_width))
-    # total_width=$((col_width*2 + 3))                  # width to pass to diff as -W
     total_width=$((actual_width + expect_width + 5))    # width to pass to diff as -W, tighter than previous
 
     debug "actual_width $actual_width expect_width $expect_width"
     debug "col_width $col_width total_width $total_width"
 
-    diffcmd="$DIFF ${expect_file} ${actual_file}"     # run standard diff to check for differences
-    diffresult=$(eval "$diffcmd")
+    # run standard diff to check for differences
+    eval "$DIFF ${expect_file} ${actual_file} >& ${outfile_line}"
     diffreturn="$?"                                   # capture return value for later tests
     debug "diffreturn: $diffreturn"
-    {                                                 # create diff file
-        # printf "%s\n" "** --- Side by Side Differences ---"
-        # printf "TEST OUTPUT MISMATCH: Side by Side Differences shown below \n"
-        printf "%s\n" "- Expect output in: $expect_file"
-        printf "%s\n" "- Actual output in: $actual_file"
-        printf "%s\n" "- Differing lines have a character like '|' and '<' in the middle"
-        printf "\n"
-        printf "%s\n" "#+BEGIN_SRC sbs-diff"
+    {                                                 # create side-by-side diff file
         printf "%-${col_width}s   %-${col_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
         $SDIFF -W $total_width "$expect_file" "$actual_file"
-        printf "%s\n" "#+END_SRC"
-        printf "\n"
-        printf "%s\n" "** LINE DIFFERENCES"    # 
-        printf "%s" "$diffresult"
-    } >"$outfile"
+    } >"$outfile_sbs"
 
     # The below eliminate extra spaces in diff file mostly for the
     # left EXPECT column that would make the output very wide.  This
@@ -891,8 +880,8 @@ function diff_expect_actual() {
     if ((actual_width - expect_width > 10)); then
         extra_space_width=$((actual_width - expect_width))
         extra_space_width=$((extra_space_width - 5))
-        debug "Eliminating $extra_space_width spaces from diff file $outfile}"
-        $SEDCMD -i -E "s/(.{$expect_width})[ ]{$extra_space_width}/\1 /" "$outfile"
+        debug "Eliminating $extra_space_width spaces from diff file $outfile_sbs}"
+        $SEDCMD -i -E "s/(.{$expect_width})[ ]{$extra_space_width}/\1 /" "$outfile_sbs"
     fi
 
     # Check fof failures based on skipdiff
@@ -925,6 +914,7 @@ function session_setup() {
     expect_file=$(printf "%s/%s-%02d-expect.tmp" "$resultraw" "$prefix" "$testnum")
     valgrd_file=$(printf "%s/%s-%02d-valgrd.tmp" "$resultraw" "$prefix" "$testnum")
     diff_file=$(printf "%s/%s-%02d-diff.tmp"   "$resultraw" "$prefix" "$testnum")
+    diffline_file=$(printf "%s/%s-%02d-diff-lines.tmp" "$resultraw" "$prefix" "$testnum")
 
     # may wish to alter this to honor TMPDIR for this; individual file
     # which is useful for single program tests to track input but is
@@ -1014,7 +1004,7 @@ function session_run_multi() {
         >"${expect_file}"
 
     # diff expect/actual output, sets 'status'
-    diff_expect_actual "$expect_file" "$actual_file" "$diff_file"
+    diff_expect_actual "$expect_file" "$actual_file" "$diff_file" "$diffline_file"
 
     # Calculate the Width of various table fields tight
     cmd_str="COMMAND"                                 # start with width of headings for several columns
@@ -1198,41 +1188,6 @@ function file_of_array () {
     done > ${outfile}
 }
 
-
-# # CREATE PROGRAM INPUT FILE by iterating through the all_input
-# # variable and ploppoing it down in a file.
-# #
-# # NOTE: input file is not strictly necessary as there is a fifo
-# # however it can make debugging easier in some situations as the
-# # entirety of the actual input can be examined later AND this allows a
-# # GDB session to use the input so it does not need to be typed
-# function session_create_toprog_file () {
-#     outfile=$1
-#     debug "creating program input file '$'"
-#     for a in "${all_input[@]}"; do
-#         printf "%s\n" "$a";
-#     done > ${outfile}
-# }
-
-# # extract expected output from test file, filter #+TESTY_ , store result in expect_file
-# function session_create_expect_file () {
-
-#     outfile=$1
-
-
-#     beg_line=$2
-#     end_line=$3
-#     range="${beg_line},${end_line}p"           # range of lines for sed to print
-#     if ((beg_line > end_line)); then           # in sed, if start > end then the
-#         range=""                               # start line still gets printed so
-#     fi                                         # set range to nothing for empty output
-#     # exclude TESTY directives
-#     $SEDCMD -n "$range" <"$specfile" |
-#         grep -v '^#+TESTY_' \
-#         >"${outfile}"
-# }
-
-
 # gathers session lines as all_input[] and all_output[] arrays
 function session_single_gather_all () {
     all_input=()                               # all input lines for program
@@ -1278,6 +1233,7 @@ function session_single_gather_all () {
 
 }
 
+# Create the results file for a test of a single program
 function session_single_result_file () {
     outfile=$1
 
@@ -1298,14 +1254,25 @@ function session_single_result_file () {
         for msg in "${fail_messages[@]}"; do       # iterate through failure messages
             printf "%b\n" "$msg"
         done
-        printf "\n"
 
-        # Note: Not completely happy with the formatting and
-        # consistency of these sections but will do for now
+        # output the diff files, side-by-side and line-by-line. Diffs
+        # are shown irrespective of test success or failure
         printf "%s\n" "** SIDE-BY-SIDE DIFF of Expected vs Actual"
         printf "%s\n" "from file '${diff_file}'"
-        cat "${diff_file}"      # always show the diff 
-        printf "\n\n"
+        printf "%s\n" "- Expect output in: $expect_file"
+        printf "%s\n" "- Actual output in: $actual_file"
+        printf "%s\n" "- Differing lines have a character like '|' and '<' in the middle"
+        printf "\n"
+        printf "%s\n" "#+BEGIN_SRC sbs-diff"
+        cat "${diff_file}"
+        printf "\n"
+        printf "%s\n" "#+END_SRC"
+        printf "\n"
+        printf "%s\n" "** LINE DIFFERENCES"
+        printf "%s\n" "from file '${diffline_file}'"
+        printf "If this section is empty, there are no line differences\n\n"
+        cat "${diffline_file}"
+        printf "\n"
 
         if [[ "$use_valgrind" == "1" ]]; then      # show valgrind log if enabled 
             printf "%s\n" "** VALGRIND LOG from: ${valgrd_file}"
@@ -1357,7 +1324,7 @@ function session_run_single () {
     program_adjust_timeout_message "$actual_file"
 
     # diff expect/actual output, sets 'status'
-    diff_expect_actual "$expect_file" "$actual_file" "$diff_file"  
+    diff_expect_actual "$expect_file" "$actual_file" "$diff_file" "$diffline_file"
     program_check_failures "$progkey" "cat"           # second filter arg appliees to valgrind output
 
     session_single_result_file "$result_file"         # produce output file
