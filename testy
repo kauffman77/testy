@@ -406,11 +406,23 @@ function checkdep_fail() {
     fi
 }
 
-function debug() {                                    # print a debug message
+# print a testy debug message which is shown when running with DEBUG=1
+# or TESTY_DEBUG=1. There are TONS of debug messages used and should
+# likely upgrade this to debug levels at some point but the verbose
+# output is extremely helpful when testy breaks.
+function debug() {                                    
     if [[ -n "$DEBUG" || -n "$TESTY_DEBUG" ]]; then
         echo "==DBG== $1" >/dev/stderr
     fi
 }
+
+# called in after reading lins of input during input loops via
+# 
+#  while read .. < input
+# 
+# paradigm in bash. Likely will be refactoring that pattern out but
+# for now this provides some basic parsing like peeling off the first
+# word/token which is often special.
 function updateline() {                               # processes $line to set some other global variables
     line="$REPLY"                                     # copy from REPLY built-in variable to avoid losing whitespace
     ((linenum++))                                     # update the current line number
@@ -421,6 +433,10 @@ function updateline() {                               # processes $line to set s
 ################################################################################
 # Multi test functions
 
+
+# tick the clock, used in try to coordinate multiple programs during
+# multi-program testing. Increasing TICKTIME leads to longer testing
+# time but more stable reuslts.
 function tick() {                                     # pause execution during multi test sessions
     sleep "$ticktime"
 }
@@ -897,8 +913,8 @@ function diff_expect_actual() {
 }
 
 # Creates arrays and other data necessary to run a testing
-# session. This data is used for both single-program and mulit-program
-# testing sessions. 
+# session. This data is used for both single-program and multi-program
+# testing sessions.
 function session_setup() {
     debug "session_setup"
 
@@ -1233,7 +1249,8 @@ function session_single_gather_all () {
 
 }
 
-# Create the results file for a test of a single program
+# Create the results file for a test of a single program. Sole
+# parameter is the output file name to be created.
 function session_single_result_file () {
     outfile=$1
 
