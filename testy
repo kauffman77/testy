@@ -929,7 +929,7 @@ function session_setup() {
     # may wish to alter this to honor TMPDIR for this; individual file
     # which is useful for single program tests to track input but is
     # not used for multi-program tests
-    toprog_file=$(printf "%s/%s-%02d-tofile.tmp" "$resultraw" "$prefix" "$testnum") 
+    toprog_file=$(printf "%s/%s-%02d-input.tmp" "$resultraw" "$prefix" "$testnum") 
 
     test_status="$PASS_STATUS"       # initial status, change to 'FAIL' if things go wrong
     fail_messages=()                 # array accumulating failure messages
