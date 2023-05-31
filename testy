@@ -1091,15 +1091,14 @@ function session_run_multi() {
     ow=$max_out_width
     vw=$max_valg_width
     {
-        printf '(TEST %d) %s\n' "$testnum" "$test_title"
-        printf 'COMMENTS:\n'
+        printf '* (TEST %d) %s : %s\n' "$testnum" "$test_title" "$test_status"
+        printf '** COMMENTS\n'
         printf "%b\n" "${comments}"
-        printf 'program: %s\n' "$program"
+        printf '** program: %s\n' "$program"
         printf '\n'
         # printf '%s\n' '- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
         printf '%s\n' '-----------------------------------------------------------------------------------------------'
-        printf "* Summary Program Information\n"
-        printf "\n"
+        printf "** Summary Program Information\n"
         printf "| %-8s " "KEY"
         printf "| %-${cw}s " "COMMAND"
         printf "| %3s " "RET"
@@ -1123,7 +1122,7 @@ function session_run_multi() {
         done
         printf "\n"
 
-        if [[ "$status" == "$PASS_STATUS" ]]; then          # test passed
+        if [[ "$test_status" == "$PASS_STATUS" ]]; then     # test passed
             printf "ALL OK\n"
         else                                                # test failed
             debug "Fail with status '$status'"

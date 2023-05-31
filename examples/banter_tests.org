@@ -20,9 +20,8 @@ affect a sort of local chat server.
 This test starts up a ~banter_server~ and then sends it a signal to
 shut down gracefully.
 
-# Start banter_server and refer to the running process with the key 'server' thereafter
-
-
+The below TESTY_MULTI session starts banter_server and refer to the
+running process with the key 'server' thereafter.
 #+BEGIN_SRC text
 >> START server ./banter_server gotham
 >> SIGNAL server -15
