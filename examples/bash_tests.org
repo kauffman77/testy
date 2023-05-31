@@ -21,7 +21,7 @@ side-by-side diff that primarily reports failures.
 >> echo "Matching Line"
 Matching Line
 >> echo "Mismatching Line"
-Misma____ Li__
+Misma______ Li__
 >> echo "Extra line in ACTUAL"
 >> echo "Extra line in EXPECT"
 This is the extra line

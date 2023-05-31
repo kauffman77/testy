@@ -5,9 +5,11 @@
 # license: GPLv3-or-later
 # RELEASE: Thu Jan 12 14:31:42 PM CST 2023
 
-# Create the usage message
 function setup_usage () {
-read -r -d '' usage <<EOF
+# Create the USAGE message and provide some documentation for
+# internal options
+
+read -r -d '' USAGE <<EOF
 usage:    testy <testfile.org> [test# test# ...]
           testy --help
 
@@ -46,51 +48,64 @@ easier easier to read in org-mode):
 
 ----------------------------------------
 >> cat test-results/test-02-result.tmp
-* (TEST 2) Failure Demo
-COMMENTS:
+* (TEST 2) Failure Demo : FAIL
+** COMMENTS
 This test will fail and produce output associated to show the
 side-by-side diff that primarily reports failures.
 
-** program: bash -v
+
+** PROGRAM: bash -v
 To run this individual test in GDB use the command:
   gdb --args bash -v
 but any input to the program must be typed within the debugger
 
-** --- Failure messages ---
-- FAILURE: Output Mismatch at lines marked
+** FAILURE MESSAGES
+- OUTPUT DIFFERENCES:
+  Expected / Actual Output Mismatch at lines marked
 
-** --- Side by Side Differences ---
+** SIDE-BY-SIDE DIFF of Expected vs Actual
+from file 'test-results/raw/test-02-diff.tmp'
 - Expect output in: test-results/raw/test-02-expect.tmp
 - Actual output in: test-results/raw/test-02-actual.tmp
-- Differing lines have a character like '|' '>' or '<' in the middle
+- Differing lines have a character like '|' and '<' in the middle
+
 #+BEGIN_SRC sbs-diff
-==== EXPECT ====                        ==== ACTUAL ====
->> echo "Matching Line"                 >> echo "Matching Line"
-Matching Line                           Matching Line
->> echo "Mismatching Line"              >> echo "Mismatching Line"
-Misma____ Li__                        | Mismatching Line
->> echo "Extra line in ACTUAL"          >> echo "Extra line in ACTUAL"
-                                      > Extra line in ACTUAL
->> echo "Extra line in EXPECT"          >> echo "Extra line in EXPECT"
-This is the extra line                <
-Extra line in EXPECT                    Extra line in EXPECT
->> printf "Matches fine\nAnd again\n"   >> printf "Matches fine\nAnd again\n"
-Matches fine                            Matches fine
-And again                               And again
+==== EXPECT ====                        ==== ACTUAL ====                     
+>> echo "Matching Line"                  >> echo "Matching Line"
+Matching Line                            Matching Line
+>> echo "Mismatching Line"               >> echo "Mismatching Line"
+Misma______ Li__                       | Mismatching Line
+>> echo "Extra line in ACTUAL"           >> echo "Extra line in ACTUAL"
+                                       > Extra line in ACTUAL
+>> echo "Extra line in EXPECT"           >> echo "Extra line in EXPECT"
+This is the extra line                 <
+Extra line in EXPECT                     Extra line in EXPECT
+>> printf "Matches fine\nAnd again\n"    >> printf "Matches fine\nAnd again\n"
+Matches fine                             Matches fine
+And again                                And again
+
 #+END_SRC
 
-** --- Line Differences ---
-EXPECT:   4) Misma____ Li__
+** LINE DIFFERENCES
+from file 'test-results/raw/test-02-diff-lines.tmp'
+If this section is empty, there are no line differences
+
+EXPECT:   4) Misma______ Li__
 ACTUAL:   4) Mismatching Line
 ACTUAL:   6) Extra line in ACTUAL
 EXPECT:   7) This is the extra line
+
+** VALGRIND NOT USED on this test, no log available
+
 ----------------------------------------
 
-The main section in the middle of the file is a side-by-side diff of
-expected and actual output with the center column indicating what
-differences were detected.  Generally whitespace differences are
-ignored.
+Sections include how the program was run to generate the results, a
+side-by-side diff of the Expected and Actual results, a line-by-line
+difference, and a Valgrind (memory checker) report if it is used
+during the test (no applicable in this case).
 
+By default, whitespace differences are ignored when doing diff checks
+but this can be adjusted with the options.
 
 ----------------------------------------
 --- TEST FILE FORMAT ---
@@ -315,18 +330,25 @@ All the same, enjoy!
 EOF
 }
 
-# Create global variables
-function setup_globals () {
-    ################################################################################
-    # BASIC GLOBALS
+function TODO () {
+# List of comments and todos that don't seem to belong anywhere else
 
-    # some global options/programs
+
+# TODO: separate out hte DIFF options for blanks which are currently
+# -bB to ignore blanks and blank lines. Add a global variable that
+# allows specific control of these options.
+    echo ''
+}
+
+function setup_globals () {
+# Create global variables used throughout
+
     STDBUF="stdbuf -i 0 -o 0 -e 0"                        # disables standard IO buffering for a program
-    SDIFF="diff -ytbB"                                    # side by side diff, no tabs, ignore space changes, ignore blank lines
+    SDIFF="diff -yt -bB"                                  # side by side diff, no tabs, ignore space changes, ignore blank lines
     DIFF="diff -bB \
            --unchanged-line-format='' \
            --old-line-format='EXPECT:%4dn) %L' \
-           --new-line-format='ACTUAL:%4dn) %L'"       # diff which will show prepend EXPECT/ACTUAL to differing lines
+           --new-line-format='ACTUAL:%4dn) %L'"           # diff which will show prepend EXPECT/ACTUAL to differing lines
     TIMEOUTCMD="timeout --signal KILL"                    # kills user programs after a certain duration  of 'timeout'
     VALG_ERROR="13"                                       # error code that valgrind should return on detecting errors
 
@@ -340,7 +362,7 @@ function setup_globals () {
     # Uses gsed if available for BSD-based operating systems and sed
     # otherwise
     # 
-    # NOTE: it would be better to honor this as an environment variable
+    # TODO: it would be better to honor this as an environment variable
     # that defaults to "normal" sed. That way systems with a different sed
     # could set the env variable to tailor the sed cmd. Do this in a
     # future release.
@@ -379,11 +401,13 @@ function setup_globals () {
     FAIL_STATUS="FAIL"                                    # default status message associated with failing a test, anything not $PASS_STATUS is a failure though
     TEST_TITLE_WIDTH=20                                   # initial width for test test_titles, set to widest during initial parsing
 
+    # regular expression used to detect commands that contain shell symbols which are barred
+    SHELL_SYMBOLS='.*(>|<|\||&|&&|\|\|).*' 
 }
 
-
-# Reset options to defaults, run before each test session. 
 function reset_options() {
+# Reset options to defaults, run before each test session. 
+
     program=$PROGRAM
     prompt=$PROMPT
     echoing=$ECHOING
@@ -403,9 +427,10 @@ function reset_options() {
     # longticks=$LONGTICKS
 }
 
+function checkdep_fail() {
 # fail if a tool is not found, used to check for utilities like
 # timeout and valgrind
-function checkdep_fail() {
+
     dep="$1"
     if ! command -v "$dep" >&/dev/null; then
         echo "ERROR: testy requires the program '$dep', which does not appear to be installed"
@@ -416,22 +441,25 @@ function checkdep_fail() {
     fi
 }
 
-# function to run on exit signals
 function signal_exit (){
+# function to run on exit signals
+
     printf '\ntesty was signaled: Exiting\n' > /dev/stderr
     exit 1
 }
 
+function debug() {
 # print a testy debug message which is shown when running with DEBUG=1
 # or TESTY_DEBUG=1. There are TONS of debug messages used and should
 # likely upgrade this to debug levels at some point but the verbose
 # output is extremely helpful when testy breaks.
-function debug() {
+
     if [[ -n "$DEBUG" || -n "$TESTY_DEBUG" ]]; then
         echo "==DBG== $1" >/dev/stderr
     fi
 }
 
+function updateline() {
 # called in after reading lins of input during input loops via
 # 
 #  while read .. < input
@@ -439,29 +467,24 @@ function debug() {
 # paradigm in bash. Likely will be refactoring that pattern out but
 # for now this provides some basic parsing like peeling off the first
 # word/token which is often special.
-function updateline() {
     line="$REPLY"                                     # copy from REPLY built-in variable to avoid losing whitespace
     ((linenum++))                                     # update the current line number
     first="${line%% *}"                               # extracts the first word on the line
     rest="${line#* }"                                 # extracts remainder of line
 }
 
-################################################################################
-# Multi test functions
-
-
+function tick() {
 # tick the clock, used in try to coordinate multiple programs during
 # multi-program testing. Increasing TICKTIME leads to longer testing
 # time but more stable reuslts.
-function tick() {
     sleep "$ticktime"
 }
 
+function program_wait() {
 # Calls wait on program with given key, captures return value of
 # program from wait, marks it as no longer running. If program is
 # unresponsive for TIMEOUT seconds, kills it and marks it as timed
 # out.
-function program_wait() {
     debug "program_wait '$1'"
     key="$1"
 
@@ -507,6 +530,7 @@ function program_wait() {
     return 0
 }
 
+function program_alive() {
 # Check if the program is running or dead. Update the program_state[]
 # array for the given key setting the entry to 0 if the program is no
 # longer alive.  Uses the 'kill -0 pid' trick which doesn't actually
@@ -518,7 +542,7 @@ function program_wait() {
 # if ! program_alive "server"; then
 #   printf "It's dead, Jim"
 # fi
-function program_alive() {
+
     key="$1"
     if [[ "${program_state[$key]}" != "Running" ]]; then
         printf "Program '$key' has already died\n"
@@ -534,26 +558,9 @@ function program_alive() {
     return $ret
 }
 
-# TODO: add checking for if the program fails immediately to exec;
-# e.g. not found, not compiled; adjust an error message for this;
-# found this is not detected in some cases and makes debugging
-# difficult
 
-# TODO Design Note: Originally thought that I Cannot use the 'timeout'
-# program when starting programs as this would not allow one deliver
-# signals. However, on further experimentation, a program sequence
-# like
-#
-# > timeout 1000s valgrind gwc < in.fifo &
-#
-# can be passed signals which are forwarded on to the program
-# (gwc). This opens up use of 'timeout' instead of manual 'waiting'
-# for programs which is likely to be somewhat more robust though the
-# timeout utility is not present everywhere. Likely SWITCH TO TIMEOUT
-# UTILITY at some point in the future for simplicity.
 
-SHELL_SYMBOLS='.*(>|<|\||&|&&|\|\|).*' # regular expression used to detect commands that contain shell symbols which are barred
-
+function program_start() {
 # Start a program and populate various arrays with the programs
 # information such as PID, output / input sources. Checks that the
 # program is actually alive after starting it and prints an error
@@ -561,7 +568,13 @@ SHELL_SYMBOLS='.*(>|<|\||&|&&|\|\|).*' # regular expression used to detect comma
 # used, then starts the program under Valgrind and waits a longer time
 # (VALGRIND_START_TICKS) before checking on it as Valgrind usually
 # takes much longer to start up programs.
-function program_start() {
+
+# TODO: add checking for if the program fails immediately to exec;
+# e.g. not found, not compiled; adjust an error message for this;
+# found this is not detected in some cases and makes debugging
+# difficult. This is tricky as first pass at it is near the end below
+# but has some race conditions associated.
+
     debug "program_start '$1' '$2'"
     key="$1"
     progcmd="$2"
@@ -646,12 +659,12 @@ function program_start() {
     # fi
 }    
 
+function program_send_input() {
 # Sends an input line to a program on standard input using the
 # pre-established FIFO for that program.  The special message '<EOF>'
 # will close the FIFO used for input which should give the program end
 # of input. Checks that the program is alive before sending and if not
 # prints and error message.  Calls tick() before returning.
-function program_send_input() {
     key="$1"
     msg="$2"
     debug "program_send_input '$key' '$msg'"
@@ -677,12 +690,13 @@ function program_send_input() {
     tick
 }
 
+function program_signal() {
 # Send a program a signal. Checks that the program is still alive
 # before sending the signal. Calls tick() before returning.
 # 
 # NOTE: looked like there were bugs due to incorrect parameter names
 # so altered this function.
-function program_signal() {
+
     debug "program_signal '$1' '$2'"
     key="$1"
     sig="$2"
@@ -696,11 +710,12 @@ function program_signal() {
     tick
 }
 
+function program_get_output() {
 # Show the output for program with given key. Makes use of the output
 # file found in the program_output_file[] array. Second argument is a
 # filter to use, most often 'cat' to just show the output though other
 # commands/scripts can be passed to adjust the output as desired.
-function program_get_output() {
+
     debug "program_get_output '$1' '$2'"
     key="$1"
     filter="$2"
@@ -710,13 +725,8 @@ function program_get_output() {
     return $?
 }
 
-# TODO: checks several output codes which do not have to do with
-# valgrind, may want to convert this to 'program_failure_checks'
-# instead.
 
-# TODO: need to make compatible with the failures for the overall test
-# though could rely on the output.
-
+function program_check_failures() {
 # Check the return code and various errors lik valgrind problems,
 # timeouts, segfaults. Add any that appear to list of failures. Second
 # argument is a filter to use when displaying the valgrind output,
@@ -724,7 +734,14 @@ function program_get_output() {
 # commands/scripts can be passed to adjust the output as desired.
 # This function is affected by several options that dictate Valgrind
 # applications most notably 'use_valgrind'.
-function program_check_failures() {
+
+# TODO: checks several output codes which do not have to do with
+# valgrind, may want to convert this to 'program_failure_checks'
+# instead.
+
+# TODO: need to make compatible with the failures for the overall test
+# though could rely on the output.
+
     debug "program_check_failures '$1' '$2'"
     # if [[ "$use_valgrind" == "0" ]]; then             # check for use of valgrind first
     #     printf "Valgrind Disabled\n"
@@ -809,12 +826,13 @@ function program_check_failures() {
     return 0
 }
 
+function handle_multi_command() {
 # Handles a TESTY_MULTI command; run in a context where
 # printing/echoing will not go to the screen but is instead redirected
 # into a file which will the "actual" results for the test session to
 # be compared to the "expected" results from the test specification
 # file.
-function handle_multi_command() {
+
     debug "handle_multi_command: '$1'"
     multi_line="$1"
     multi_cmd="${multi_line%% *}"                          # extracts the first word on the line
@@ -875,11 +893,12 @@ function handle_multi_command() {
     return $?
 }
 
+function diff_expect_actual() {
 # Diffs expect/actual files and creates output diff file which are
 # passed as arguments; creates $diff_file and sets
 # status/fail_messages if differences are present. Respects "skipdiff"
 # variable: no failure on differeneces if skipdiff=1
-function diff_expect_actual() {
+
     debug "diff_expect_actual '$1' '$2'"
     expect_file="$1"
     actual_file="$2"
@@ -928,10 +947,11 @@ function diff_expect_actual() {
     fi
 }
 
+function session_setup() {
 # Creates arrays and other data necessary to run a testing
 # session. This data is used for both single-program and multi-program
 # testing sessions.
-function session_setup() {
+
     debug "session_setup"
 
     if [[ "$use_valgrind" == 1 ]]; then
@@ -987,12 +1007,13 @@ function session_setup() {
     
 }
 
+function session_run_multi() {
 # Used when program is TESTY_MULTI. Run a test session where several
 # programs must be started and coordinated at once. The session
 # comprises a set of commands on when to start programs and what input
 # should be given them at what time. The function is run in a context
 # where 'read' will extract lines from the test session.
-function session_run_multi() {
+
     debug "session_run_multi"
 
     session_setup
@@ -1129,12 +1150,13 @@ function session_run_multi() {
     return 0
 }
 
+function session_catfile() {
 # Handle '#+BEGIN_QUOTE somefile.txt' regions which will create a file
 # with the specified name in it and place text in the region in
 # file. Useful for creating small-ish input files on the fly during
 # tess. This output is also echoed into the comments for the test
 # results.
-function session_catfile() {
+
     debug "session_catfile: $line"
     outfilename="${line##* }"                  # extract last token from the line as file name
     debug "outfilename: $outfilename"
@@ -1149,6 +1171,7 @@ function session_catfile() {
     done > "$outfilename"
 }
 
+function program_add_prompts_to_outfile () {
 # Adds prompts to input lines that are echoed without it.  Requires
 # that all_input[] array be present.
 # 
@@ -1161,7 +1184,7 @@ function session_catfile() {
 # alternatively do this with { } construct).  This approach can be
 # fooled: if an output line matches an input line, the prompt may be
 # added at the wrong spot.
-function program_add_prompts_to_outfile () {
+
     debug "program_addback_prompts"
 
     outfile=$1
@@ -1184,10 +1207,10 @@ function program_add_prompts_to_outfile () {
     fi
 }
 
-# apply the optional post_filter to an output file passed as the first arg
 function program_apply_post_filter () {
-    outfile=$1
+# apply the optional post_filter to an output file passed as the first arg
 
+    outfile=$1
     if [[ "$post_filter" != "" ]]; then              # use a filter to post-process the output
         debug "running '$post_filter' on '$outfile'" # use of 'eval' for "grep -v "stuff here"' filters w/ spaces in command
         cat "${outfile}" | eval ${post_filter} >"${outfile}.tmp"
@@ -1195,13 +1218,15 @@ function program_apply_post_filter () {
     fi
 }
 
+function program_adjust_timeout_message () {
 # To avoid confusion, replace message from timeout program with
 # easier to interpret Segfault Message
-function program_adjust_timeout_message () {
+
     outfile=$1
     $SEDCMD -i'' 's/timeout: the monitored command dumped core/Segmentation Fault/' "${outfile}"
 }    
 
+function file_of_array () {
 # Create an file comprised of the lines in the argument array. Args
 # are filename / array.  Calling this function requires some wonky
 # syntax to pass in the entirety of the array:
@@ -1210,7 +1235,7 @@ function program_adjust_timeout_message () {
 # array_to_file "the_file.txt" "${mystuff[@]}"
 #
 # Used to create input and expect files
-function file_of_array () {
+
     outfile=$1
     shift
     array=("$@")
@@ -1221,8 +1246,9 @@ function file_of_array () {
     done > ${outfile}
 }
 
-# gathers session lines as all_input[] and all_output[] arrays
 function session_single_gather_all () {
+# gathers session lines as all_input[] and all_output[] arrays
+
     all_input=()                               # all input lines for program
     all_expect=()                              # all expected input/outpu for expect file
     session_beg_line=$((linenum + 1))          # eliminate later if possible
@@ -1266,11 +1292,11 @@ function session_single_gather_all () {
 
 }
 
+function session_single_result_file () {
 # Create the results file for a test of a single program. Sole
 # parameter is the output file name to be created.
-function session_single_result_file () {
-    outfile=$1
 
+    outfile=$1
     {                           
         # output the intitial header information
         printf '* (TEST %d) %s : %s\n' "$testnum" "$test_title" "$test_status"
@@ -1320,9 +1346,10 @@ function session_single_result_file () {
 }
 
 
+function session_run_single () {
 # UPDATED: Run a Test Session for a Single Program, use same framework
 # as multi session; run in context of read
-function session_run_single () {
+
     debug "session_run_single ()"
     session_setup                                   # creates array, vars like expect_file
 
@@ -1374,7 +1401,8 @@ function session_run_single () {
     return 0                                          # required?
 }
 
-################################################################################
+function run_test_session() {
+# OLD VERSION
 # Run a Test Session for a Single Program
 #
 # Sets up a test session which is denoted by the #+BEGIN_SRC/#+END_SRC
@@ -1387,7 +1415,6 @@ function session_run_single () {
 #
 # The function is run in a context where 'read' will extract lines
 # from the test session.
-function run_test_session() {
 
     mkdir -p "$resultdir"                               # set up test results directory
     mkdir -p "$resultraw"
@@ -1661,9 +1688,8 @@ function run_test_session() {
     return 0
 }
 
-################################################################################
-# MAIN PROCESSING LOOP
 function main () {
+# MAIN PROCESSING LOOP
 
     # call setup functions which establish globals
     setup_usage
@@ -1701,7 +1727,7 @@ function main () {
     debug "alltests='$alltests"
 
     if [[ "$specfile" == "--help" ]]; then                # check for --help option
-        printf "%s\n" "$usage"                            # print usage and exit
+        printf "%s\n" "$USAGE"                            # print usage and exit
         exit 0
     fi
 
