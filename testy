@@ -546,13 +546,13 @@ function program_alive() {
     key="$1"
     if [[ "${program_state[$key]}" != "Running" ]]; then
         printf "Program '$key' has already died\n"
-        return 0
+        return 1
     fi
     pid=${program_pid[$key]}
     output=$(kill -0 "$pid" 2>&1)
     ret=$?                                            # capture return val for kill: 0 for alive, 1 for dead
     if [[ "$ret" != "0" ]]; then
-        printf "Program '%s' is not alive:\n%s\n" "$key" "$output"
+        printf "Program '%s' has recently died:\n%s\n" "$key" "$output"
         program_wait "$key"                           # wait on program and mark as dead
     fi
     return $ret
@@ -669,22 +669,26 @@ function program_send_input() {
     msg="$2"
     debug "program_send_input '$key' '$msg'"
 
-    if ! program_alive "$key"; then
+    if ! program_alive "$key"; then                     # check for dead program
         printf "Can't send INPUT to dead program '%s' (%s)\n" "$key" "${program_command[$key]}"
         return 1
     fi
 
-    tofd=${program_input__fifo_fd[$key]}              # extract the file descriptor for sending data to the child program
+    tofd=${program_input__fifo_fd[$key]}                # extract the file descriptor for sending data to the child program
+
+    if [[ "$tofd" == "CLOSED" ]]; then                  # check for already closed input
+        printf "Input for '%s' already closed\n" "$key" # this shouldn't be requried due to the
+        return 1                                        # liveness check but is a good safety
+    fi
+
     case "$msg" in
-        "<EOF>")                                      # end of input
+        "<EOF>")                                        # end of input
             debug "EOF: closing fd $tofd"
-            exec {tofd}>&-                            # close fifo to child program
+            exec {tofd}>&-                              # close fifo to child program
             program_input__fifo_fd[$key]="CLOSED"
-            # debug "Closed"
-            # printf "Test message\n" >&$tofd
             ;;
         *)
-            printf "%s\n" "$msg" >&$tofd              # print to open file descriptor, possibly replace with direct reference to fifo name
+            printf "%s\n" "$msg" >&$tofd                # print to open file descriptor
             ;;
     esac
     tick
