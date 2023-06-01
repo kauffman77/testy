@@ -34,8 +34,11 @@
   output easier at the minor expense of more disk space
 - Truncate output to some configurable amount; for infinite loops that
   produce lots of output this will lead to better outcomes
-- Expire use of HERE docs to simplify some of the output format
+- Explore use of HERE docs to simplify some of the output format
   creation. 
+- Consider the styles of failure listing in MULTI versus show
+  everything in SINGLE. Not sure which is preferred but it seems odd
+  to have two different formats. Further merger is possible.
 
 ** Done
 - Adjust standard single tests to add failures to lists like they
