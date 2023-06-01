@@ -2,8 +2,6 @@
 
 * TODO Items
 - Refactor Mac install script to remove massive redundancy in code
-- Refactor internals to merge several nearly-identical functions for
-  TESTY_MULTI and single program tests; this will ease maintenance
 - TESTY_MULTI commands don't work unless there is a exactly one space
   separating the tokens. This defies common convention/expectation.
   Work out a function to split words on spaces and use it in the MULTI
@@ -21,15 +19,9 @@
   out-of-bounds test fails with uninformative message (e.g. 4 tests
   present, run #5)
 - Add multi-part test handling to ~testy-regen~
-- Added a message about how to run a single test in GDB but only
-  relevant to non-interactive tests; would be useful to also add
-  ability to run test with interactive input in GDB but this will
-  require more care. Need to include in the command provided the input
-  redirection. Currently input is in a FIFO rather than a file which
-  complicates the ability to run this after a test completes: the FIFO
-  will be empty. Might move towards input file rather than input FIFO
-  but that is a larger scale change than I'd want to commit to at the
-  moment. 
+- would be useful to also add
+- Add message on how to run test with interactive input in GDB, now
+  possible as input for single tests is in a file
 - Output results files even for passing tests - makes understanding
   output easier at the minor expense of more disk space
 - Truncate output to some configurable amount; for infinite loops that
@@ -41,6 +33,10 @@
   to have two different formats. Further merger is possible.
 
 ** Done
+- Refactor internals to merge several nearly-identical functions for
+  TESTY_MULTI and single program tests; this will ease maintenance
+- Added a message about how to run a single test in GDB but only
+  relevant to non-interactive tests;
 - Adjust standard single tests to add failures to lists like they
   do in TESTY_MULT
 - Add signal handling to do cleanup if needed
