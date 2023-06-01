@@ -552,7 +552,7 @@ function program_alive() {
     output=$(kill -0 "$pid" 2>&1)
     ret=$?                                            # capture return val for kill: 0 for alive, 1 for dead
     if [[ "$ret" != "0" ]]; then
-        printf "Program '%s' is not alive: %s\n" "$key" "$output"
+        printf "Program '%s' is not alive:\n%s\n" "$key" "$output"
         program_wait "$key"                           # wait on program and mark as dead
     fi
     return $ret
@@ -759,18 +759,26 @@ function program_check_failures() {
             msg=""
             msg+="- VALGRIND ERRORS for ${key}"
             msg+="  $'{program_command[$key]}' had Memory Errors detected by Valgrind\n"
-            msg+="  Valgrind output from '${program_valgfile[$key]}'\n"
-            # msg+="#+BEGIN_SRC text\n"                  # org mode source block for vlagrind output
-            # msg+=$(cat ${program_valgfile[$key]})
-            # msg+="#+END_SRC\n"
-            fail_messages+=("$msg")
+            failmsg_brief+=("$msg")
+            msg=""
+            msg+="Valgrind Errors for ${key}"
+            msg+="$'{program_command[$key]}' had Memory Errors detected by Valgrind\n"
+            msg+="Valgrind output from '${program_valgfile[$key]}'\n"
+            msg+="#+BEGIN_SRC text\n"                  # org mode source block for vlagrind output
+            msg+="$(cat ${program_valgfile[$key]})"
+            msg+="#+END_SRC\n"
+            failmsg_long+=("$msg")
             ;;
         "$RETCODE_TIMEOUT")
             test_status="$FAIL_STATUS"
             msg=""
             msg+="- TIMEOUT for ${key}:\n"
             msg+="  Program '${program_command[$key]}' still running after $timeout\n"
-            fail_messages+=("$msg")
+            failmsg_brief+=("$msg")
+            msg=""
+            msg+="Timeout for ${key}:\n"
+            msg+="Program '${program_command[$key]}' still running after $timeout\n"
+            failmsg_long+=("$msg")
             ;;
         "$RETCODE_SEGFAULT")
             test_status="$FAIL_STATUS"
@@ -779,25 +787,40 @@ function program_check_failures() {
             msg+="  Program '${program_command[$key]}' signalled with segmentation fault by OS\n"
             msg+="  Likely a memory error occurred. Try running under valgrind to see more info via\n"
             msg+="  >> valgrind ${program_command[$key]}\n"
+            failmsg_brief+=("$msg")
+            msg=""
+            msg+="Segmentation Fault for ${key}\n"
+            msg+="Program '${program_command[$key]}' signalled for a segmentation fault by OS\n"
+            msg+="This often appears as a non-zero return code of $retcode == SIGSEGV\n"
+            msg+="Likely a memory error occurred. Try running under valgrind to see more info via\n"
+            msg+="  >> valgrind ${program_command[$key]}\n"
+            msg+="Check the Valgrind log as if it was in use on this test it will provide clues"
+            failmsg_long+=("$msg")
             # msg+="#+BEGIN_SRC text\n"                  # org mode source block for valgrind output
             # msg+="Valgrind output from '${program_valgfile[$key]}'\n"
             # msg+=$(cat ${program_valgfile[$key]})
             # msg+="#+END_SRC\n"
-            fail_messages+=("$msg")
             ;;
         *)
             debug "checking return value '$retcode'"
-
             if [[ "$checkreturn" == "1" && "$retcode" != "0" ]]; then
                 test_status="$FAIL_STATUS"
                 msg=""
-                msg+="- ${key} returned $retcode (non-zero) triggering failure"
-                fail_messages+=("$msg")
+                msg+="- NON-ZERO RETURN CODE for ${key}"
+                msg+="  ${program_command[$key]} exited with code '$retcode' which"
+                msg+="  was not expected"
+                failmsg_brief+=("$msg")
+                msg=""
+                msg+="Non-Zero Return Code for ${key}"
+                msg+="${program_command[$key]} exited with code '$retcode' which"
+                msg+="was not expected"
+                failmsg_long+=("$msg")
             fi
             ;;
     esac
 
-    if [[ "$use_valgrind" == "1" ]]; then                       # if valgrind is enabled, check its output
+    # if valgrind is enabled, filter its output and check for still reachable memory
+    if [[ "$use_valgrind" == "1" ]]; then 
         valgfile="${program_valgfile[$key]}"
         debug "use_valgrind: $use_valgrind, valgfile: $valgfile"
         $filter $valgfile > ${valgfile/.tmp/.filtered.tmp}      # create a filtered version of the valgrind file to 
@@ -811,29 +834,194 @@ function program_check_failures() {
             test_status="$FAIL_STATUS"                               
             program_state[$key]="ReachErr"     # should likely move this to where other program states are set; 
             msg=""                             # not based on return so requires a regex check
-            msg+="${key} MEMORY REACHABLE: Valgrind reports '${program_command[$key]}' has\n"
-            msg+="reachable memory, may need to add free() or fclose() before exiting\n"
-            # msg+="\n"
-            # msg+="Valgrind output from file '${program_valgfile[$key]}'\n"
-            # msg+="--------------------\n"
-            # msg+="$(cat ${program_valgfile[$key]})"
-            fail_messages+=("$msg")
-
-            # printf "FAILURE $msg\n"
+            msg+="- ${key} REACHABLE MEMORY AT EXIT\n"
+            msg+="  Valgrind reports '${program_command[$key]}' has reachable\n"
+            msg+="  memory at exit (e.g. a possible memory leak);"
+            msg+="  may need to add free() or fclose() somewhere\n"
+            failmsg_brief+=("$msg")
+            msg+="Reachable Memory at Exit for ${key}\n"
+            msg+="Valgrind reports '${program_command[$key]}' has reachable\n"
+            msg+="memory at exit (e.g. a possible memory leak);"
+            msg+="may need to add free() or fclose() somewhere\n"
+            msg+="\n"
+            msg+="Valgrind output from file '${program_valgfile[$key]}'\n"
+            msg+="#+BEGIN_SRC text\n"                  # org mode source block for vlagrind output
+            msg+="$(cat ${program_valgfile[$key]})"
+            msg+="#+END_SRC\n"
+            failmsg_long+=("$msg")
         fi
     fi
 
     return 0
 }
 
-function handle_multi_command() {
+function diff_expect_actual() {
+# Diffs expect/actual files and creates output diff file which are
+# passed as arguments; creates $diff_file and sets
+# status/failmsg_brief if differences are present. Respects "skipdiff"
+# variable: no failure on differeneces if skipdiff=1
+
+    debug "diff_expect_actual '$1' '$2'"
+    expect_file="$1"
+    actual_file="$2"
+    outfile_sbs="$3"
+    outfile_line="$4"
+
+    actual_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$actual_file")
+    expect_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$expect_file")
+    col_width=$((actual_width > expect_width ? actual_width : expect_width))
+    total_width=$((actual_width + expect_width + 5))    # width to pass to diff as -W, tighter than previous
+
+    debug "actual_width $actual_width expect_width $expect_width"
+    debug "col_width $col_width total_width $total_width"
+
+    # run standard diff to check for differences
+    eval "$DIFF ${expect_file} ${actual_file} >& ${outfile_line}"
+    diffreturn="$?"                                   # capture return value for later tests
+    debug "diffreturn: $diffreturn"
+    {                                                 # create side-by-side diff file
+        printf "%-${col_width}s   %-${col_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
+        $SDIFF -W $total_width "$expect_file" "$actual_file"
+    } >"$outfile_sbs"
+
+    # The below eliminate extra spaces in diff file mostly for the
+    # left EXPECT column that would make the output very wide.  This
+    # is a bit risky as it may eliminate some real expected output so
+    # take care if the output is very wide. This is mitigated by NOT
+    # changing anything in the first $actual_width columns of the
+    # output file.
+    if ((actual_width - expect_width > 10)); then
+        extra_space_width=$((actual_width - expect_width))
+        extra_space_width=$((extra_space_width - 5))
+        debug "Eliminating $extra_space_width spaces from diff file $outfile_sbs}"
+        $SEDCMD -i -E "s/(.{$expect_width})[ ]{$extra_space_width}/\1 /" "$outfile_sbs"
+    fi
+
+    # Check fof failures based on skipdiff
+    if [[ "$skipdiff" == "1" ]]; then                 # skipping diff
+        debug "Skipping diff (skipdiff=$skipdiff)"
+    elif [[ "$diffreturn" != "0" ]]; then             # diff causes a failure
+        test_status="$FAIL_STATUS"
+        msg=""
+        msg+="- OUTPUT DIFFERENCES"
+        msg+="  Expected / Actual Output Mismatch at lines marked\n"
+        failmsg_brief+=("$msg")
+        msg=""
+        msg+="Output Differences for $key\n"
+        msg+="Expected / Actual Output mismatches at lines marked\n"
+        msg+="\n"
+        msg+="*** SIDE-BY-SIDE DIFFERENCE OF EXPECT / ACTUAL\n"
+        msg+="- Expect output in: $expect_file\n"
+        msg+="- Actual output in: $actual_file\n"
+        msg+="- Differing lines have a character like '|' and '<' in the middle\n"
+        msg+="\n"
+        msg+="#+BEGIN_SRC sbs-diff\n"
+        msg+="$(cat ${diff_file})"
+        msg+="\n"
+        msg+="#+END_SRC\n"
+        msg+="\n"
+        msg+="*** LINE DIFFERENCES\n"
+        msg+="From file ${diffline_file}\n"
+        msg+="If this section is empty, there are no line differences\n"
+        msg+="\n"
+        msg+="#+BEGIN_SRC text\n"
+        msg+="$(cat ${diffline_file})"
+        msg+="\n#+END_SRC\n"
+        msg+="\n"
+        failmsg_long+=("$msg")
+    fi
+}
+
+function session_catfile() {
+# Handle '#+BEGIN_QUOTE somefile.txt' regions which will create a file
+# with the specified name in it and place text in the region in
+# file. Useful for creating small-ish input files on the fly during
+# tess. This output is also echoed into the comments for the test
+# results.
+
+    debug "session_catfile: $line"
+    outfilename="${line##* }"                  # extract last token from the line as file name
+    debug "outfilename: $outfilename"
+    comments="${comments}${line}\n"
+    while read -r; do                          # read a line from the test session
+        updateline
+        comments="${comments}${line}\n"
+        if [[ "$first" == '#+END_QUOTE' ]]; then
+            break
+        fi
+        printf "%s\n" "$line"
+    done > "$outfilename"
+}
+
+function session_setup() {
+# Creates arrays and other data necessary to run a testing
+# session. This data is used for both single-program and multi-program
+# testing sessions.
+
+    debug "session_setup"
+
+    if [[ "$use_valgrind" == 1 ]]; then
+        checkdep_fail "valgrind"     # only check for valgrind if the test requires it
+    fi
+
+    # set names for various files associated with the whole test;
+    # individual program files/proprties are tracked in arrays created
+    # below which allows multiple programs to be tracked
+    result_file=$(printf "%s/%s-%02d-result.tmp" "$resultdir" "$prefix" "$testnum")
+    actual_file=$(printf "%s/%s-%02d-actual.tmp" "$resultraw" "$prefix" "$testnum")
+    expect_file=$(printf "%s/%s-%02d-expect.tmp" "$resultraw" "$prefix" "$testnum")
+    valgrd_file=$(printf "%s/%s-%02d-valgrd.tmp" "$resultraw" "$prefix" "$testnum")
+    diff_file=$(printf "%s/%s-%02d-diff.tmp"   "$resultraw" "$prefix" "$testnum")
+    diffline_file=$(printf "%s/%s-%02d-diff-lines.tmp" "$resultraw" "$prefix" "$testnum")
+
+    # may wish to alter this to honor TMPDIR for this; individual file
+    # which is useful for single program tests to track input but is
+    # not used for multi-program tests
+    toprog_file=$(printf "%s/%s-%02d-input.tmp" "$resultraw" "$prefix" "$testnum") 
+
+    test_status="$PASS_STATUS"       # initial status, change to 'FAIL' if things go wrong
+    failmsg_brief=()                 # arrays accumulating failure messages
+    failmsg_long=()                  # brief are "list" format, long are section format
+
+    # Set up the global arrays used in multi testing to track
+    # input/output/state for all programs involved in the test.
+    indexed_arrays=(
+        program_keys                 # each program has a unique key like 'server'
+    )
+    assoc_arrays=(
+        program_pid                  # pids of the multiple programs used during the test
+        program_state                # 1 for program still running, 0 for program complete/killed
+        program_name                 # name of programs, 1st word in command, useful for pkill
+        program_command              # full command for each program
+        program_input__fifo          # file names for fifos for writing to the program
+        program_input__fifo_fd       # fds for the fifos for writing to the clients
+        program_output_file          # names of files for data coming from the files
+        program_retcode              # return codes for programs
+        program_valgfile             # valgrind output files for programs
+    )
+
+    for a in "${indexed_arrays[@]}"; do
+        unset "$a"                   # remove any existing binding
+        declare -g -a "$a"           # declare as -g global, -a indexed array
+    done
+    for a in "${assoc_arrays[@]}"; do
+        unset "$a"                   # remove any existing binding
+        declare -g -A "$a"           # declare as -g global, -A Associative array
+    done
+
+    mkdir -p "$resultdir"            # set up test results directory
+    mkdir -p "$resultraw"            # set up raw directory for temporary files/raw output
+    
+}
+
+function session_multi_command() {
 # Handles a TESTY_MULTI command; run in a context where
 # printing/echoing will not go to the screen but is instead redirected
 # into a file which will the "actual" results for the test session to
 # be compared to the "expected" results from the test specification
 # file.
 
-    debug "handle_multi_command: '$1'"
+    debug "session_multi_command: '$1'"
     multi_line="$1"
     multi_cmd="${multi_line%% *}"                          # extracts the first word on the line
     multi_rest="${multi_line#* }"                          # extracts remainder of line
@@ -884,127 +1072,13 @@ function handle_multi_command() {
             eval "$multi_rest"
             ;;
         *)
-            printf "TESTY FAILURE in handle_multi_command():\n" >/dev/stderr
+            printf "TESTY FAILURE in session_multi_command():\n" >/dev/stderr
             printf "Unknown command '%s' in line '%s'\n" "$multi_cmd" "$linenum" >/dev/stderr
             printf "Aborting testy\n" >/dev/stderr
             exit 1
             ;;
     esac
     return $?
-}
-
-function diff_expect_actual() {
-# Diffs expect/actual files and creates output diff file which are
-# passed as arguments; creates $diff_file and sets
-# status/fail_messages if differences are present. Respects "skipdiff"
-# variable: no failure on differeneces if skipdiff=1
-
-    debug "diff_expect_actual '$1' '$2'"
-    expect_file="$1"
-    actual_file="$2"
-    outfile_sbs="$3"
-    outfile_line="$4"
-
-    actual_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$actual_file")
-    expect_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$expect_file")
-    col_width=$((actual_width > expect_width ? actual_width : expect_width))
-    total_width=$((actual_width + expect_width + 5))    # width to pass to diff as -W, tighter than previous
-
-    debug "actual_width $actual_width expect_width $expect_width"
-    debug "col_width $col_width total_width $total_width"
-
-    # run standard diff to check for differences
-    eval "$DIFF ${expect_file} ${actual_file} >& ${outfile_line}"
-    diffreturn="$?"                                   # capture return value for later tests
-    debug "diffreturn: $diffreturn"
-    {                                                 # create side-by-side diff file
-        printf "%-${col_width}s   %-${col_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
-        $SDIFF -W $total_width "$expect_file" "$actual_file"
-    } >"$outfile_sbs"
-
-    # The below eliminate extra spaces in diff file mostly for the
-    # left EXPECT column that would make the output very wide.  This
-    # is a bit risky as it may eliminate some real expected output so
-    # take care if the output is very wide. This is mitigated by NOT
-    # changing anything in the first $actual_width columns of the
-    # output file.
-    if ((actual_width - expect_width > 10)); then
-        extra_space_width=$((actual_width - expect_width))
-        extra_space_width=$((extra_space_width - 5))
-        debug "Eliminating $extra_space_width spaces from diff file $outfile_sbs}"
-        $SEDCMD -i -E "s/(.{$expect_width})[ ]{$extra_space_width}/\1 /" "$outfile_sbs"
-    fi
-
-    # Check fof failures based on skipdiff
-    if [[ "$skipdiff" == "1" ]]; then                 # skipping diff
-        debug "Skipping diff (skipdiff=$skipdiff)"
-    elif [[ "$diffreturn" != "0" ]]; then             # diff causes a failure
-        test_status="$FAIL_STATUS"
-        msg=""
-        msg+="- OUTPUT DIFFERENCES:\n"
-        msg+="  Expected / Actual Output Mismatch at lines marked\n"
-        fail_messages+=("$msg")
-    fi
-}
-
-function session_setup() {
-# Creates arrays and other data necessary to run a testing
-# session. This data is used for both single-program and multi-program
-# testing sessions.
-
-    debug "session_setup"
-
-    if [[ "$use_valgrind" == 1 ]]; then
-        checkdep_fail "valgrind"     # only check for valgrind if the test requires it
-    fi
-
-    # set names for various files associated with the whole test;
-    # individual program files/proprties are tracked in arrays created
-    # below which allows multiple programs to be tracked
-    result_file=$(printf "%s/%s-%02d-result.tmp" "$resultdir" "$prefix" "$testnum")
-    actual_file=$(printf "%s/%s-%02d-actual.tmp" "$resultraw" "$prefix" "$testnum")
-    expect_file=$(printf "%s/%s-%02d-expect.tmp" "$resultraw" "$prefix" "$testnum")
-    valgrd_file=$(printf "%s/%s-%02d-valgrd.tmp" "$resultraw" "$prefix" "$testnum")
-    diff_file=$(printf "%s/%s-%02d-diff.tmp"   "$resultraw" "$prefix" "$testnum")
-    diffline_file=$(printf "%s/%s-%02d-diff-lines.tmp" "$resultraw" "$prefix" "$testnum")
-
-    # may wish to alter this to honor TMPDIR for this; individual file
-    # which is useful for single program tests to track input but is
-    # not used for multi-program tests
-    toprog_file=$(printf "%s/%s-%02d-input.tmp" "$resultraw" "$prefix" "$testnum") 
-
-    test_status="$PASS_STATUS"       # initial status, change to 'FAIL' if things go wrong
-    fail_messages=()                 # array accumulating failure messages
-
-    # Set up the global arrays used in multi testing to track
-    # input/output/state for all programs involved in the test.
-    indexed_arrays=(
-        program_keys                 # each program has a unique key like 'server'
-    )
-    assoc_arrays=(
-        program_pid                  # pids of the multiple programs used during the test
-        program_state                # 1 for program still running, 0 for program complete/killed
-        program_name                 # name of programs, 1st word in command, useful for pkill
-        program_command              # full command for each program
-        program_input__fifo          # file names for fifos for writing to the program
-        program_input__fifo_fd       # fds for the fifos for writing to the clients
-        program_output_file          # names of files for data coming from the files
-        program_retcode              # return codes for programs
-        program_valgfile             # valgrind output files for programs
-    )
-
-    for a in "${indexed_arrays[@]}"; do
-        unset "$a"                   # remove any existing binding
-        declare -g -a "$a"           # declare as -g global, -a indexed array
-    done
-    for a in "${assoc_arrays[@]}"; do
-        unset "$a"                   # remove any existing binding
-        declare -g -A "$a"           # declare as -g global, -A Associative array
-    done
-
-    mkdir -p "$resultdir"            # set up test results directory
-    mkdir -p "$resultraw"            # set up raw directory for temporary files/raw output
-    
 }
 
 function session_run_multi() {
@@ -1030,9 +1104,9 @@ function session_run_multi() {
                 break
                 ;;
             "$prompt")
-                debug "^^ handle_multi_command"
+                debug "^^ session_multi_command"
                 printf "%s\n" "$line"                 # print test line so it appears in 'actual' output
-                handle_multi_command "$rest"
+                session_multi_command "$rest"
                 ;;
             "#" | "")
                 debug "^^ comment"
@@ -1095,9 +1169,11 @@ function session_run_multi() {
         printf '** COMMENTS\n'
         printf "%b\n" "${comments}"
         printf '** program: %s\n' "$program"
+        printf "If this is a TESTY_MULTI run then multiple programs are coordinated by\n"
+        printf "testy itself\n"
         printf '\n'
         # printf '%s\n' '- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
-        printf '%s\n' '-----------------------------------------------------------------------------------------------'
+        # printf '%s\n' '-----------------------------------------------------------------------------------------------'
         printf "** Summary Program Information\n"
         printf "| %-8s " "KEY"
         printf "| %-${cw}s " "COMMAND"
@@ -1126,14 +1202,14 @@ function session_run_multi() {
             printf "ALL OK\n"
         else                                                # test failed
             debug "Fail with status '$status'"
-            nfails="${#fail_messages[@]}"
-            printf "%d FAILURES FOUND\n\n" "$nfails"
+            nfails="${#failmsg_long[@]}"
+            printf "%d FAILURES CAUSES FOUND\n\n" "$nfails"
             fidx=1
-            for msg in "${fail_messages[@]}"; do
+            for msg in "${failmsg_long[@]}"; do
                 # printf '%s\n' '- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
-                printf '%s\n' '-----------------------------------------------------------------------------------------------'
-                printf "* FAILURE %d\n" "$fidx"
-                printf "%b\n" "${msg}"
+                # printf '%s\n' '-----------------------------------------------------------------------------------------------'
+                printf "** (FAILURE %d) %b\n" "$fidx" "${msg}"
+                # printf "%b\n" "${msg}"
                 printf "\n"
                 ((fidx++))
             done
@@ -1147,27 +1223,6 @@ function session_run_multi() {
     # testing at this point and are not needed for results
 
     return 0
-}
-
-function session_catfile() {
-# Handle '#+BEGIN_QUOTE somefile.txt' regions which will create a file
-# with the specified name in it and place text in the region in
-# file. Useful for creating small-ish input files on the fly during
-# tess. This output is also echoed into the comments for the test
-# results.
-
-    debug "session_catfile: $line"
-    outfilename="${line##* }"                  # extract last token from the line as file name
-    debug "outfilename: $outfilename"
-    comments="${comments}${line}\n"
-    while read -r; do                          # read a line from the test session
-        updateline
-        comments="${comments}${line}\n"
-        if [[ "$first" == '#+END_QUOTE' ]]; then
-            break
-        fi
-        printf "%s\n" "$line"
-    done > "$outfilename"
 }
 
 function program_add_prompts_to_outfile () {
@@ -1310,7 +1365,7 @@ function session_single_result_file () {
  
         # output failure messages
         printf '** FAILURE MESSAGES\n'
-        for msg in "${fail_messages[@]}"; do       # iterate through failure messages
+        for msg in "${failmsg_brief[@]}"; do       # iterate through failure messages
             printf "%b\n" "$msg"
         done
 
@@ -1329,8 +1384,10 @@ function session_single_result_file () {
         printf "\n"
         printf "%s\n" "** LINE DIFFERENCES"
         printf "%s\n" "from file '${diffline_file}'"
+        printf "%s\n" "#+BEGIN_SRC text"
         printf "If this section is empty, there are no line differences\n\n"
         cat "${diffline_file}"
+        printf "%s\n" "#+END_SRC"
         printf "\n"
 
         if [[ "$use_valgrind" == "1" ]]; then      # show valgrind log if enabled 
@@ -1502,25 +1559,25 @@ function run_test_session() {
     debug "wait returned: $retcode"
 
     test_status="$PASS_STATUS"                        # initial status, change to 'FAIL' if things go wrong
-    fail_messages=()                                  # array accumulating failure messages
+    failmsg_brief=()                                  # array accumulating failure messages
     case "$retcode" in                                # inspect return code for errors
         "$VALG_ERROR")
             test_status="$FAIL_STATUS"
-            fail_messages+=("FAILURE($retcode): Valgrind detected errors")
+            failmsg_brief+=("FAILURE($retcode): Valgrind detected errors")
             ;;
         "$RETCODE_TIMEOUT")
             test_status="$FAIL_STATUS"
-            fail_messages+=("FAILURE($retcode) due to TIMEOUT: Runtime exceeded maximum of '$timeout'")
+            failmsg_brief+=("FAILURE($retcode) due to TIMEOUT: Runtime exceeded maximum of '$timeout'")
             ;;
         "$RETCODE_SEGFAULT")
             test_status="$FAIL_STATUS"
-            fail_messages+=("FAILURE($retcode) due to SIGSEGV (segmentation fault) from OS")
+            failmsg_brief+=("FAILURE($retcode) due to SIGSEGV (segmentation fault) from OS")
             ;;
         *)
             debug "checking return value '$retcode'"
             if [[ "$checkreturn" == "1" && "$retcode" != "0" ]]; then
                 test_status="$FAIL_STATUS"
-                fail_messages+=("FAILURE: program returned $retcode (non-zero) triggering failure")
+                failmsg_brief+=("FAILURE: program returned $retcode (non-zero) triggering failure")
                 skipdiff=0      # hack to show diffed output on non-zero return, possibly from valgrind subprocess
             fi
     esac
@@ -1530,7 +1587,7 @@ function run_test_session() {
         ! awk '/still reachable:/{if($4 != 0){exit 1;}}' "${valgrd_file}";
     then                                              # valgrind log does not contain 'reachable: 0 bytes'
         test_status="$FAIL_STATUS"
-        fail_messages+=("FAILURE: Valgrind reports reachable memory, may need to add free() or fclose()")
+        failmsg_brief+=("FAILURE: Valgrind reports reachable memory, may need to add free() or fclose()")
     fi
 
     # ADDING IN PROMPTS TO ECHOED INPUT
@@ -1612,7 +1669,7 @@ function run_test_session() {
         diffreturn=0
     elif [[ "$diffreturn" != "0" ]]; then
         test_status="$FAIL_STATUS"
-        fail_messages+=("FAILURE: Output Mismatch at lines marked")
+        failmsg_brief+=("FAILURE: Output Mismatch at lines marked")
     fi
 
     if [[ "$test_status" == "$PASS_STATUS" ]]; then        # test passed
@@ -1632,7 +1689,7 @@ function run_test_session() {
            printf 'but any input to the program must be typed within the debugger\n'
            printf "\n"
            printf '** --- Failure messages --- \n'
-           for msg in "${fail_messages[@]}"; do       # iterate through failure messages
+           for msg in "${failmsg_brief[@]}"; do       # iterate through failure messages
                printf "%s\n" "- $msg"
            done
            printf "\n"

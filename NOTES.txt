@@ -34,6 +34,8 @@
   output easier at the minor expense of more disk space
 - Truncate output to some configurable amount; for infinite loops that
   produce lots of output this will lead to better outcomes
+- Expire use of HERE docs to simplify some of the output format
+  creation. 
 
 ** Done
 - Adjust standard single tests to add failures to lists like they
