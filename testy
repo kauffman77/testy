@@ -1407,8 +1407,9 @@ function session_single_result_file () {
 
 
 function session_run_single () {
-# UPDATED: Run a Test Session for a Single Program, use same framework
-# as multi session; run in context of read
+# Run a Test Session for a Single Program which is between a
+# #+BEGIN_SRC/#+END_SRC pair in the spec file. Runs in a context where
+# 'read' will accept input from the session lines.
 
     debug "session_run_single ()"
     session_setup                                   # creates array, vars like expect_file
@@ -1462,7 +1463,7 @@ function session_run_single () {
 }
 
 function run_test_session() {
-# OLD VERSION
+# DEPRECATED VERSION: replaced by session_run_single
 # Run a Test Session for a Single Program
 #
 # Sets up a test session which is denoted by the #+BEGIN_SRC/#+END_SRC
@@ -1946,10 +1947,10 @@ function main () {
                     if [[ "$program" == "TESTY_MULTI" ]]; then
                         session_run_multi
                     else
-                        if [[ "$NEW_SINGLE" != "" ]]; then
-                            session_run_single
-                        else
+                        if [[ "$OLD_SINGLE" != "" ]]; then
                             run_test_session
+                        else
+                            session_run_single
                         fi
                     fi
                     if [[ "$test_status" != "$PASS_STATUS" ]]; then
