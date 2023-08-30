@@ -1419,7 +1419,7 @@ function session_run_single () {
     file_of_array "$expect_file" "${all_expect[@]}" # create expected output file for program
 
     # RUN THE PROGRAM
-    progkey="${program%% *}"                       # use first word of program as key
+    progkey="$(basename ${program%% *})"           # use first word of program as key, basename omits path to prog
     program_start "$progkey" "$program"            # creates to FIFO 
 
 
