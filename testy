@@ -835,6 +835,7 @@ function program_check_failures() {
         if [[ "$valgrind_reachable" == "1" ]] &&                # and checking for reachable memory
             ! awk '/still reachable:/{if($4 != 0){exit 1;}}' ${valgfile};
         then                                                    # valgrind log does not contain 'reachable: 0 bytes'
+            debug "Reachable error found"
             test_status="$FAIL_STATUS"                               
             program_state[$key]="ReachErr"     # should likely move this to where other program states are set; 
             msg=""                             # not based on return so requires a regex check
@@ -850,10 +851,13 @@ function program_check_failures() {
             msg+="\n"
             msg+="Valgrind output from file '${program_valgfile[$key]}'\n"
             msg+="#+BEGIN_SRC text\n"                  # org mode source block for vlagrind output
-            msg+="$(cat ${program_valgfile[$key]})"
+            debug "cat-ing $valgfilen"
+            msg+="$(cat $valgfile)"
+            debug "done cat-ing $valgfilen"
             msg+="#+END_SRC\n"
             failmsg_long+=("$msg")
         fi
+        debug "End of Valgrind checks"
     fi
 
     return 0
@@ -1431,7 +1435,7 @@ function session_run_single () {
 
     # to="${program_input__fifo_fd[$progkey]}"       # input_fifo still open in testy, close
     # exec {to}>&-                                   
-    program_wait "$progkey"                        # NOTE: this may generate output...
+    program_wait "$progkey" >> "${program_output_file[$progkey]}" # NOTE: this may generate output...
     
     # copy the single program output to singular files for whole test;
     # possible in singl mode but in multi-mode, multiple programs each
@@ -1810,8 +1814,9 @@ function main () {
             rm -f ./test-fifo.fifo /tmp/test-fifo.fifo
             exit 1
         else                                              # use FIFOS in /tmp
-            TMPFIFOS="/tmp"
-            debug "Local dir $PWD can't handle FIFOs, Creating FIFOs in /tmp"
+            TMPFIFOS="/tmp/$USER"                         # name directory after user to avoid conflicts on shared systems
+            mkdir -p $TMPFIFOS
+            debug "Local dir $PWD can't handle FIFOs, Creating FIFOs in $TMPFIFOS"
         fi
     fi
     rm -f ./test-fifo.fifo /tmp/test-fifo.fifo
