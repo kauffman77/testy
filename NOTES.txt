@@ -33,6 +33,11 @@
   to have two different formats. Further merger is possible.
 
 ** Done
+- Fix valgrind naming bug introduced after merge of single/multi test
+  functionality : needed to copy program-specific valgrind file to
+  single valgrind file output for single sessions. Also stemmed from
+  misnamed global variable ~program_valg_file~ instead of
+  ~program_valgfile~.
 - Refactor internals to merge several nearly-identical functions for
   TESTY_MULTI and single program tests; this will ease maintenance
 - Added a message about how to run a single test in GDB but only
@@ -123,8 +128,6 @@ done
   file, pipe, through captured output, or something like that
 - Avoids any need for fancy terminal manipulations which will
   mean it works fine in emacs shells / compiles as well
-
-
 
 * Add Output for Correct/Passing Tests
 - For regularity, produce output for passing tests as well

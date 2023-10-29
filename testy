@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # A script to automate testing programs on the command line.
-# author:  Chris Kauffman <kauffman@umn.edu>
+# author:  Chris Kauffman <profk@umd.edu>
 # license: GPLv3-or-later
-# RELEASE: Thu Jun  1 05:17:00 PM EDT 2023
+# RELEASE: Sun Oct 29 02:20:48 PM EDT 2023 
 
 function setup_usage () {
 # Create the USAGE message and provide some documentation for
@@ -1302,7 +1302,7 @@ function file_of_array () {
     shift
     array=("$@")
 
-    debug "creating file '$' from array"
+    debug "creating file '$1' from array"
     for a in "${array[@]}"; do
         printf "%s\n" "$a";
     done > ${outfile}
@@ -1438,12 +1438,20 @@ function session_run_single () {
     program_wait "$progkey" >> "${program_output_file[$progkey]}" # NOTE: this may generate output...
     
     # copy the single program output to singular files for whole test;
-    # possible in singl mode but in multi-mode, multiple programs each
-    # have their own output / valgrind. 
+    # possible in single mode but in multi-mode, multiple programs each
+    # have their own output / valgrind.
+    debug "Copy prog output to single: cp '${program_output_file[$progkey]}' '$actual_file'"
     cp "${program_output_file[$progkey]}" "$actual_file"
-    if [[ -e "${program_valg_file[$progkey]}" ]]; then # valgrind may not be in use
-        cp "${program_valg_file[$progkey]}" "$valgrd_file"
+    debug "Check for '${program_valgfile[$progkey]}'"
+    if [[ -e "${program_valgfile[$progkey]}" ]]; then
+        debug "Copy prog valgfile to single: cp '${program_valgfile[$progkey]}' '$valgrd_file'"
+        cp "${program_valgfile[$progkey]}" "$valgrd_file"
     fi
+    # NOTE: Intentionally copying files in the aboe rather than
+    # alternatives such as sym/hard linking files (may be
+    # non-portable) or simply using variable names that refer to the
+    # files used (may create confusion as the naming for single tests
+    # is irregular then). May revisit these decisions later.
 
     program_add_prompts_to_outfile "$actual_file"     # adjust program output in several ways
     program_apply_post_filter "$actual_file"
