@@ -69,7 +69,7 @@ from file 'test-results/raw/test-02-diff.tmp'
 - Actual output in: test-results/raw/test-02-actual.tmp
 - Differing lines have a character like '|' and '<' in the middle
 
-#+BEGIN_SRC sbs-diff
+#+BEGIN_SRC sdiff
 ==== EXPECT ====                        ==== ACTUAL ====                     
 >> echo "Matching Line"                  >> echo "Matching Line"
 Matching Line                            Matching Line
@@ -427,6 +427,17 @@ function reset_options() {
     # longticks=$LONGTICKS
 }
 
+function bash_options_for_test() {
+# Sets options for this test locally to use bash. Fills the use case
+# of needing to switch temporarily to using the shell for some form of
+# testing.
+    program="bash -v"
+    prompt=">>"
+    echoing="input"
+    post_filter=""
+    use_valgrind="0"
+}
+
 function checkdep_fail() {
 # fail if a tool is not found, used to check for utilities like
 # timeout and valgrind
@@ -762,11 +773,11 @@ function program_check_failures() {
             test_status="$FAIL_STATUS"
             msg=""
             msg+="- VALGRIND ERRORS for ${key}"
-            msg+="  $'{program_command[$key]}' had Memory Errors detected by Valgrind\n"
+            msg+="  '$progcmd' had Memory Errors detected by Valgrind\n"
             failmsg_brief+=("$msg")
             msg=""
             msg+="Valgrind Errors for ${key}"
-            msg+="$'{program_command[$key]}' had Memory Errors detected by Valgrind\n"
+            msg+="'$progcmd' had Memory Errors detected by Valgrind\n"
             msg+="Valgrind output from '${program_valgfile[$key]}'\n"
             msg+="#+BEGIN_SRC text\n"                  # org mode source block for vlagrind output
             msg+="$(cat ${program_valgfile[$key]})"
@@ -777,27 +788,27 @@ function program_check_failures() {
             test_status="$FAIL_STATUS"
             msg=""
             msg+="- TIMEOUT for ${key}:\n"
-            msg+="  Program '${program_command[$key]}' still running after $timeout\n"
+            msg+="  Program '$progcmd' still running after $timeout\n"
             failmsg_brief+=("$msg")
             msg=""
             msg+="Timeout for ${key}:\n"
-            msg+="Program '${program_command[$key]}' still running after $timeout\n"
+            msg+="Program '$progcmd' still running after $timeout\n"
             failmsg_long+=("$msg")
             ;;
         "$RETCODE_SEGFAULT")
             test_status="$FAIL_STATUS"
             msg=""
             msg+="- SEGMENTATION FAULT for ${key} (retcode $retcode == SIGSEGV):\n"
-            msg+="  Program '${program_command[$key]}' signalled with segmentation fault by OS\n"
+            msg+="  Program '$progcmd' signalled with segmentation fault by OS\n"
             msg+="  Likely a memory error occurred. Try running under valgrind to see more info via\n"
-            msg+="  >> valgrind ${program_command[$key]}\n"
+            msg+="  >> valgrind $progcmd\n"
             failmsg_brief+=("$msg")
             msg=""
             msg+="Segmentation Fault for ${key}\n"
-            msg+="Program '${program_command[$key]}' signalled for a segmentation fault by OS\n"
+            msg+="Program '$progcmd' signalled for a segmentation fault by OS\n"
             msg+="This often appears as a non-zero return code of $retcode == SIGSEGV\n"
             msg+="Likely a memory error occurred. Try running under valgrind to see more info via\n"
-            msg+="  >> valgrind ${program_command[$key]}\n"
+            msg+="  >> valgrind $progcmd\n"
             msg+="Check the Valgrind log as if it was in use on this test it will provide clues"
             failmsg_long+=("$msg")
             # msg+="#+BEGIN_SRC text\n"                  # org mode source block for valgrind output
@@ -811,12 +822,12 @@ function program_check_failures() {
                 test_status="$FAIL_STATUS"
                 msg=""
                 msg+="- NON-ZERO RETURN CODE for ${key}"
-                msg+="  ${program_command[$key]} exited with code '$retcode' which"
+                msg+="  $progcmd exited with code '$retcode' which"
                 msg+="  was not expected"
                 failmsg_brief+=("$msg")
                 msg=""
                 msg+="Non-Zero Return Code for ${key}"
-                msg+="${program_command[$key]} exited with code '$retcode' which"
+                msg+="$progcmd exited with code '$retcode' which"
                 msg+="was not expected"
                 failmsg_long+=("$msg")
             fi
@@ -840,12 +851,12 @@ function program_check_failures() {
             program_state[$key]="ReachErr"     # should likely move this to where other program states are set; 
             msg=""                             # not based on return so requires a regex check
             msg+="- ${key} REACHABLE MEMORY AT EXIT\n"
-            msg+="  Valgrind reports '${program_command[$key]}' has reachable\n"
+            msg+="  Valgrind reports '$progcmd' has reachable\n"
             msg+="  memory at exit (e.g. a possible memory leak);"
             msg+="  may need to add free() or fclose() somewhere\n"
             failmsg_brief+=("$msg")
             msg+="Reachable Memory at Exit for ${key}\n"
-            msg+="Valgrind reports '${program_command[$key]}' has reachable\n"
+            msg+="Valgrind reports '$progcmd' has reachable\n"
             msg+="memory at exit (e.g. a possible memory leak);"
             msg+="may need to add free() or fclose() somewhere\n"
             msg+="\n"
