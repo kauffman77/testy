@@ -481,7 +481,7 @@ function updateline() {
     line="$REPLY"                                     # copy from REPLY built-in variable to avoid losing whitespace
     ((linenum++))                                     # update the current line number
     first="${line%% *}"                               # extracts the first word on the line
-    rest="${line#* }"                                 # extracts remainder of line
+    rest="${line:${#first}}"                          # extracts remainder of line via length of first as start index
 }
 
 function tick() {
@@ -1258,26 +1258,31 @@ function program_add_prompts_to_outfile () {
 # fooled: if an output line matches an input line, the prompt may be
 # added at the wrong spot.
 
-    debug "program_addback_prompts"
+    debug "program_add_prompts_to_outfile"
 
     outfile=$1
-    if [[ "$echoing" == "input" ]]; then               # program may only echo input necessitating adding prompts to output
-        idx=0                                          # index for input line
-        exec {mod}>"${outfile}.mod"
-        while read -r || [[ "$REPLY" != "" ]]; do      # read from output file into default REPLY var, second condition catches last line which may not end with a newline char
-            if ((idx < ${#all_input[@]})) &&           # still in bounds for input lines
-                [[ "${all_input[idx]}" == "$REPLY" ]]; # input line matches the program output
-            then
-                REPLY="$prompt $REPLY"                 # add the prompt to this line
-                ((idx++))                              # move to the next input to look for
-                debug "added prompt to input $idx: $REPLY"
-            fi
-            printf '%s\n' "$REPLY" >&$mod              # output the (un)modified line into the modified file
-        done <"${outfile}"                             # reading from the original output file
-        exec {mod}>&-                                  # close the modified file
-        mv "${outfile}" "${outfile}.noprompt"          # save original
-        mv "${outfile}.mod" "${outfile}"               # copy modified file back to original
+    if [[ "$echoing" != "input" ]]; then               # program may only echo input necessitating adding prompts to output
+        debug "echoing is '$echoing', not adding any prompts"
+        return 0
     fi
+
+    debug "echoing is '$echoing', modifying output to add back prompts"
+    idx=0                                          # index for input line
+    exec {mod}>"${outfile}.mod"
+    while read -r || [[ "$REPLY" != "" ]]; do      # read from output file into default REPLY var, second condition catches last line which may not end with a newline char
+        if ((idx < ${#all_input[@]})) &&           # still in bounds for input lines
+               [[ "${all_input[idx]}" == "$REPLY" ]]; # input line matches the program output
+        then
+            REPLY="$prompt $REPLY"                 # add the prompt to this line
+            ((idx++))                              # move to the next input to look for
+            debug "added prompt to input $idx: $REPLY"
+        fi
+        printf '%s\n' "$REPLY" >&$mod              # output the (un)modified line into the modified file
+    done <"${outfile}"                             # reading from the original output file
+    exec {mod}>&-                                  # close the modified file
+    mv "${outfile}" "${outfile}.noprompt"          # save original
+    mv "${outfile}.mod" "${outfile}"               # copy modified file back to original
+
 }
 
 function program_apply_post_filter () {
@@ -1349,7 +1354,8 @@ function session_single_gather_all () {
                     all_input+=("$input")             # append to all_input array for later processing
                     debug "^^ found input '$input'"
                 else
-                    debug "^^ ignoring prompt after EOF"
+                    all_expect+=("$line")
+                    debug "^^ prompt after EOF is output"
                 fi
                 ;;
             *)                                        # other lines are test output
