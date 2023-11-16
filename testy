@@ -404,6 +404,11 @@ function setup_globals () {
     FAIL_STATUS="FAIL"                                    # default status message associated with failing a test, anything not $PASS_STATUS is a failure though
     TEST_TITLE_WIDTH=20                                   # initial width for test test_titles, set to widest during initial parsing
 
+    USE_POINTS=0                                          # report points earned rather than tests passed
+    POINTS=1                                              # default points per test
+    POINTS_POSSIBLE=0                                     # total points possible, when running tests
+    POINTS_LOST=0                                         # total points lost in failures
+
     # regular expression used to detect commands that contain shell symbols which are barred
     SHELL_SYMBOLS='.*(>|<|\||&|&&|\|\|).*' 
 }
@@ -427,6 +432,8 @@ function reset_options() {
     valgrind_opts=$VALGRIND_OPTS
     ticktime=$TICKTIME
     valgrind_start_ticks=$VALGRIND_START_TICKS
+    points=$POINTS
+
     # input_style=$NORMAL
     # longticks=$LONGTICKS
 }
@@ -1489,10 +1496,12 @@ function session_run_single () {
 
     session_single_result_file "$result_file"         # produce output file
 
+    ((POINTS_POSSIBLE+=points))
     if [[ "$test_status" != "$PASS_STATUS" ]]; then   # test failed
         fail_files+=("${result_file}")                # add results to files to show
         test_status="FAIL -> results in file '${result_file}'"
         ((failcount++))
+        ((POINTS_LOST+=points))
     fi
 
     comments=""                                       # clear comments for next session
@@ -2047,9 +2056,15 @@ function main () {
         passcount=$(awk "BEGIN{printf(\"%0.2f\n\",$passcount / $testcount)}")
         testcount="1.00"
     fi
+    points_earned=$((POINTS_POSSIBLE - POINTS_LOST))
 
     printf "============================================================\n"
-    printf "RESULTS: %s / %s tests passed\n" "$passcount" "$testcount"
+
+    if [[ "$USE_POINTS" != "0" ]]; then
+        printf "RESULTS: %s / %s point earned\n" "$points_earned" "$POINTS_POSSIBLE"
+    else
+        printf "RESULTS: %s / %s tests passed\n" "$passcount" "$testcount"
+    fi
 
     debug "SHOW: $SHOW"
     if [[ "$SHOW" == "1" && "${#fail_files[@]}" -gt 0 ]]; then # show failure results if requested
