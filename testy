@@ -357,6 +357,8 @@ function setup_globals () {
     VALGRIND_PROG+=" --leak-check=full"
     VALGRIND_PROG+=" --show-leak-kinds=all"
     VALGRIND_PROG+=" --track-origins=yes"
+    # VALGRIND_PROG+=" --child-silent-after-fork=yes"
+    # VALGRIND_PROG+=" --trace-children=no"
     # VALGRIND_PROG+=" --keep-debuginfo=yes"  # old valgrind on gradescope does not support this option
 
     # Uses gsed if available for BSD-based operating systems and sed
@@ -382,6 +384,7 @@ function setup_globals () {
     RESULTDIR=${RESULTDIR:-"test-results"}                # directory where the results will be written
     RESULTRAW=${RESULTRAW:-"$RESULTDIR/raw"}              # directory where actual / expect / valgrind results are stored
     TIMEOUT=${TIMEOUT:-"5s"}                              # time after which to kill a test, passed to 'timeout' command and program_wait();
+    DIFF_PAD_WIDTH=${DIFF_PAD_WIDTH:-"10"}                # padding space to add in side-by-side diff to prevent characters from being chopped
     POST_FILTER=${POST_FILTER:-""}                        # run this program on output to adjust it if needed
     USE_VALGRIND=${USE_VALGRIND:-"0"}                     # use valgrind while testing
     VALGRIND_REACHABLE=${VALGRIND_REACHABLE:-"1"}         # report valgrind errors if memory is still reachable
@@ -415,6 +418,7 @@ function reset_options() {
     resultdir=$RESULTDIR
     resultraw=$RESULTRAW
     timeout=$TIMEOUT
+    diff_pad_width=$DIFF_PAD_WIDTH
     post_filter=$POST_FILTER
     use_valgrind=$USE_VALGRIND
     valgrind_reachable=$VALGRIND_REACHABLE
@@ -481,7 +485,8 @@ function updateline() {
     line="$REPLY"                                     # copy from REPLY built-in variable to avoid losing whitespace
     ((linenum++))                                     # update the current line number
     first="${line%% *}"                               # extracts the first word on the line
-    rest="${line:${#first}}"                          # extracts remainder of line via length of first as start index
+    reststart=$((${#first}+1))                        # start index of rest of line
+    rest="${line:$reststart}"                         # extracts remainder of line via length of first as start index
 }
 
 function tick() {
@@ -889,7 +894,10 @@ function diff_expect_actual() {
     actual_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$actual_file")
     expect_width=$(awk 'BEGIN{max=16}{w=length; max=w>max?w:max}END{print max}' "$expect_file")
     col_width=$((actual_width > expect_width ? actual_width : expect_width))
-    total_width=$((actual_width + expect_width + 5))    # width to pass to diff as -W, tighter than previous
+    # total_width=$((actual_width + expect_width + 5))    # width to pass to diff as -W, tighter than previous
+    # total_width=$((actual_width + expect_width + 10))    # width to pass to diff as -W, tighter than previous
+    # diff_pad_width=10
+    total_width=$((actual_width + expect_width + diff_pad_width))    # width to pass to diff as -W, tighter than previous
 
     debug "actual_width $actual_width expect_width $expect_width"
     debug "col_width $col_width total_width $total_width"
@@ -900,6 +908,7 @@ function diff_expect_actual() {
     debug "diffreturn: $diffreturn"
     {                                                 # create side-by-side diff file
         printf "%-${col_width}s   %-${col_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
+        debug "full sdiff command: $SDIFF -W $total_width \"$expect_file\" \"$actual_file\""
         $SDIFF -W $total_width "$expect_file" "$actual_file"
     } >"$outfile_sbs"
 
@@ -912,7 +921,7 @@ function diff_expect_actual() {
     if ((actual_width - expect_width > 10)); then
         extra_space_width=$((actual_width - expect_width))
         extra_space_width=$((extra_space_width - 5))
-        debug "Eliminating $extra_space_width spaces from diff file $outfile_sbs}"
+        debug "Eliminating ${extra_space_width} spaces from diff file $outfile_sbs}"
         $SEDCMD -i -E "s/(.{$expect_width})[ ]{$extra_space_width}/\1 /" "$outfile_sbs"
     fi
 
@@ -934,7 +943,7 @@ function diff_expect_actual() {
         msg+="- Actual output in: $actual_file\n"
         msg+="- Differing lines have a character like '|' and '<' in the middle\n"
         msg+="\n"
-        msg+="#+BEGIN_SRC sbs-diff\n"
+        msg+="#+BEGIN_SRC sdiff\n"
         msg+="$(cat ${diff_file})"
         msg+="\n"
         msg+="#+END_SRC\n"
@@ -1402,7 +1411,7 @@ function session_single_result_file () {
         printf "%s\n" "- Actual output in: $actual_file"
         printf "%s\n" "- Differing lines have a character like '|' and '<' in the middle"
         printf "\n"
-        printf "%s\n" "#+BEGIN_SRC sbs-diff"
+        printf "%s\n" "#+BEGIN_SRC sdiff"
         cat "${diff_file}"
         printf "\n"
         printf "%s\n" "#+END_SRC"
@@ -1733,7 +1742,7 @@ function run_test_session() {
                printf "%s\n" "- Expect output in: $expect_file"
                printf "%s\n" "- Actual output in: $actual_file"
                printf "%s\n" "- Differing lines have a character like '|' '>' or '<' in the middle"
-               printf "%s\n" "#+BEGIN_SRC sbs-diff"
+               printf "%s\n" "#+BEGIN_SRC sdiff"
                printf "%-${col_width}s   %-${col_width}s\n" "==== EXPECT ====" "==== ACTUAL ===="
                $SDIFF -W $total_width "$expect_file" "$actual_file"
                printf "%s\n" "#+END_SRC"
