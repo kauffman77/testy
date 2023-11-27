@@ -3,7 +3,7 @@
 # A script to automate testing programs on the command line.
 # author:  Chris Kauffman <profk@umd.edu>
 # license: GPLv3-or-later
-# RELEASE: Sun Oct 29 02:20:48 PM EDT 2023 
+# RELEASE: Sun Nov 26 10:38:36 PM EST 2023 
 
 function setup_usage () {
 # Create the USAGE message and provide some documentation for
@@ -1334,7 +1334,7 @@ function file_of_array () {
     shift
     array=("$@")
 
-    debug "creating file '$1' from array"
+    debug "creating file '$outfile' from array"
     for a in "${array[@]}"; do
         printf "%s\n" "$a";
     done > ${outfile}
