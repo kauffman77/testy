@@ -2077,6 +2077,12 @@ function main () {
             cat "$f"
         done
     fi
+    
+    # kill all descendent processes at this point; should not be
+    # necessary but in some cases may clean up errant child processes
+    # which have escaped
+    pkill -P $$
+    return 0
 }
 
 # call the main function with all command line args
