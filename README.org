@@ -317,58 +317,23 @@ Usage is best described by the help message shown via ~testy --help~
 v3.0-or-later (GPLv3-or-later)*. A copy of the GPLv3-or-later is
 included in the file ~LICENSE~ in the source repository.
   
-* Planned Additions
-- Refactor internals to merge several nearly-identical functions for
-  TESTY_MULTI and single program tests; this will ease maintenance
-- Remove the need to pass 'cat' as the filter to various
-  TESTY_MULTI commands
-- Adjust standard single tests to add failures to lists like they
-  do in TESTY_MULT (refactoring)
-- Explore use of Bash's built-in co-processes to see if that would
-  simplify the overall design 
-- Add version number reporting
-- Add documentation for TESTY_MULTI
-- Add multi-process testing to allow for concurrent execution of
-  tests; this would likely involve significant redesign and may not
-  provide much benefit but is worthwhile to explore for the efficiency
-  gains from utilizing multiple cores
-
-* Completed Additions
-- Added Immediate files via the BEGIN_QUOTE tag to quickly and easily
-  generate test input files that are baked into the test themselves
-- Added ~testy-regen~ which is a simple script to regenerate all test
-  results using the current "actual" results as the new "expect"
-  results; fails for multi-part tests but otherwise a time-saver
-- Catch syntax errors in testy sources for ~eval~ expressions in
-  blocks and report a syntax error on the associated line in the test
-  file; previously this just led to garbage errors being printed
-- Catch signals and clean up files if interrupt/term signal is given
-- Add support for Valgrind: re-run previous test to check for valgrind
-  results
-- Added support for testing multiple programs at once via TESTY_MULTI
-  which can launch multiple coordinate programs and check their
-  behavior
-- Add automatic regeneration of test results
-  - LOW PRIORITY: the actual results for test are stored in files
-    which can easily be re-inserted into the Org SRC blocks via
-    commands in emacs.
-- Re-checked example files in file:examples/ to guarantee that all of
-  them work as expected
+* Planned and Completed Additions
+See file:NOTES.txt which contains notes on planned and completed additions 
 
 * Install macOS Requirements
-Note: =testy= is primarily supported for Linux/GNU.
+Note: ~testy~ is primarily supported for Linux/GNU.
 
-The installation script of =testy= dependencies for macOS
+The installation script of ~testy~ dependencies for macOS
 ([[file:install_mac_requirements.sh]]) is made by a
 [[https://github.com/nik312123/][macOS contributor]] and does not
-guarantee that =testy= will work on macOS for all use cases.
+guarantee that ~testy~ will work on macOS for all use cases.
 
 The goal of the [[file:install_mac_requirements.sh]] script is to
-install the dependencies required for =testy= to work on macOS.
-At this time, due to lack of proper =valgrind= support on macOS,
-the aforementioned script does not install =valgrind= As such,
-=use_valgrind= should be set to =0= in .org files that =testy=
-runs like the following: =#+TESTY: use_valgrind=0=
+install the dependencies required for ~testy~ to work on macOS.
+At this time, due to lack of proper ~valgrind~ support on macOS,
+the aforementioned script does not install ~valgrind~ As such,
+~use_valgrind~ should be set to ~0~ in .org files that ~testy~
+runs like the following: ~#+TESTY: use_valgrind=0~
 
 To run the above installation script, you may run the following:
 
@@ -377,7 +342,7 @@ bash <( curl -fsSL "https://raw.githubusercontent.com/kauffman77/testy/master/in
 #+end_src
 
 To run the script in verbose mode (prints commands being run and their
-outputs) add the =-v= flag like so:
+outputs) add the ~-v~ flag like so:
 
 #+begin_src sh
 bash <( curl -fsSL "https://raw.githubusercontent.com/kauffman77/testy/master/install_mac_requirements.sh" ) -v

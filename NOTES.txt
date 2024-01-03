@@ -1,6 +1,6 @@
 # -*- mode: Org;-*-
 
-* TODO Items
+* TODO General Improvements
 - Refactor Mac install script to remove massive redundancy in code
 - TESTY_MULTI commands don't work unless there is a exactly one space
   separating the tokens. This defies common convention/expectation.
@@ -11,47 +11,21 @@
     more with its own README
 - Remove the need to pass 'cat' as the filter to various
   TESTY_MULTI commands
-- Explore use of Bash's built-in co-processes to see if that would
-  simplify the overall design
-- Remove use of 'mkfifo', perhaps FIFOs altogether as this feature
-  does not work on Windows file systems under the WSL
 - Test number boundary checking : none present so specifying an
   out-of-bounds test fails with uninformative message (e.g. 4 tests
   present, run #5)
 - Add multi-part test handling to ~testy-regen~
-- would be useful to also add
-- Add message on how to run test with interactive input in GDB, now
-  possible as input for single tests is in a file
-- Output results files even for passing tests - makes understanding
-  output easier at the minor expense of more disk space
 - Truncate output to some configurable amount; for infinite loops that
   produce lots of output this will lead to better outcomes
 - Explore use of HERE docs to simplify some of the output format
   creation. 
-- Consider the styles of failure listing in MULTI versus show
-  everything in SINGLE. Not sure which is preferred but it seems odd
-  to have two different formats. Further merger is possible.
+- Add documentation for TESTY_MULTI
+- Add a manual page and texinfo file
+  - Have a git branch for the man page set up and am experimenting
+    with formatting but org output formatting for man pages is a bit
+    broken 
 
-** Done
-- Fix valgrind naming bug introduced after merge of single/multi test
-  functionality : needed to copy program-specific valgrind file to
-  single valgrind file output for single sessions. Also stemmed from
-  misnamed global variable ~program_valg_file~ instead of
-  ~program_valgfile~.
-- Refactor internals to merge several nearly-identical functions for
-  TESTY_MULTI and single program tests; this will ease maintenance
-- Added a message about how to run a single test in GDB but only
-  relevant to non-interactive tests;
-- Adjust standard single tests to add failures to lists like they
-  do in TESTY_MULT
-- Add signal handling to do cleanup if needed
-- If a file doesn't end in a newline, this can cause the last line
-  of a testing session to be missed. Try to make this a bit more
-  robust. Use the DEBUG output to see when the last line of the
-  session is missed
-  - Pretty sure this was fixed in a commit at or before 4/11/2021
-
-* Design Ideas for Multiple Processes
+* TODO Design Ideas for Multiple Processes
 - May want to start multiple processes each running its own test
 - Improve efficiency a la ~make -j~
 - Makes sense for some codes though though must make sure tests are
@@ -129,13 +103,154 @@ done
 - Avoids any need for fancy terminal manipulations which will
   mean it works fine in emacs shells / compiles as well
 
-* Add Output for Correct/Passing Tests
-- For regularity, produce output for passing tests as well
-- Perhaps show diff with matching
+* TODO Bad File Descriptors
+When programs in a TESTY_MULTI session segfault, sometimes get bad
+file descriptors during reads in testy itself which leads to errors
+printing. Not sure how this could be happening so will need to do some
+sleuthing.
+
+#+BEGIN_SRC sh
+val (master) [solution-p2-4061]% pwd
+/home/kauffman/4061-S2021/projects/p2-blather/solution-p2-4061
+
+val (master) [solution-p2-4061]% make test
+./testy test_blather.org
+============================================================
+== test_blather.org : Blather Application Tests
+== Running 20 / 20 tests
+1)  Server Start/End                : FAIL -> results in file 'test-results/blather-01-result.tmp'
+2)  Single Client Join / Depart     : FAIL -> results in file 'test-results/blather-02-result.tmp'
+3)  Single Client Join + Shutdown   : FAIL -> results in file 'test-results/blather-03-result.tmp'
+./testy: line 713: read: read error: 0: Bad file descriptor
+4)  Single Client Messages          : FAIL -> results in file 'test-results/blather-04-result.tmp'
+..
+#+END_SRC
+
+* TODO Pseudo-Terminals and Testy                                     :testy:
+Investigating use of pseudo-terminals for better control of program
+input/output, "tricking" programs into thinking they are being used
+interactively
+
+Unfortunately there is no way to create pty's from within bash, moving
+this to "pesty" python implementation
+
+Jack used them in his 'testius' implementation, python provides
+support for this in a pty module.
+
+Jack's testius also uses a variety of other interesting commands
+involving pseudoterminals which are worth learning about.
+
+There appears to be no way to create pseudoterminals in bash directly
+so if I went this route, I'd likely need to port to Python.
+
+* Completed Items
+** DONE Completed General Improvements
+- Add message on how to run test with interactive input in GDB, now
+  possible as input for single tests is in a file
+- Fix valgrind naming bug introduced after merge of single/multi test
+  functionality : needed to copy program-specific valgrind file to
+  single valgrind file output for single sessions. Also stemmed from
+  misnamed global variable ~program_valg_file~ instead of
+  ~program_valgfile~.
+- Refactor internals to merge several nearly-identical functions for
+  TESTY_MULTI and single program tests; this will ease maintenance
+- Added a message about how to run a single test in GDB but only
+  relevant to non-interactive tests;
+  - Done but could also add a way to run it with input from input
+    files at least for single tests
+- Adjust standard single tests to add failures to lists like they
+  do in TESTY_MULT
+- Add signal handling to do cleanup if needed
+- If a file doesn't end in a newline, this can cause the last line
+  of a testing session to be missed. Try to make this a bit more
+  robust. Use the DEBUG output to see when the last line of the
+  session is missed
+  - Pretty sure this was fixed in a commit at or before 4/11/2021
+- Consider the styles of failure listing in MULTI versus show
+  everything in SINGLE. Not sure which is preferred but it seems odd
+  to have two different formats. Further merger is possible.
+  - Did this during merger of single/multi functionality
+- Remove use of 'mkfifo', perhaps FIFOs altogether as this feature
+  does not work on Windows file systems under the WSL
+  - Bash doesn't have a way to create a plain pipe nor a pty so
+    this is better reserved for the pesty python version
+- Added Immediate files via the BEGIN_QUOTE tag to quickly and easily
+  generate test input files that are baked into the test themselves
+- Added ~testy-regen~ which is a simple script to regenerate all test
+  results using the current "actual" results as the new "expect"
+  results; fails for multi-part tests but otherwise a time-saver
+- Catch syntax errors in testy sources for ~eval~ expressions in
+  blocks and report a syntax error on the associated line in the test
+  file; previously this just led to garbage errors being printed
+- Catch signals and clean up files if interrupt/term signal is given
+- Add support for Valgrind: re-run previous test to check for valgrind
+  results
+- Added support for testing multiple programs at once via TESTY_MULTI
+  which can launch multiple coordinate programs and check their
+  behavior
+- Add automatic regeneration of test results
+  - LOW PRIORITY: the actual results for test are stored in files
+    which can easily be re-inserted into the Org SRC blocks via
+    commands in emacs.
+- Re-checked example files in file:examples/ to guarantee that all of
+  them work as expected
+
+
+** DONE Use of Bash Co-Processes
+Investigated these briefly after seeing a reference to them. They are
+useless wrt to testy as they have the following idiotic nature:
+#+BEGIN_QUOTE
+I wouldn't touch coproc. When the co-process exits, the variables
+through which you accessed it (like its stdout file descriptor) are
+unset, and that sometimes happens before you had a chance to even
+start consuming the output, or capture the PID. (Try consuming the
+output of ls, and then do it again with sleep before you
+consume. Ops...) So maybe your script works most of the time, but when
+timings are less lucky, it randomly fails. Named pipes, on the other
+hand, will not be suddenly gone. It's more fiddling, but at least it's
+deterministic. –
+
+-- ddekany May 24, 2021 at 19:16 
+https://superuser.com/questions/184307/bash-create-anonymous-fifo
+#+END_QUOTE
+
+An example use is here which demonstrates the async problem indicated
+in the comment
+#+BEGIN_SRC sh
+#!/bin/bash
+
+printf "About to launch a coproc\n"
+
+coproc MYLS { ls -l; }
+
+printf "proc id %s\n" "$MYLS_PID"
+printf "Pipe fds: %s %s\n" "${MYLS[0]}" "${MYLS[1]}"
+
+printf "Output from child:\n"
+while IFS= read -u "${MYLS[0]}" -r line; do
+    printf "%s\n" "$line"
+done
+# In all tested cases this loop errors out prior to completion as the
+# child process finishes and this eliminates the pipes connecting it
+# ot the parent.  This is a missed opportunity
+
+printf "Waiting on child\n"
+wait $MYLS_PID
+
+printf "Done\n"
+#+END_SRC
+
+** DONE Add Output for Correct/Passing Tests
+- Output results files even for passing tests - makes understanding
+  output easier at the minor expense of more disk space
+- Perhaps show diff with matching: done
 - In output files at top (title), show PASS or FAIL
 
+Student commented that it would be nice if passing tests had their
+output files in a separate directory to make it easier to find failing
+test results
 
-* Merging Single / TESTY_MULTY functionality
+** DONE Merging Single / TESTY_MULTY functionality
 - TESTY_MULTI is more general
 - For a single test, just need to start the child process, feed it
   input, then check the results
@@ -165,7 +280,7 @@ valgrind output
 
 #+END_SRC
 
-** run_test_multi_session
+*** run_test_multi_session
 - There are a bunch of arrays that are set up at the beginning of this
   function that would also be required for a single session to be
   compatible, will want to spin this into its own setup function so it
@@ -187,14 +302,14 @@ valgrind output
 | retcode checks     | check_return         | looped check_return    | Single function to check for failures via return code  |
 |                    |                      |                        |                                                        |
 
-** Name Collisions
+*** Name Collisions
 - program_status[] :: running, killed, finished etc. assoc array of all
   programs that are part of the test
 - status :: of the test, ok / FAIL, likely rename to ~test_status~
 - PASS_STATUS :: is ok, constant string for passing test
 - FAIL_STATUS :: is FAIL, constant string for failing test
 
-** Use of read() command + Expected Output 
+*** Use of read() command + Expected Output 
 - Currently being handled via sed on the test file, not great, could
   accumulate these in arrays instead
 - Could also accumulate session commands in an array and iterate over
@@ -202,7 +317,7 @@ valgrind output
   likely beat the ~read~ approach with its weirdness
 
 
-** Handling of input / output / valgrind
+*** Handling of input / output / valgrind
 - In multi-sessions, each program has its own input/output/valgrind
   files
 - Overkill for single session where want shorter names for raw
@@ -235,30 +350,7 @@ valgrind output
   the input pipe for the program so no need to do things differently
   between single and multi
 
-* Bad File Descriptors
-When programs in a TESTY_MULTI session segfault, sometimes get bad
-file descriptors during reads in testy itself which leads to errors
-printing. Not sure how this could be happening so will need to do some
-sleuthing.
-
-#+BEGIN_SRC sh
-val (master) [solution-p2-4061]% pwd
-/home/kauffman/4061-S2021/projects/p2-blather/solution-p2-4061
-
-val (master) [solution-p2-4061]% make test
-./testy test_blather.org
-============================================================
-== test_blather.org : Blather Application Tests
-== Running 20 / 20 tests
-1)  Server Start/End                : FAIL -> results in file 'test-results/blather-01-result.tmp'
-2)  Single Client Join / Depart     : FAIL -> results in file 'test-results/blather-02-result.tmp'
-3)  Single Client Join + Shutdown   : FAIL -> results in file 'test-results/blather-03-result.tmp'
-./testy: line 713: read: read error: 0: Bad file descriptor
-4)  Single Client Messages          : FAIL -> results in file 'test-results/blather-04-result.tmp'
-..
-#+END_SRC
-
-* DONE Avoiding Subshell Error messages During TESTY_MULTI
+** DONE Avoiding Subshell Error messages During TESTY_MULTI
 During TESTY_MULTI if a child processes segfault bash will report
 the error and it is devilishly hard to subdue this reporting. It
 looks like
@@ -299,7 +391,7 @@ suppress the error messages I wanted silenced.
 May need to revisit this as the child processes inherit the traps and
 if they are bash processes, may change their behavior.
 
-* DONE Multi Process testing
+** DONE Multi Process testing
 
 #+BEGIN_SRC text
 > START server ./bl_server gotham
@@ -338,7 +430,7 @@ if they are bash processes, may change their behavior.
 SHELL kill -15 %PNAME[server]
 
 #+END_SRC
-** notes 
+*** notes 
 - the example above illustrates that this command set as it would
   exist in testy looks more like another interpreter of some type
 - as I have started to experiment with coding it in bash, it feels
@@ -353,3 +445,4 @@ Tue 18 Aug 2020 09:50:13 AM CDT
 - Altered the syntax away from the above somewhat but the general
   scheme is still what I ended up using
 - see the banter/ directory for an example 
+
