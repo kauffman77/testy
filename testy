@@ -2060,7 +2060,13 @@ function main () {
 
     printf "============================================================\n"
 
-    if [[ "$USE_POINTS" != "0" ]]; then
+    if [[ "$USE_POINTS" != "0" && "$SCALE_POINTS" != "0" ]]; then
+        awk "BEGIN{ \
+              printf(\"RESULTS: %.2f / %.2f point earned\n\",\
+                     $points_earned*$SCALE_POINTS,\
+                     $POINTS_POSSIBLE*$SCALE_POINTS)\
+             }"
+    elif [[ "$USE_POINTS" != "0" ]]; then
         printf "RESULTS: %s / %s point earned\n" "$points_earned" "$POINTS_POSSIBLE"
     else
         printf "RESULTS: %s / %s tests passed\n" "$passcount" "$testcount"
