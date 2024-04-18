@@ -976,6 +976,7 @@ function session_catfile() {
 
     debug "session_catfile: $line"
     outfilename="${line##* }"                  # extract last token from the line as file name
+    outfilename=$(eval "echo $outfilename")    # enable variable expansion in filenames
     debug "outfilename: $outfilename"
     comments="${comments}${line}\n"
     while read -r; do                          # read a line from the test session
