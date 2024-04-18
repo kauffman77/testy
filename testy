@@ -1882,7 +1882,7 @@ function main () {
         case "$first" in
             "*")
                 debug "^^ Test Start"
-                eval_test_expr=0                          # in a test, wait to evaluate #+TESTY: expr until during test
+                eval_testy_expr=0                         # in a test, wait to evaluate #+TESTY: expr until during test
                 if ((testnum > 0)); then                  # if not the first test
                     endline=$((linenum - 1))
                     test_end_line+=("$endline")
@@ -1990,6 +1990,10 @@ function main () {
                 "#+TESTY:")                               # eval some code to set options
                     debug "evaluating '$rest'"
                     eval "$rest"
+                    if [[ $? != 0 ]]; then                # check syntax error, print error message
+                        printf "%s: line %d: Syntax error in test file, bailing out\n" "$specfile" "$linenum"
+                        exit 1                            # this format used to be amenable to emacs compilation/jump to error
+                    fi
                     ;;
                 "#+BEGIN_SRC")                            # test session starting
                     debug ":TEST $testnum: Begin testing session"
