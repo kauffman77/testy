@@ -433,7 +433,7 @@ function reset_options() {
     ticktime=$TICKTIME
     valgrind_start_ticks=$VALGRIND_START_TICKS
     points=$POINTS
-    setdir="."
+    testdir="."                                        # default to current directory
 
     # input_style=$NORMAL
     # longticks=$LONGTICKS
@@ -502,6 +502,21 @@ function tick() {
 # multi-program testing. Increasing TICKTIME leads to longer testing
 # time but more stable reuslts.
     sleep "$ticktime"
+}
+
+function set_test_directory () {
+# Sets up a testing directory that is the first argument. The
+# directory is under the RESULTDIR (test-results) and has a link
+# allowing a child process to run there and still capture its
+# output. Call this funciton in a directive like
+#   #+TESTY: set_test_dir bake_main1
+# which will cause a program to be run there rather than in the top
+# level directory.
+    testdir=$1
+    testdir=$RESULTDIR/$testdir                        # retained and used with child process
+    rm -rf $testdir
+    mkdir -p $testdir
+    ln -s .. $testdir/$RESULTDIR                       # this is sketchy but works when RESULTDIR is test-results
 }
 
 function program_wait() {
@@ -654,7 +669,7 @@ function program_start() {
             fi
         done
 
-        cd $setdir > /dev/null                         # child process changes to specified directory
+        cd $testdir > /dev/null                        # child process changes to specified directory
         eval exec $cmd                                 # exec replaces current image with child process in a 
     ) &                                                # subshell, started in background, no quoting to all redirect
     program_pid[$key]=$!
