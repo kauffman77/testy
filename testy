@@ -433,6 +433,7 @@ function reset_options() {
     ticktime=$TICKTIME
     valgrind_start_ticks=$VALGRIND_START_TICKS
     points=$POINTS
+    setdir="."
 
     # input_style=$NORMAL
     # longticks=$LONGTICKS
@@ -652,6 +653,8 @@ function program_start() {
                 exec {tofd}>&-
             fi
         done
+
+        cd $setdir > /dev/null                         # child process changes to specified directory
         eval exec $cmd                                 # exec replaces current image with child process in a 
     ) &                                                # subshell, started in background, no quoting to all redirect
     program_pid[$key]=$!
