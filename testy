@@ -3,7 +3,7 @@
 # A script to automate testing programs on the command line.
 # author:  Chris Kauffman <profk@umd.edu>
 # license: GPLv3-or-later
-# RELEASE: Wed Apr 17 09:58:03 PM EDT 2024 
+# RELEASE: Tue Apr 23 05:19:41 PM EDT 2024
 
 function setup_usage () {
 # Create the USAGE message and provide some documentation for
@@ -1815,6 +1815,40 @@ function run_test_session() {
     return 0
 }
 
+function check_fifo_support () {
+# Determines if FIFOs are supported on this system and if so,
+# where. If FIFOs are not supported in a common location, this
+# function will exit testy as they are required to run tests. Many
+# standard file systems support the creation of FIFOs in local
+# directories. Other systems like WSL (Windows) don't support this but
+# do provide for FIFOs in the /tmp directory. This function will leave
+# TMPFIFOS="" if the local file system supports fifo creation or set
+# TMPFIFOS="/tmp/$USER" if /tmp must be used. TMPFIFOS is used
+# elsewhere when creating FIFOs.
+
+    rm -f ./test-fifo.fifo                                  # try current directory first
+    if  mkfifo ./test-fifo.fifo &> /dev/null ; then         # FIFOs in current directory?
+        debug "FIFO support in current directory $PWD"
+        rm -f ./test-fifo.fifo
+        return
+    fi
+    debug "No FIFO support in Local directory $PWD"
+
+    fifo_dir="/tmp/$USER"                                   # try FIFOs in /tmp, supported by WSK
+    fifo_targ="$fifo_dir/test-fifo.fifo"
+    mkdir -p $fifo_dir
+    rm -f $fifo_targ
+    if mkfifo $fifo_targ &>/dev/null; then                  # FIFOs in /tmp?
+        debug "FIFO support in $fifo_dir"                   # yes - set global variable
+        rm -f $fifo_targ
+        TMPFIFOS="$fifo_dir"
+        return 
+    fi
+
+    printf "ERROR: No support fo FIFOs in %s or %s; Bailing out\n" "$PWD" "$fifo_dir"
+    exit 1
+}
+
 function main () {
 # MAIN PROCESSING LOOP
 
@@ -1868,20 +1902,7 @@ function main () {
         checkdep_fail "$dep"
     done
 
-    rm -f ./test-fifo.fifo /tmp/test-fifo.fifo              # Test FIFO creation, often fails for Windows file systems on WSL, can
-    if !  mkfifo ./test-fifo.fifo &> /dev/null ; then       # FIFOs in current directory?
-        debug "Can't create fifos in $PWD"
-        if ! mkfifo /tmp/test-fifo.fifo &>/dev/null; then # FIFOs in /tmp?
-            printf "ERROR: Can't create FIFOs in %s or /tmp; Bailing out\n" "$PWD"
-            rm -f ./test-fifo.fifo /tmp/test-fifo.fifo
-            exit 1
-        else                                              # use FIFOS in /tmp
-            TMPFIFOS="/tmp/$USER"                         # name directory after user to avoid conflicts on shared systems
-            mkdir -p $TMPFIFOS
-            debug "Local dir $PWD can't handle FIFOs, Creating FIFOs in $TMPFIFOS"
-        fi
-    fi
-    rm -f ./test-fifo.fifo /tmp/test-fifo.fifo
+    check_fifo_support
 
     ##################################################
     # first processing loop: read whole file into testdata array which will
