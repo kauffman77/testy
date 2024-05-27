@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+
+from subprocess import Popen, PIPE, STDOUT
+import os
+import codecs
+
+# allow showing embedded newlines in strings
+escape_strs = str.maketrans({"\n" : r"\n"})
+
+# register translation mechanisms for bad ascii characters
+codecs.register_error('as_question_marks', lambda e: (u'?',e.start + 1))
+codecs.register_error('as_nonascii', lambda e: (u':nonascii:',e.start + 1))
+
+def add_prompts_to_output(cmd_output,cmd_input,prompt):
+  # Create a decorated version of cmd_output where each line in
+  # sequence that matches a line in cmd_input has prompt prepended to
+  # it.
+  prompt_lines = []
+  input_lines = cmd_input.splitlines()
+  inpos = 0
+  for outline in cmd_output.splitlines():
+    if inpos < len(input_lines) and outline==input_lines[inpos]:
+      outline = prompt + outline
+      inpos += 1
+    prompt_lines.append(outline)
+  return "\n".join(prompt_lines)
+
+def extract_input(cmd_inout,prompt):
+  # Return a modified version of string cmd_input_output which
+  # contains only lines that start with prompt and has prompt removed
+  # from those lines
+  prompt_len = len(prompt)
+
+  cmd_input_lines = []
+  for line in cmd_inout.splitlines():
+    if line.startswith(prompt):
+      cmd_input_lines.append(line[prompt_len:])
+  
+  return "\n".join(cmd_input_lines)
+
+  # cmd_input_lines = [
+  #   cmd[prompt_len:]
+  #   for cmd in cmd_inout.splitlines() if cmd.startswith(prompt)
+  # ]
+  
+
+
+print("starting child")
+
+subp_input = """1+1
+3+4
+9*2+3
+"""
+
+cmd = ["bc","-iq"]
+subp = Popen(cmd,
+             stdin=PIPE,
+             stdout=PIPE,
+             stderr=STDOUT,
+             bufsize=0,
+             text=True,
+             encoding='ascii',
+             errors='replace')
+
+print("communicating")
+(stdout,_) = subp.communicate(subp_input,timeout=5)
+print(f"retcode: {subp.returncode}")
+print(f"input:\n{subp_input}")
+print(f"output:\n{stdout}")
+
+
+cmd = ['bash','-c','printf "😃\n"']
+subp = Popen(cmd,
+             stdin=PIPE, stdout=PIPE, stderr=STDOUT,
+             bufsize=0, text=True,
+             encoding='ascii',
+             # errors='as_nonascii')
+             errors='as_question_marks')
+             # errors='backslashreplace')
+
+
+print("communicating")
+(stdout,_) = subp.communicate(None,timeout=5)
+print(f"command: {' '.join(cmd).translate(escape_strs)}")
+print(f"retcode: {subp.returncode}")
+print(f"output:\n{stdout}")
+
+################################################################################
+
+prompt=">> "
+cmd = ['bash','-v']
+cmd_inout = """\
+>> ls -1
+coproc.sh~
+examples
+install_mac_requirements.sh
+LICENSE
+NOTES.txt
+NOTES.txt~
+pesty~
+pesty-pty~
+pesty-pty-dup~
+pesty-testing
+pesty-testing~
+pesty-testing2
+pesty-testing2~
+README.org
+sample1.man~
+sample2.man~
+sample_tests.org
+testout.txt
+test-results
+testy
+testy.old
+testy.org~
+testy-regen
+testy-regen~
+workfiles
+x.sh
+x.sh~
+>> echo 'hello'
+hello
+>> pwd
+/home/kauffman/testy
+"""
+
+cmd_input = extract_input(cmd_inout,prompt)
+
+subp = Popen(cmd,
+             stdin=PIPE, stdout=PIPE, stderr=STDOUT,
+             bufsize=0, text=True,
+             encoding='ascii',
+             # errors='as_nonascii')
+             errors='as_question_marks')
+             # errors='backslashreplace')
+
+
+print("communicating")
+(stdout,_) = subp.communicate(cmd_input,timeout=5)
+cmd_output = add_prompts_to_output(stdout, cmd_input, prompt)
+
+print(f"command: {' '.join(cmd).translate(escape_strs)}")
+print(f"retcode: {subp.returncode}")
+print(f"output:\n{cmd_output}")

@@ -1,7 +1,7 @@
 # -*- mode: Org;-*-
 
 * TODO Python Port
-- [ ] Finalize docs of current Bash version and commit
+- [X] Finalize docs of current Bash version and commit
 - [ ] Enumerate different Python process abstractions and pick one
   line of attack. Some preliminary work in file:pesty-testing
 - [ ] Revisit the architecture interplay between testy-single and
@@ -20,9 +20,61 @@
      - timeout: if Python can handle this internally, that'd be better
        than the current need to start up another process
   6. Signal support within tests
+  7. Automatic Gradescope output generation: JSON results
   Keep an eye out for utilizing multiple processes at some point down
   the line and try to make design decisions that don't make this
   harder
+
+** Notes
+- subprocess module in python is the preferred "modern" process
+  creation mechanism
+- Popen() is the main process creation mechanism; has a bufsize option
+  to dictates buffering of pipes BUT does not control other standard
+  buffering
+- Don't need to exec with Popen(), may want to examine its source code
+  to see how they go about this on Unix systems
+- Popen() allows creation of processes with 
+- Merging stdout/stderr [[https://stackoverflow.com/questions/6809590/merging-a-python-scripts-subprocess-stdout-and-stderr-while-keeping-them-disti][is easy]] via
+  : tsk = subprocess.Popen(args,stdout=PIPE,stderr=STDOUT)
+- Python provides good support for Pipe creation; no need to create
+  file-system FIFOs as this was always a work-around for the inability
+  of Bash scripts to handle Pipes well
+- If processes produce bad non-ascii chars in output, will need to be
+  cautious. Likely accept stdout as binary then call decode() manually
+  with "replace" argument to excise bad characters. Turns out that
+  this functionality is already present via the encoding/errors
+  options to ~Popen()~
+#+BEGIN_SRC python
+cmd = ['bash','-c','printf "😃\n"']
+subp = Popen(cmd,
+             stdin=PIPE,
+             stdout=PIPE,
+             stderr=STDOUT,
+             bufsize=0,
+             text=True,
+             encoding='ascii',
+             errors='backslashreplace')
+#+END_SRC
+- There are also mechanisms to expand the replacement scheme for
+  non-ascii characters which is very slick
+
+
+
+** Handling Infinite Loops / Excessive Output
+- Current handling of output is to shunt into a file
+- Timeouts are handed by waiting on a process and killing it after
+  some timeout
+- Can lead to massive output in a file when infinite loops occur:
+  constant output until timeout is reached
+- One possible way to avoid this is 
+  - stdout is piped so pipe is a natural limit chunk size for output
+  - parent empties the pipe into a file every so often
+  - parent has a chance to kill the pipe empty if it seems like it has
+    too much output
+- It's a little tricky because the simple case doesn't work as well
+- subprocess provides [[https://docs.python.org/3/library/subprocess.html#subprocess.Popen.communicate][Popen.communicate()]] for this purpose of
+  corresponding with the child process, takes a timeout as an argument 
+- signals are also supported
 
 * TODO General Improvements
 - Refactor Mac install script to remove massive redundancy in code
