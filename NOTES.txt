@@ -11,8 +11,18 @@
 - [ ] Outline priority features of the port
   1. Single testing
   2. Points
-  3. Multi-testing
-  4. Signal support
+  3. testy-regen support for multi-part tests; would make regeneration a
+     lot easier; possibly build in regeneration into the utility itself
+  4. Multi-testing
+  5. Eliminate some decorator utilities which are dependencies
+     - stdbuf : can python adjust its stdbuf before execing? They might
+       actually have a different internal model for this
+     - timeout: if Python can handle this internally, that'd be better
+       than the current need to start up another process
+  6. Signal support within tests
+  Keep an eye out for utilizing multiple processes at some point down
+  the line and try to make design decisions that don't make this
+  harder
 
 * TODO General Improvements
 - Refactor Mac install script to remove massive redundancy in code
