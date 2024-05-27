@@ -1,5 +1,19 @@
 # -*- mode: Org;-*-
 
+* TODO Python Port
+- [ ] Finalize docs of current Bash version and commit
+- [ ] Enumerate different Python process abstractions and pick one
+  line of attack. Some preliminary work in file:pesty-testing
+- [ ] Revisit the architecture interplay between testy-single and
+  testy-multi: the single case is quite complex due to sharing
+  infrastructure with multi in the Bash version and I'd like something
+  a little simpler
+- [ ] Outline priority features of the port
+  1. Single testing
+  2. Points
+  3. Multi-testing
+  4. Signal support
+
 * TODO General Improvements
 - Refactor Mac install script to remove massive redundancy in code
 - TESTY_MULTI commands don't work unless there is a exactly one space
@@ -126,7 +140,7 @@ val (master) [solution-p2-4061]% make test
 ..
 #+END_SRC
 
-* TODO Pseudo-Terminals and Testy                                     :testy:
+* DONE Pseudo-Terminals and Testy                                     :testy:
 Investigating use of pseudo-terminals for better control of program
 input/output, "tricking" programs into thinking they are being used
 interactively
@@ -142,6 +156,18 @@ involving pseudoterminals which are worth learning about.
 
 There appears to be no way to create pseudoterminals in bash directly
 so if I went this route, I'd likely need to port to Python.
+
+Experimentation with pseudo-terminals also revealed the following
+which is something Jack observed that I'd forgotten he said:
+- Writing to a pty feeds to a process and displays on the screen
+- However, writing in that way goes into the same buffer that the
+  program would read
+- A parent which writes to a pty then reads is in a race with the
+  child and often just reads back exactly what was written and the
+  child never gets a chance to see it
+To that end *pipes* are better even if they necessitate echoing
+explicitly by the program
+
 
 * Completed Items
 ** DONE Completed General Improvements
