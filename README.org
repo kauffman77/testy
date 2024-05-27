@@ -207,11 +207,14 @@ Usage is best described by the help message shown via ~testy --help~
 : VALGRIND_REACHABLE="1"    : under valgrind, report errors if memory is still reachable at the end of the program
 : VALGRIND_OPTS=""          : pass additional options to valgrind such as '--suppressions=test_valgrind.supp' to use a suppression file
 : SKIPDIFF="0"              : skip diffing results, useful if checking only valgrind with actual output varying between runs
+: USE_POINTS="0"            : set to 1 to assign points to tests and report the total rather than a count of passed tests
+: POINTS="1"                : number of points assigned to each tests; only integer values are supported
 : 
 : Each of the above Global variables can be set Locally during a single
 : test by setting their lower-case version. For example:
 : 
 :   * Test 5: A test of bc
+:   #+TESTY: points="3"
 :   #+TESTY: program="bc -i"
 : 
 : will send input to the program "bc -i" and check output rather than
@@ -222,6 +225,7 @@ Usage is best described by the help message shown via ~testy --help~
 : SHOW=0            : set to 1 to print test error results after completing
 : DEBUG=0           : set to 1 to print LOTS of debugging messages
 : REPORT_FRACTION=0 : report the fraction of tests passed rather than the count
+: SCALE_POINTS=0    : set to non-zero / fractional value to scale the total points earned / available (e.g. SCALE_POINTS=0.5)
 : 
 : 
 : ----------------------------------------

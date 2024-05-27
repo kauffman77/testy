@@ -3,7 +3,7 @@
 # A script to automate testing programs on the command line.
 # author:  Chris Kauffman <profk@umd.edu>
 # license: GPLv3-or-later
-# RELEASE: Tue Apr 23 05:19:41 PM EDT 2024
+# RELEASE: Mon May 27 12:31:08 PM EDT 2024 
 
 function setup_usage () {
 # Create the USAGE message and provide some documentation for
@@ -48,64 +48,51 @@ easier easier to read in org-mode):
 
 ----------------------------------------
 >> cat test-results/test-02-result.tmp
-* (TEST 2) Failure Demo : FAIL
-** COMMENTS
+* (TEST 2) Failure Demo
+COMMENTS:
 This test will fail and produce output associated to show the
 side-by-side diff that primarily reports failures.
 
-
-** PROGRAM: bash -v
+** program: bash -v
 To run this individual test in GDB use the command:
   gdb --args bash -v
 but any input to the program must be typed within the debugger
 
-** FAILURE MESSAGES
-- OUTPUT DIFFERENCES:
-  Expected / Actual Output Mismatch at lines marked
+** --- Failure messages ---
+- FAILURE: Output Mismatch at lines marked
 
-** SIDE-BY-SIDE DIFF of Expected vs Actual
-from file 'test-results/raw/test-02-diff.tmp'
+** --- Side by Side Differences ---
 - Expect output in: test-results/raw/test-02-expect.tmp
 - Actual output in: test-results/raw/test-02-actual.tmp
-- Differing lines have a character like '|' and '<' in the middle
-
-#+BEGIN_SRC sdiff
-==== EXPECT ====                        ==== ACTUAL ====                     
->> echo "Matching Line"                  >> echo "Matching Line"
-Matching Line                            Matching Line
->> echo "Mismatching Line"               >> echo "Mismatching Line"
-Misma______ Li__                       | Mismatching Line
->> echo "Extra line in ACTUAL"           >> echo "Extra line in ACTUAL"
-                                       > Extra line in ACTUAL
->> echo "Extra line in EXPECT"           >> echo "Extra line in EXPECT"
-This is the extra line                 <
-Extra line in EXPECT                     Extra line in EXPECT
->> printf "Matches fine\nAnd again\n"    >> printf "Matches fine\nAnd again\n"
-Matches fine                             Matches fine
-And again                                And again
-
+- Differing lines have a character like '|' '>' or '<' in the middle
+#+BEGIN_SRC sbs-diff
+==== EXPECT ====                        ==== ACTUAL ====
+>> echo "Matching Line"                 >> echo "Matching Line"
+Matching Line                           Matching Line
+>> echo "Mismatching Line"              >> echo "Mismatching Line"
+Misma____ Li__                        | Mismatching Line
+>> echo "Extra line in ACTUAL"          >> echo "Extra line in ACTUAL"
+                                      > Extra line in ACTUAL
+>> echo "Extra line in EXPECT"          >> echo "Extra line in EXPECT"
+This is the extra line                <
+Extra line in EXPECT                    Extra line in EXPECT
+>> printf "Matches fine\nAnd again\n"   >> printf "Matches fine\nAnd again\n"
+Matches fine                            Matches fine
+And again                               And again
 #+END_SRC
 
-** LINE DIFFERENCES
-from file 'test-results/raw/test-02-diff-lines.tmp'
-If this section is empty, there are no line differences
-
-EXPECT:   4) Misma______ Li__
+** --- Line Differences ---
+EXPECT:   4) Misma____ Li__
 ACTUAL:   4) Mismatching Line
 ACTUAL:   6) Extra line in ACTUAL
 EXPECT:   7) This is the extra line
-
-** VALGRIND NOT USED on this test, no log available
-
 ----------------------------------------
 
-Sections include how the program was run to generate the results, a
-side-by-side diff of the Expected and Actual results, a line-by-line
-difference, and a Valgrind (memory checker) report if it is used
-during the test (no applicable in this case).
+The main section in the middle of the file is a side-by-side diff of
+expected and actual output with the center column indicating what
+differences were detected.  Generally whitespace differences are
+ignored.
 
-By default, whitespace differences are ignored when doing diff checks
-but this can be adjusted with the options.
 
 ----------------------------------------
 --- TEST FILE FORMAT ---
@@ -224,11 +211,14 @@ USE_VALGRIND="0"          : set to 1 to run programs under Valgrind which checks
 VALGRIND_REACHABLE="1"    : under valgrind, report errors if memory is still reachable at the end of the program
 VALGRIND_OPTS=""          : pass additional options to valgrind such as '--suppressions=test_valgrind.supp' to use a suppression file
 SKIPDIFF="0"              : skip diffing results, useful if checking only valgrind with actual output varying between runs
+USE_POINTS="0"            : set to 1 to assign points to tests and report the total rather than a count of passed tests
+POINTS="1"                : number of points assigned to each tests; only integer values are supported
 
 Each of the above Global variables can be set Locally during a single
 test by setting their lower-case version. For example:
 
   * Test 5: A test of bc
+  #+TESTY: points="3"
   #+TESTY: program="bc -i"
 
 will send input to the program "bc -i" and check output rather than
@@ -239,6 +229,7 @@ Finally, these variables control some global behavior of the testy.
 SHOW=0            : set to 1 to print test error results after completing
 DEBUG=0           : set to 1 to print LOTS of debugging messages
 REPORT_FRACTION=0 : report the fraction of tests passed rather than the count
+SCALE_POINTS=0    : set to non-zero / fractional value to scale the total points earned / available (e.g. SCALE_POINTS=0.5)
 
 
 ----------------------------------------
@@ -408,6 +399,7 @@ function setup_globals () {
     POINTS=1                                              # default points per test
     POINTS_POSSIBLE=0                                     # total points possible, when running tests
     POINTS_LOST=0                                         # total points lost in failures
+    SCALE_POINTS=0                                        # scaling factor for points, usually fractional like SCALE_POINTS=0.5; 0 means no scaling
 
     # regular expression used to detect commands that contain shell symbols which are barred
     SHELL_SYMBOLS='.*(>|<|\||&|&&|\|\|).*' 
