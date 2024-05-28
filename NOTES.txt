@@ -22,6 +22,10 @@
        than the current need to start up another process
   6. Signal support within tests
   7. Automatic Gradescope output generation: JSON results
+  8. Rerun past test with new options 
+- New features
+  - [ ] Single file output
+  - [ ] Multiple output formats: markdown, json, json-gradescope, html
   Keep an eye out for utilizing multiple processes at some point down
   the line and try to make design decisions that don't make this
   harder
@@ -77,6 +81,118 @@ subp = Popen(cmd,
 - subprocess provides [[https://docs.python.org/3/library/subprocess.html#subprocess.Popen.communicate][Popen.communicate()]] for this purpose of
   corresponding with the child process, takes a timeout as an argument 
 - signals are also supported
+
+** Parsing / Data Structure
+suite is dict with keyval pairs
+- tests: array of tests to run
+- options: hash of options, init with global defaults, then override
+- results: overall global results
+
+test is dict of keyval pairs
+- title: string comment
+- comments: comment for overall test
+- options: options for entire test (timeout, points)
+- parts: array of parts of each test
+- results: pass / fail / return code / etc
+
+part is a dict of keyval pairs
+- options: program, specific valgrind invocation, etc
+- transcript: expected input/output of running the program
+- comments: comments leading into the test part
+
+Note: would be easier if options for the part were specified in the
+test itself. There is ambiguity with framing like this:
+: * Two part test
+: Comment on overarching idea of the test
+:
+: ** Part 1
+: Comments for part 1
+: #+TESTY: program='bc -iq'
+: #+TESTY: echoing="input"
+: #+TESTY: points=1
+: #+BEGIN_SRC sh
+: >> 1+1
+: 2
+: >> 3+4
+: 7
+: #+END_SRC
+: 
+: ** Part 2
+: Some comments for part 2
+: #+TESTY: program='bash -v'
+: #+TESTY: echoing="input"
+: #+TESTY: points=2
+: #+BEGIN_SRC sh
+: >> echo "hello"
+: hello
+: #+END_SRC
+- The options for each part are clear: program bc for the first,
+  program bash for the second
+- The points assigned differ
+- This worked fine in the past when the tests were just executed
+  sequentially; however well do a full parse of the input file and
+  need to encode where the options are set
+- If there is distinction between the test and part levels, then it's
+  ambiguous where that options should go
+- To stay reasonably backwards compatible would need to honor the
+  previous conventions but shouldn't stay too tied to that
+- Rather, forcing placement of the options at the appropriate level is
+  probably better as in
+: * Two part test
+: #+TESTY: points=2
+: Comment on overarching idea of the test
+:
+: ** Part 1
+: Comments for part 1
+: #+TESTY: program='bc -iq'
+: #+TESTY: echoing="input"
+: #+BEGIN_SRC sh
+: >> 1+1
+: 2
+: >> 3+4
+: 7
+: #+END_SRC
+: 
+: ** Part 2
+: Some comments for part 2
+: #+TESTY: program='bash -v'
+: #+TESTY: echoing="input"
+: #+BEGIN_SRC sh
+: >> echo "hello"
+: hello
+: #+END_SRC
+- However, will want to allow simple cases like the following which
+  don't formally divide into parts
+: * Single part test
+: #+TESTY: points=2
+: Comment on overarching idea of the test
+: #+TESTY: program='bc -iq'
+: #+TESTY: echoing="input"
+: #+BEGIN_SRC sh
+: >> 1+1
+: 2
+: >> 3+4
+: 7
+: #+END_SRC
+- And possibly also allow multipart tests without explicit
+  subdivisions (e.g. ** 2nd level heading)
+- ALTERNATIVE: caste a test as a sequence of tokens instead as in
+:  [("comment","This is a comment"),  # shuffle into output
+:   ("command","program='bc -iq'"),   # eval this / set the token in environment dict
+:   ("command","timeout='10s"),       # eval this / set the token in environment dict
+:   ("transcript","...."),            # run the associated program with current options
+:   ...]  
+- This would allow easy translation to run HOWEVER ...
+- Need to answer the question of how a multi-part test result will
+  display. 
+- Seems a good idea overall to enforce
+  - Explicit notation of multiple parts with headings in the input
+    file 
+  - In output for the multi-part test, break this into a hierarchy
+    with 1st level heading for a test, 2nd-level heading for each
+    part, 3rd level heading for each attributes of tests
+  - Possibly special case for 1-part tests with attributes at 2nd
+    level 
 
 * TODO General Improvements
 - Refactor Mac install script to remove massive redundancy in code

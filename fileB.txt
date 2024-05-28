@@ -1,0 +1,4 @@
+1. Beautiful is better than ugly.
+3.   Simple is better than complex.
+4. Complicated is better than complex.
+5. Flat is better than nested.
