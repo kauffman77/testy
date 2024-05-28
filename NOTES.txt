@@ -15,6 +15,7 @@
      lot easier; possibly build in regeneration into the utility itself
   4. Multi-testing
   5. Eliminate some decorator utilities which are dependencies
+     - diff : python has a difflib which may supplant the shell version
      - stdbuf : can python adjust its stdbuf before execing? They might
        actually have a different internal model for this
      - timeout: if Python can handle this internally, that'd be better
@@ -57,7 +58,8 @@ subp = Popen(cmd,
 #+END_SRC
 - There are also mechanisms to expand the replacement scheme for
   non-ascii characters which is very slick
-
+- Python difflib is a little janky, will need a way to produce a
+  proper side-by-side diff as this does not come pre-equipped, the 
 
 
 ** Handling Infinite Loops / Excessive Output
