@@ -1,0 +1,22 @@
+* Test Two 
+:PROPERTIES:
+:points: 2
+:stuff: this is cool
+:END:
+
+Comment D
+
+#+BEGIN_SRC sh
+>> echo 'goodbye'
+goodbye
+#+END_SRC
+
+Comment E
+#+TESTY: myvar=1
+#+TESTY: program='bc -iq'
+#+TESTY: prompt='>>'
+#+BEGIN_SRC sh
+>> 7+9
+16
+#+END_SRC
+

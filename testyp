@@ -1,0 +1,312 @@
+#!/usr/bin/env python3
+"""This is a module docstring"""
+
+import re
+# import sys
+
+class Suite:
+  """Encapsulates a collection of tests"""
+
+  def __init__(self):
+    """Initialize a default empty Suite"""
+    # these fields are set during parsing / initialization, most are options governing behavior
+    self.tests = []                    # list of Tests encoded in the suite
+    self.testsnums_torun = []          # contains a list of numbers of tests to run; all tests by default
+    self.test_opts = {}                # key/val options affecting tests and sessions set in the preamble
+    self.title = None                  # title of the suite from the #+title: directive, None will use the file name
+    self.comments = ""                 # comments in the preamble that aren't part of any test
+    self.use_points = False            # True if points should be used
+    self.points_possible = 0           # total possible points if points are in use, set during parsing
+    self.points_scale = 1.0            # Set to a float scaling factor points should be scaled (e.t. 0.5 to halve everything)
+    self.show_all = False              # True means print all results on from all tests on the command line; defaults to true for single tests
+    self.results_prefix = "test"       # file prefix for result output files
+    self.results_dir = "test-results"  # base directory for test results files
+    # self.raw_dir = None              # location of raw output files such as Valgrind logs
+    self.test_result_files = True      # True produces individual test result files
+    self.overall_result_file = False   # True produce an overall result file
+    self.test_title_width = 0          # max width of test titles for aligned printing, calculated during parsing
+
+    # these fields are set during/after the suite evaluation
+    self.passed_tests = 0              # total tests passed
+    self.points_earned = 0             # total points earned among all tests
+
+class Test:
+  """Encapsulates a single test which may have multiple segments"""
+
+  def __init__(self):
+    """Initialize a default empty Test"""
+    # these fields are set during parsing / initialization
+    self.title = None                  # title of the test
+    self.linenum = None                # line number on which test starts
+    self.points = None                 # number of points assigned, float possible
+    self.segments = []                 # list of segments that comprise the
+    self.test_directory = None         # directory to use for this test or None if run in the working directory
+
+    # these fields are set during/after the test evaluation
+    self.passed = None                 # True for pass, False for fail, None for not run yet
+
+    # these fields are set during formatting
+    self.result = None                 # formatted result for test, usually a string but may be anythingthe formatter finds usesful
+
+class Segment:
+  """Encapsulate a segment of a test
+
+  Segments run a particular program and check that is output and
+  behavior match an expecation. They comprise some preamble / comments
+  followed by a session which shows a transcript of what is to be done
+  in the test along with its output.
+  """
+
+  def __init__(self):
+    """Initialize a default empty test Segment"""
+
+    # these fields are obtained from parsing / initializing the segment
+    self.title = "Segment"             # title for tests
+    self.linenum = None                # line number on which segment starts
+    self.comments = ""                 # comments accumulated in the session
+    self.commands = []                 # list of shell commands to be run prior to running the session
+    self.program = "bash -v"           # program to run for the session, may be #+BEGIN_QUOTE which outputs a file
+    self.prompt  = ">>"                # prompt string used by the program being run
+    self.echoing = "input"             # style of echoing done by the program, "input" echoes input, "both" for prompt+input echoing
+    self.session = ""                  # string with lines of the session of input/output to be used
+    self.use_valgrind = False          # whether to run program under valgrind
+    self.valgrind_reachable = True     # whether to count reachable memory as an error in valgrind
+    self.valgrind_opts = ""            # additional options to pass to valgrind such as suppression
+    self.skip_diff = False             # True if diffing the expect/actual should be skipped
+    self.skip_return = False           # True if a non-zero exit code should be accepted (e.g. not trigger a failure)
+    self.timeout = 5                   # timeout in (fractional) second to be used before segment is killed
+
+    # these fields are set after the segment is run
+    self.ses_input = ""                # string of input extracted from session
+    self.output_expect = ""            # expected output extracted from session
+    self.output_actual = None          # output program actually produces
+    self.sbs_diff = None               # side-by-side diff
+    self.retcode = None                # exit/return code of process that was run
+    self.messages = []                 # list of string messages indicating failures encountered
+    self.passed = None                 # True for pass, False for fail, None for not run yet
+
+
+class SuiteParser:
+  """Interface for test file parsers.
+
+  Represents shared functionality of parsers. Implementing classes
+  should override parse_file(filename) which will open a given file,
+  parse it, and return a Suite
+  """
+
+  def parse_file(self,filename):
+    """Parse a file (abstract method)
+
+    To be overriden by derived classes. Opens and reads the contents
+    of filename and returns a Suite read from it.
+    """
+
+
+  # other shared methods built from parse_file can go here such as
+  # parsing_string which can simply convert the given string to a
+  # StringIO and then call parse_file
+
+
+class ParseError(Exception):
+  """Exception to throw when a parsing error occurred"""
+
+
+def get_keyval(string):
+  """For 'key=val', returns (key,val)
+
+  Accept a string of the form 'key=val' and separate the key/value
+  pair. Raises an exception if there is a formatting problem.
+  """
+  if "=" not in string:
+    raise ParseError(f"key=value string [{string}] is not formatted correctly")
+  (key,val)=string.split("=",1)
+  if val[0] in """\"\'""":      # check for leading quotes in val
+    if val[-1] != val[0]:       # ensure the quoting is complete, error otherwise
+      raise ParseError(f"key=value string [{string}] has an unterminated quote")
+    val = val[1:-1]             # quoted properly so peel quotes off of value
+  return (key,val)
+
+def propogate_fields(obj, options):
+  """If any field of obj has a key in options, set that field to the
+  associated value in options
+
+  """
+  for key,val in options:
+    if key in obj.__dict__:
+      obj.__dict__[key] = val
+
+
+# # Example of how to extract an excetion message
+# try:
+#   get_keyval("""program='./test_el_malloc "Single Allocation\"""")
+# except Exception as e:
+#   str(e)
+
+class FilePos:
+  """Encodes a file position for error reporting"""
+  def __init__(self, fname):
+    self.filename = fname
+    self.linenum = 0
+
+def slurp(filename):
+  """Read an entire file into memory"""
+  with open(filename,encoding='utf-8') as f:
+    return str(f.read())
+
+def shave_blanks(line_list):
+  """Elimnate whitespace-only strings from beginning/end of list"""
+  beg = 0
+  for line in line_list:
+    if not re.fullmatch("\s*",line):
+      break
+    beg += 1
+
+  end = len(line_list)
+  for line in reversed(line_list):
+    if not re.fullmatch("\s*",line):
+      break
+    end -= 1
+  return line_list[beg:end]
+
+
+class OrgSuiteParser:
+  """Handle Emacs Org formatted files"""
+
+  def parse_file(self,filename):
+    """Parse an Emacs Org formatted files
+
+    Org files are the traditional format to create readable, compact
+    test files. This function parses an Org file and builds a Suite
+    from it.
+    """
+
+    contents = slurp(filename)
+
+    preamble_endpos = contents.find("\n* ")              # locate preamble end/test start
+    if preamble_endpos==-1:                              # check if any tests exist
+      msg = f"{filename} does not contain any tests"
+      raise ParseError(msg)
+    preamble = contents[:preamble_endpos+1]              # include the newline
+
+
+    test_regex = re.compile(r"(^\* .*\n)",re.MULTILINE)  # split remaining content
+    tc_list = re.split(test_regex,                       # into tests based on test headers;
+                       contents[preamble_endpos+1:])     # then zip the header and test
+    tc_len = len(tc_list)                                # content together for later
+    test_titles_contents = zip(tc_list[1:tc_len:2],      # iteration
+                               tc_list[2:tc_len:2])
+
+    filepos = FilePos(filename)                          # track global file position
+    try:                                                 # try block for parsing errors
+      suite = self.parse_suite_preamble(preamble,filepos)
+      for test_title,test_content in test_titles_contents:
+        test = self.parse_test(test_title, test_content,
+                               suite.test_opts, filepos)
+        suite.tests.append(test)
+
+    except ParseError as e:
+      msg = f"{filepos.filename}:{filepos.linenum}: {str(e)}"
+      raise ParseError(msg) from e                       # decorate parsing errors position
+
+    return suite
+
+
+  def parse_suite_preamble(self, preamble, filepos):
+    """Preamble parsing preceding the first test"""
+    suite = Suite()
+    preamble_comments = []                 # comment lines accumulated in the preamble
+    for line in preamble.splitlines():
+      filepos.linenum += 1                 # track line number for error reporting
+      (first,rest) = ("",line)
+      if " " in line:
+        (first, rest) = line.split(" ",1)  # extract the first token on the line
+        first = first.upper()              # upper case for case insensitive matching
+
+      if first == "#+TITLE:":              # title as in [#+TITLE: Tests for blather]
+        suite.title = rest
+
+      elif first == "#+TESTY:":            # option directive like [#+TESTY: program='bc -iq']
+        (key,val) = get_keyval(rest)       # may throw if badly formatted
+        if key in suite.__dict__:
+          suite.__dict__[key] = val        # python objects are dicts, exploit this to assign the value
+        else:
+          suite.test_opts[key] = val
+      else:
+        preamble_comments.append(line)     # not a directive or key val, append to comments
+
+    preamble_comments = shave_blanks(preamble_comments)
+
+    suite.comments = "\n".join(preamble_comments)
+    return suite
+
+
+  def parse_test(self,test_title,content,opts,filepos):
+    """Parse a single test"""
+    test = Test()
+    test.title = test_title[2:-1]                            # remove "* " and newline
+    filepos.linenum += 1
+    test.linenum = filepos.linenum
+    
+    propogate_fields(test,opts)
+
+    # TODO Handle :PROPERTIES: drawer here
+
+    seg_regex = re.compile(r"^#\+(?:END_SRC|END_QUOTE).*\n", # split on ending tokens for
+                           re.MULTILINE | re.IGNORECASE)     # segments; note that a line
+    seg_contents = re.split(seg_regex, content)              # is excised from resulting list
+
+    for segc in seg_contents:
+      if re.fullmatch(r"\s*",segc):                          # completely blank region 
+        filepos.linenum += segc.count("\n")                  # add line count and 
+        continue                                             # advance
+      segment = self.parse_segment(segc,opts,filepos)
+      test.segments.append(segment)
+      filepos.linenum += 1                                   # add excised line
+
+    return test
+
+  def parse_segment(self,content,opts,filepos):
+    """Parse a single segment"""
+    segment = Segment()
+    propogate_fields(segment,opts)
+    segment.linenum = filepos.linenum+1               # first line o fsegment is next
+
+    seg_regexs = r"(^#\+(?:BEGIN_SRC|BEGIN_QUOTE).*\n)"            # split content into premable/session;
+    seg_regex = re.compile(seg_regexs, re.MULTILINE|re.IGNORECASE) # retain the SRC/QUOTE as it is
+    (preamble,token1,session) = re.split(seg_regex, content)       # used to alter the session program
+
+    comment_lines = []                                # handle the preamble, comments and
+    for line in preamble.splitlines():                # prior to the first test
+      filepos.linenum += 1
+      (first,rest) = ("",line)
+      if " " in line:
+        (first, rest) = line.split(" ",1)             # extract the first token on the line
+        first = first.upper()                         # upper case for case insensitive matching
+      if first=="#+TESTY:" and rest[0]=="!":          # shell command as in [#+TESTY: !rm file.txt]
+        segment.commands.append(rest[1:])             # peel off the ! at the start
+      elif first == "#+TESTY:":
+        (key,val) = get_keyval(rest)                  # may throw if badly formatted
+        segment.__dict__[key] = val
+      else:
+        comment_lines.append(line)
+
+    comment_lines = shave_blanks(comment_lines)       # eliminate blanks and join comments
+    segment.comments = "\n".join(comment_lines)       # to comprise the segemnt comments
+
+    filepos.linenum += 1                              # accounts for beginning token
+    if not token1.upper().startswith("#+BEGIN_SRC"):  # not a program-based session
+      segment.program = token1                        # overwrite program
+
+    segment.session = session
+    filepos.linenum += session.count("\n")            # update based on #lines in session
+
+    return segment
+
+suite = OrgSuiteParser().parse_file("examples/parse_example.org")
+
+for test in suite.tests:
+  print(f"TITLE: {test.title} <{test.linenum}>")
+  i = 0
+  for seg in test.segments:
+    print(f"{i} <{seg.linenum}>:\n{seg.comments}\nPROGRAM: {seg.program}\n{seg.session}")
+    i += 1

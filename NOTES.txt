@@ -30,6 +30,77 @@
   the line and try to make design decisions that don't make this
   harder
 
+** Design Principle
+- The "classes" suite / test / segment are *data* and won't have
+  methods themselves. There is no inheritance between these and no
+  need to for method dispatch; will lead to names like
+#+BEGIN_SRC python
+suite_run_test(suite, testnum)                     # runs the test
+#+END_SRC
+- there is strong coupling between suite / test / segment here which I
+  think I'm okay with; find myself wanting to split them but I don't
+  think that's good: they aren't separate entities and are useless on
+  their own. The functionality comes from the grouping of them and
+  their shared interactions
+- Largely operations will be on the suite: 
+  - Run one of its tests
+  - Format result output of a test, etc
+- Within those operations there is tight coupling
+- This might later enable one to pull out testy as and use its
+  functionality programmatically: *code to enable use of classes
+  within testy in other applications* as this will likely keep the
+  design cleaner
+- A ~__main__~ block can then be added which will deal with the
+  stand-along executable
+- ResultFormatters for output can be in a class hierarchy as they are
+  responsible for transforming a suite / test / segment into a
+  formatted output string, a mock progression looks like the following
+#+BEGIN_SRC python
+suite_run_test(suite, testnum)                     # runs the test
+formatter.format_test_result(suite, testnum)          # adds formatted results to the test
+if suite.test_result_files:
+  formatter.make_test_result_file(suite, testnum)  # creates an output file with the results
+
+...
+
+if suite.show_all or len(suite.test_list)==1:      # iterate over tests run and show results
+  for testnum in suite.test_list:                  # for failing tests
+    if not suite.tests[testnum].passed:
+      formatter.print_test_result(suite, testnum)
+
+if suite.overall_result_file:                      # output an overall file if desired
+  formatter.make_overall_result_file(suite)
+#+END_SRC
+- In the above, the formatter is responsible for transforming the
+  suite results into output of various kinds (org, json, markdown, etc)
+- The listed methods are specifically chosen to try to be general and
+  compatible
+  - format_test_result(suite, testnum) :: after running a test, fill in
+    its test.result field with a string (or something else) that
+    textually represents the results of the test
+  - make_test_result_file(suite, testnum) :: create an individual file
+    for containing the output for the given test, uses options in the
+    suite to produce the output, may decorate the individual result so
+    that it is self contained (e.g. add ~<html> ... </html>~ to html
+    output)
+  - print_test_result(suite, testnum) :: output a test result to the
+    screen; tempting to just do ~print(suite.tests[testnum].result)~
+    BUT if the formatter is actually a MutlipleFormats so uses that
+    result field as a tuple of results in different formats, this will
+    lead to trouble; likely would just print the first in that case
+    but this gives options and ensures that the formatter is the one
+    doing the output
+  - make_overall_result_file(suite) :: produce a single overall result
+    file which shows the combined results of all tests, makes use of
+    the 
+- SuiteParser classes will read different input formats (org, json,
+  etc) and convert them to the internal class representation
+- ProgressIndicator classes can represent how the progress of a
+  running a suite progresses; line-by-line, single-line dots, silence,
+  GUI?? nah...
+ 
+
+
 ** Notes
 - subprocess module in python is the preferred "modern" process
   creation mechanism
@@ -193,6 +264,161 @@ test itself. There is ambiguity with framing like this:
     part, 3rd level heading for each attributes of tests
   - Possibly special case for 1-part tests with attributes at 2nd
     level 
+
+*Settling on the following* arrangement of parts
+- Parts are always present even if not textually indicated with '**'
+- Parts are a series of 
+  - comments/commands
+  - session / transcript
+- Parsing builds up the comments in place, commands in another place
+- All commands are always run before the session starts
+- Parts are always run in sequence BUT failure on an early part stops
+  the test from continuing
+- Data division becomes
+  - suite / global :: title, options, results, default test options
+  - test :: title, overall result, points
+  - segment :: title, comments, commands, session
+- For one-segment test output, may buck the nesting of segment output
+- Must be cautious about sharing state between these: could easily
+  just have a single dict which comprises values associated with the
+  entire test with segments updating them but don't really like that
+  so will likely not use it: want some isolation between each level
+- May want to have some sort of lead comment for segments which
+  describes its overall purpose, default to "Segment N" otherwise
+
+When to set options for a segment?
+1. set fields of segment during parsing / on creation; evaluate
+   commands during parsing
+2. set fields of segment when segment is run
+#1 is closer to standard BUT forces distinction between alterations of
+the data vs raw commands; not that big of a deal as anything that was
+going to be a shell out was going to require ! syntax or something
+similar anyway 
+
+- During parsing, instantiate a segment with default options obtained
+  from the Suite
+  - NOTE: this makes segments independent from one another, not quite
+    backwards compatible
+- While parsing ~#+TESTY: program='bc -iq'~ directives, have these
+  alter fields of the Segment: ~seg.__dict__["program"] = 'bc -iq'~
+- Any ! commands are accumulated separately
+- Leaves open the question of where options like points are set for
+  the whole test
+- Definitely want the feature of being able to accumulate results in a
+  segment. Will settle on the following
+  - '* name' starts a test
+  - ~#+TESTY:~ directives immediately after that will be test options
+  - Any comments or blank lines start the 0th segment and subsequent
+    options are applied to the segment
+- This is problematic as it disbars / has problems whit the following
+  format which I liked
+: * test_gauss1
+: #+TESTY: points=3
+: #+TESTY: program='cargo test --test test_prob1 test_gauss1'
+: 
+: #+BEGIN_SRC sh
+: Finished test [unoptimized + debuginfo] target(s) in _.__s
+: Running tests/test_prob1.rs 
+: 
+: running 1 test
+: test test_gauss1 ... ok
+: 
+: test result: ok. 1 passed; 0 failed;
+: 
+: #+END_SRC
+- could opt for properties for the points rather than directives which
+  associate test properties to headline, complicates parsing somewhat
+  and is not backwards compatible to the above test files BUT feels
+  good
+: * test_gauss1
+: :PROPERTIES:
+: :points: 3
+: :END:
+: #+TESTY: program='cargo test --test test_prob1 test_gauss1'
+: 
+: #+BEGIN_SRC sh
+: Finished test [unoptimized + debuginfo] target(s) in _.__s
+: Running tests/test_prob1.rs 
+: 
+: running 1 test
+: test test_gauss1 ... ok
+: 
+: test result: ok. 1 passed; 0 failed;
+: #+END_SRC
+
+
+ 
+
+** Reflection and Dynamic Eval
+Still struggling to see whether commands in testy should be
+1. open and eval'd in some fashion in python OR
+2. limited and used primarily to set needed fields like points /
+   program
+The latter is far more common, the former much more flexible BUT the
+fact that python has some scoping unlike Bash with its global scope
+means that directly eval'ing won't necessarily have the same power.
+
+Aim for 2: limited with some shell support
+
+Keep in mind the need to set a working directory as well. This was a
+feature that was missing in testy and was needed for testing Bakefiles
+
+There is also the issue of information transfer between suite / test /
+segment. To shoot for an OO model, would need to add certain fields or
+context during exection
+- A segment needs to know its own # and perhaps the test # as well;
+  this is to possibly create output files and/or produce test output
+  - This is less of an issue than in the Bash version as most of the
+    in/out will be done via pipes
+- Tests need to know their number to generate output and output files
+  - this can be deferred to a an output function where the test # is
+    passed in, e.g. ~formatter.result_file(suit.tests[i], i)~ or
+    something similar
+
+
+** Producing Results
+- Support for multiple output formats should be coded in
+- Possible designs are
+  1. Formatter object that operates on a suite/test/segment
+  2. Formatter object that is taken by suite/test/segment as an
+     argument and fed properties
+- These are the same thing just framed differently so it doesn't
+  matter; I tend to think of the suite/test/segment as having data in
+  it that needs to be formatted and so design 1 feels more
+  straight-forward with the formatter methods producing strings that
+  can be linked together
+
+Want to continue supporting production of output per test but
+optionally allow agglomerated results in a single file / output stream 
+- Individual test output path
+  - Suite is executed
+  - Iterate over each test
+  - If 
+
+** Miscellaneous Python port ideas
+- Support syntax like the following for shell escapes:
+  : #+TESTY: !rm -f xyz.txt
+- Will want a way to set environment variables during testing; likely
+  some setenv stuff or eval()'able python code somewhere, preamble or
+  test segments
+- Don't less need for a test-results/raw directory as Python provides
+  reasonable temporary files for this; example
+  #+BEGIN_SRC python
+  >>> fp = tempfile.NamedTemporaryFile(mode='r',delete_on_close=True)
+  >>> fp.name
+  '/tmp/tmp_3p68se6'
+  >>> x=fp.read()
+  >>> x
+  'here is some stuff'
+  >>> fp.close()
+  #+END_SRC
+  Can do things like pass the temporary file name to Valgrind and then
+  slurp the results.
+
+  May also be able to use this facility to post-filter output though
+  having a copy of the original output is also handy
+  sometimes. subprocess is likely also good for post-filtering sans
+  actual file.
 
 * TODO General Improvements
 - Refactor Mac install script to remove massive redundancy in code
