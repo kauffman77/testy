@@ -3,8 +3,35 @@
 
 import sys
 import re
-import argparse
+import argparse                        # command args
+import shlex                           # string split respecting quoting
+import shutil                          # which, file copying, etc.
 
+################################################################################
+# Module level initialization
+
+# # allow showing embedded newlines in strings
+# escape_strs = str.maketrans({"\n" : r"\n"})
+
+# Register translation mechanisms for bad ASCII characters in test
+# output. These are passed as the 'errors' argument to Popen() when
+# ASCII encoding is in use for output.
+codecs.register_error('as_question_marks', lambda e: (u'?',e.start + 1))
+codecs.register_error('as_nonascii', lambda e: (u':nonascii:',e.start + 1))
+
+valgrind_prog = [
+  "valgrind",
+  "--error-exitcode=13",
+  "--leak-check=full",
+  "--show-leak-kinds=all",
+  "--track-origins=yes",
+]
+
+
+
+
+################################################################################
+# Basic data types associated with representing tests
 class Suite:
   """Encapsulates a collection of tests"""
 
@@ -20,12 +47,6 @@ class Suite:
     self.points_possible = 0           # total possible points if points are in use, set during parsing
     self.points_scale = 1.0            # Set to a float scaling factor points should be scaled (e.t. 0.5 to halve everything)
     self.show_all = False              # True means print all results on from all tests on the command line; defaults to true for single tests
-    self.results_prefix = "test"       # file prefix for result output files
-    self.results_dir = "test-results"  # base directory for test results files
-    # self.raw_dir = None              # location of raw output files such as Valgrind logs
-    self.test_result_files = True      # True produces individual test result files
-    self.overall_result_file = False   # True produce an overall result file
-    self.test_title_width = 0          # max width of test titles for aligned printing, calculated during parsing
 
     # these fields are set during/after the suite evaluation
     self.passed_tests = 0              # total tests passed
@@ -72,19 +93,63 @@ class Segment:
     self.session = ""                  # string with lines of the session of input/output to be used
     self.use_valgrind = False          # whether to run program under valgrind
     self.valgrind_reachable = True     # whether to count reachable memory as an error in valgrind
+    self.valgrind_prog = valgrind_prog # default valgrind program invocation to use
     self.valgrind_opts = ""            # additional options to pass to valgrind such as suppression
     self.skip_diff = False             # True if diffing the expect/actual should be skipped
     self.skip_return = False           # True if a non-zero exit code should be accepted (e.g. not trigger a failure)
+    self.force_ascii_output = True     # translate non-ascii characters in test results to ascii
     self.timeout = 5                   # timeout in (fractional) second to be used before segment is killed
+    self.post_filter = None            # filter to run on output after test completes, before verifying output
+    self.test_result_files = True      # True produces individual test result files
+    self.results_prefix = "test"       # file prefix for result output files
+    self.results_dir = "test-results"  # base directory for test results files
+    self.save_rawfiles = False         # whether to retain any raw input/output files in the raw/ directory
+    self.raw_dir = "raw"               # location of raw output files such as Valgrind logs
+    self.overall_result_file = False   # True produce an overall result file
+    # self.test_title_width = 0          # max width of test titles for aligned printing, calculated during parsing
 
     # these fields are set after the segment is run
     self.ses_input = ""                # string of input extracted from session
     self.output_expect = ""            # expected output extracted from session
     self.output_actual = None          # output program actually produces
+    self.output_original = None        # original program output prior to applying post_filter, None if no post filter is used 
+    self.output_valgrind = None        # output from Valgrind log file if in use present
     self.sbs_diff = None               # side-by-side diff
     self.retcode = None                # exit/return code of process that was run
     self.messages = []                 # list of string messages indicating failures encountered
     self.passed = None                 # True for pass, False for fail, None for not run yet
+
+
+  # def run(self):
+  #   """Run an individual segment"""
+  #   # Aiming to avoid any directory creation, file creation, etc.
+    
+  #   out_encoding = None
+  #   out_errors =   None
+  #   if self.force_ascii_output:
+  #     out_encoding = 'ascii'
+  #     out_errors = 'as_question_marks'
+    
+  #   cmd = shlex.split(self.program)         # respects internal quotes
+  #   if self.use_valgrind:
+  #     if not shutil.which("valgrind"):
+  #       self.passed = False
+  #       self.messages.append("Valgrind not found for test that has use_valgrind=1")
+  #       return
+  #     valg_opts = shlex.split(
+        
+    
+  #   subp = Popen(cmd,
+  #                stdin=PIPE, stdout=PIPE,  # communicate with pipes
+  #                stderr=STDOUT,            # merge stderr with stdout
+  #                bufsize=0, text=True,     # limit buffering : is this a good idea?
+  #                encoding=out_encoding,    # optionally transform output
+  #                errors=out_errors,        # and suppress / catch errors
+  #                )
+
+  
+  
+  #                # timeout=seg.timeout,      # kill the program if it's going to long
 
 
 class SuiteParser:
@@ -110,6 +175,8 @@ class SuiteParser:
 
 class ParseError(Exception):
   """Exception to throw when a parsing error occurred"""
+
+
 
 
 def get_keyval(string):
@@ -305,7 +372,7 @@ class OrgSuiteParser:
 
     return segment
 
-def test_suite():
+def do_test_suite():
   suite = OrgSuiteParser().parse_file("examples/parse_example.org")
   
   for test in suite.tests:
@@ -367,6 +434,10 @@ def main():
   suite.testnums_torun = args.testnums or list(range(1,len(suite.tests)+1))
 
 
-  
+
+
+
+################################################################################
+# Main Entry point
 if __name__ == '__main__':
   main()  

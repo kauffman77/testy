@@ -393,7 +393,7 @@ optionally allow agglomerated results in a single file / output stream
 - Individual test output path
   - Suite is executed
   - Iterate over each test
-  - If 
+
 
 ** Miscellaneous Python port ideas
 - Support syntax like the following for shell escapes:
@@ -419,6 +419,11 @@ optionally allow agglomerated results in a single file / output stream
   having a copy of the original output is also handy
   sometimes. subprocess is likely also good for post-filtering sans
   actual file.
+- Run test without capturing output in files / merging stdout/stderr
+  streams to enable quick debugging 
+
+** I/O read/write
+
 
 * TODO General Improvements
 - Refactor Mac install script to remove massive redundancy in code
