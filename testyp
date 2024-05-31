@@ -7,8 +7,10 @@ import argparse                        # command args
 import shlex                           # string split respecting quoting
 import shutil                          # which, file copying, etc.
 import time                            # for time.monotonic()
+import codecs                          # for characeter coding translattions
 import select                          # for poll
-from select import POLLIN, POLLOUT, POLLHUP, POLLERR, POLLNVAL
+from select import POLLIN,POLLOUT,POLLHUP #, POLLERR, POLLNVAL
+from subprocess import Popen,PIPE,STDOUT
 
 ################################################################################
 # Module level initialization
@@ -19,14 +21,14 @@ from select import POLLIN, POLLOUT, POLLHUP, POLLERR, POLLNVAL
 # Register translation mechanisms for bad ASCII characters in test
 # output. These are passed as the 'errors' argument to Popen() when
 # ASCII encoding is in use for output.
-codecs.register_error('as_question_marks', lambda e: (u'?',e.start + 1))
-codecs.register_error('as_nonascii', lambda e: (u':nonascii:',e.start + 1))
+codecs.register_error('as_question_marks', lambda e: ('?',e.start + 1))
+codecs.register_error('as_nonascii', lambda e: (':nonascii:',e.start + 1))
 
 # default valgrind program
-valgrind_exit_code = 13
-valgrind_prog = [
+VALGRIND_EXIT_CODE = 13
+VALGRIND_PROG = [
   "valgrind",
-  f"--error-exitcode={valgrind_exit_code}",
+  f"--error-exitcode={VALGRIND_EXIT_CODE}",
   "--leak-check=full",
   "--show-leak-kinds=all",
   "--track-origins=yes",
@@ -40,7 +42,7 @@ class Suite:
   def __init__(self):
     """Initialize a default empty Suite"""
     # these fields are set during parsing / initialization, most are options governing behavior
-    self.tests = {}                    # tests in the suite in a dictioary with numeric keys starting at 1; first test is "test 1" 
+    self.tests = {}                    # tests in the suite in a dictioary with numeric keys starting at 1; first test is "test 1"
     self.testsnums_torun = []          # contains a list of numbers of tests to run; all tests by default
     self.test_opts = {}                # key/val options affecting tests and sessions set in the preamble
     self.title = None                  # title of the suite from the #+title: directive, None will use the file name
@@ -93,10 +95,8 @@ class Segment:
     self.prompt  = ">>"                # prompt string used by the program being run
     self.echoing = "input"             # style of echoing done by the program, "input" echoes input, "both" for prompt+input echoing
     self.session = ""                  # string with lines of the session of input/output to be used
-    self.full_program = None           # full program invocation, may be decorated (usually with valgrind call)
     self.use_valgrind = False          # whether to run program under valgrind
     self.valgrind_reachable = True     # whether to count reachable memory as an error in valgrind
-    self.valgrind_prog = valgrind_prog # default valgrind program invocation to use
     self.valgrind_opts = ""            # additional options to pass to valgrind such as suppression
     self.skip_diff = False             # True if diffing the expect/actual should be skipped
     self.skip_return = False           # True if a non-zero exit code should be accepted (e.g. not trigger a failure)
@@ -105,7 +105,7 @@ class Segment:
     self.max_out_bytes = 2**20         # maximum size of output from tested program, kill if this is exceeded
     self.post_filter = None            # filter to run on output after test completes, before verifying output
     self.test_result_files = True      # True produces individual test result files
-    self.results_prefix = "test"       # file prefix for result output files
+    self.prefix = "test"               # file prefix for result output files
     self.results_dir = "test-results"  # base directory for test results files
     self.save_rawfiles = False         # whether to retain any raw input/output files in the raw/ directory
     self.raw_dir = "raw"               # location of raw output files such as Valgrind logs
@@ -113,14 +113,15 @@ class Segment:
     # self.test_title_width = 0          # max width of test titles for aligned printing, calculated during parsing
 
     # these fields are set after the segment is run
+    self.full_program = []             # full program invocation, may be decorated (usually with valgrind call)
     self.input_str = ""                # string of input extracted from session
     self.output_expect = ""            # expected output extracted from session
     self.output_actual = None          # output program actually produces
-    self.output_original = None        # original program output prior to applying post_filter, None if no post filter is used 
+    self.output_original = None        # original program output prior to applying post_filter, None if no post filter is used
     self.output_valgrind = None        # output from Valgrind log file if in use present
     self.sbs_diff = None               # side-by-side diff
     self.lbl_diff = None               # line-by-line diff
-    self.diff_failed = None            # True if the diff failed 
+    self.diff_failed = None            # True if the diff failed
     self.retcode = None                # exit/return code of process that was run
     self.messages = []                 # list of string messages indicating failures encountered
     self.timed_out = None              # True if segment timed out during run
@@ -137,22 +138,23 @@ class Segment:
     inpos = 0
     for outline in self.output_actual.splitlines():
       if inpos < len(input_lines) and outline==input_lines[inpos]:
-        outline = prompt + outline
+        outline = self.prompt + outline
         inpos += 1
       prompt_lines.append(outline)
     self.output_actual = "\n".join(prompt_lines)
-    return
 
-  def run_post_filter():                   # TODO
+
+  def run_post_filter(self):               # TODO
     """Run the post filter to modify otput_actual"""
-    return
 
-  def diff_output():                       # TODO
+
+  def diff_output(self):                   # TODO
     """Calculate the diff of the output"""
-    return
+    self.diff_failed = False
 
 
   def set_full_program(self):
+    """Sets full_program field which may include valgrind"""
     self.full_program = []      # set up the full arg list for the segment
 
     if self.use_valgrind:
@@ -160,19 +162,19 @@ class Segment:
         self.passed = False
         self.messages.append("Valgrind not found for test that has use_valgrind=1")
         return
-      self.full_program.extend(valgrind_prog)  # add base valgrind program and options
+      self.full_program.extend(VALGRIND_PROG)  # add base valgrind program and options
       self.full_program.extend(shlex.split(self.valg_opts))
     # end valgrind block
 
     self.full_program.extend(shlex.split(self.program))  # add on actual program
-    
+
 
   def set_input_str(self):
     """Creates input_str by extracting prompt lines from session"""
     prompt_len = len(self.prompt)
     input_lines = []
     for line in self.session.splitlines():
-      if line.startswith(prompt):
+      if line.startswith(self.prompt):
         input_lines.append(line[prompt_len:])
     self.input_str = "\n".join(input_lines)  # input to the be fed to the program
 
@@ -182,15 +184,15 @@ class Segment:
 
   def check_passed(self):                  # TODO
     """Determines if the segment passed according to fields"""
-    
+
 
 
   def prerun_setup(self):
     """Completes any internal setup name before running"""
-    self.set_full_run_program()
+    self.set_full_program()
     self.set_input_str()
     self.set_output_expect()
-    
+
   def post_run_setup(self):
     """Finalize fields which can be set after the run finishes"""
     self.add_prompt_to_output()
@@ -204,7 +206,7 @@ class Segment:
     # Aiming to avoid any directory creation, file creation, etc.
 
     self.prerun_setup()                    # set up pending fields for the run
-    if self.passed == False:               # already failed in setup
+    if self.passed is False:               # already failed in setup
       return
 
     out_encoding = None
@@ -212,7 +214,7 @@ class Segment:
     if self.force_ascii_output:            # possibly transform output to ascii
       out_encoding = 'ascii'
       out_errors = 'as_question_marks'
-    
+
     subp = Popen(self.full_program,        # start a subprocess to run the testd program
                  stdin=PIPE, stdout=PIPE,  # communicate with pipes
                  stderr=STDOUT,            # merge stderr with stdout
@@ -221,9 +223,9 @@ class Segment:
                  errors=out_errors,        # and suppress / catch errors
                  )
 
-    # send input / collect output, limit time/bytes 
-    (stdout,timed_out,maxed_out) = \       
-      limited_communicate(self.input_str, subp,
+    # send input / collect output, limit time/bytes
+    (stdout,timed_out,maxed_out) = \
+      limited_communicate(subp,self.input_str, 
                           timeout=self.timeout,
                           max_out_bytes=self.max_out_bytes)
 
@@ -290,7 +292,7 @@ class ParseError(Exception):
 #   total_time = 0.0                       # total time elapsed in the loop
 #   to_pos = 0                             # advancing position write in to_str
 #   beg_time = time.monotonic()            # start time of main loop
-  
+
 #   (loop_count,write_count,read_count) = 0,0,0  # for debugging
 
 #   print(f"working on to_fd {to_fd} from_fd {from_fd}")
@@ -304,17 +306,17 @@ class ParseError(Exception):
 #     print(fileops)
 
 #     # handle 1 event per loop, slightly less efficient than multiple
-#     # events but avoids possilbe 
-#     for (fd,event) in fileops:                      
+#     # events but avoids possilbe
+#     for (fd,event) in fileops:
 
 #       if (not to_fd.closed and                         # can write to other side
 #           fd==to_fd.fileno() and event&POLLOUT and     # and have some left to write
-#           to_pos < len(to_str)):                    
+#           to_pos < len(to_str)):
 #         write_count += 1
 #         end_pos = min(len(to_str),to_pos+block_size)
 #         to_pos += to_fd.write(to_str[to_pos:end_pos])
 #         if to_pos >= len(to_str):                      # IMPORTANT: close outward stream
-#           pollset.unregister(to_fd)                    # when all data written so the 
+#           pollset.unregister(to_fd)                    # when all data written so the
 #           to_fd.close()                                # other side knows it's done
 
 #       elif fd==from_fd.fileno() and event&POLLIN:      # can read from inward stream
@@ -329,7 +331,7 @@ class ParseError(Exception):
 #       elif fd==from_fd.fileno() and event&POLLHUP:     # inward stream closed, terminate
 #         from_eof = True                                # loop
 #     total_time = time.monotonic() - beg_time
-        
+
 #   # print(loop_count,write_count,read_count)             # debugging
 #   from_str = "".join(from_blocks)                      # join the read blocks of data
 #   return (from_str, (total_time > timeout), (from_bytes > max_from_bytes))
@@ -362,7 +364,7 @@ def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
   total_time = 0.0                       # total time elapsed in the loop
   to_pos = 0                             # advancing position write in to_str
   beg_time = time.monotonic()            # start time of main loop
-  
+
   (loop_count,write_count,read_count) = 0,0,0  # for debugging
 
   # print(f"working on to_fd {to_fd} from_fd {from_fd}")
@@ -376,17 +378,17 @@ def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
     # print(fileops)
 
     # handle 1 event per loop, slightly less efficient than multiple
-    # events but avoids possilbe 
-    for (fd,event) in fileops:                      
+    # events but avoids possilbe
+    for (fd,event) in fileops:
 
       if (not to_fd.closed and                         # can write to other side
           fd==to_fd.fileno() and event&POLLOUT and     # and have some left to write
-          to_pos < len(to_str)):                    
+          to_pos < len(to_str)):
         write_count += 1
         end_pos = min(len(to_str),to_pos+block_size)
         to_pos += to_fd.write(to_str[to_pos:end_pos])
         if to_pos >= len(to_str):                      # IMPORTANT: close outward stream
-          pollset.unregister(to_fd)                    # when all data written so the 
+          pollset.unregister(to_fd)                    # when all data written so the
           to_fd.close()                                # other side knows it's done
 
       elif fd==from_fd.fileno() and event&POLLIN:      # can read from inward stream
@@ -401,23 +403,23 @@ def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
       elif fd==from_fd.fileno() and event&POLLHUP:     # inward stream closed, terminate
         from_eof = True                                # loop
     total_time = time.monotonic() - beg_time
-        
+
   # print(loop_count,write_count,read_count)             # debugging
   from_str = "".join(from_blocks)                      # join the read blocks of data
-  timed_out = False
   return (from_str,
-          timeout!=None and total_time > timeout,
-          max_out_bytes!=None and from_bytes > max_out_bytes)
+          timeout is not None and total_time > timeout,
+          max_out_bytes is not None and from_bytes > max_out_bytes)
 
 
 
 def get_keyval(string):
-
   """For 'key=val', returns (key,val)
 
   Accept a string of the form 'key=val' and separate the key/value
-  pair. Raises an exception if there is a formatting problem.
+  pair. Removes whitespace if needed around begining/end of string.
+  Raises an exception if there is a formatting problem.
   """
+  string = string.strip()
   if "=" not in string:
     raise ParseError(f"key=value string [{string}] is not formatted correctly")
   (key,val)=string.split("=",1)
@@ -427,12 +429,11 @@ def get_keyval(string):
     val = val[1:-1]             # quoted properly so peel quotes off of value
   return (key,val)
 
-def propogate_fields(obj, options):
+def propagate_fields(obj, options):
   """If any field of obj has a key in options, set that field to the
   associated value in options
-
   """
-  for key,val in options:
+  for key,val in options.items():
     if key in obj.__dict__:
       obj.__dict__[key] = val
 
@@ -500,12 +501,10 @@ class OrgSuiteParser:
     filepos = FilePos(filename)                          # track global file position
     try:                                                 # try block for parsing errors
       suite = self.parse_suite_preamble(preamble,filepos)
-      test_index = 1
-      for test_title,test_content in test_titles_contents:
+      for (tidx,(test_title,test_content)) in enumerate(test_titles_contents):
         test = self.parse_test(test_title, test_content,
                                suite.test_opts, filepos)
-        suite.tests[test_index] = test
-        test_index++
+        suite.tests[tidx+1] = test
 
     except ParseError as e:
       msg = f"{filepos.filename}:{filepos.linenum}: {str(e)}"
@@ -530,6 +529,7 @@ class OrgSuiteParser:
 
       elif first == "#+TESTY:":            # option directive like [#+TESTY: program='bc -iq']
         (key,val) = get_keyval(rest)       # raises an exception if badly formatted
+        key = key.lower()                  # all lower case keys i nthis version
         if key in suite.__dict__:
           suite.__dict__[key] = val        # python objects are dicts, exploit this to assign the value
         else:
@@ -549,8 +549,8 @@ class OrgSuiteParser:
     test.title = test_title[2:-1]                            # remove "* " and newline
     filepos.linenum += 1
     test.linenum = filepos.linenum
-    
-    propogate_fields(test,opts)
+
+    propagate_fields(test,opts)
 
     # TODO Handle :PROPERTIES: drawer here
 
@@ -559,8 +559,8 @@ class OrgSuiteParser:
     seg_contents = re.split(seg_regex, content)              # is excised from resulting list
 
     for segc in seg_contents:
-      if re.fullmatch(r"\s*",segc):                          # completely blank region 
-        filepos.linenum += segc.count("\n")                  # add line count and 
+      if re.fullmatch(r"\s*",segc):                          # completely blank region
+        filepos.linenum += segc.count("\n")                  # add line count and
         continue                                             # advance
       segment = self.parse_segment(segc,opts,filepos)
       test.segments.append(segment)
@@ -570,8 +570,10 @@ class OrgSuiteParser:
 
   def parse_segment(self,content,opts,filepos):
     """Parse a single segment"""
+    # TODO: Handle TESTY_RERUN directive somehow...
+
     segment = Segment()
-    propogate_fields(segment,opts)
+    propagate_fields(segment,opts)
     segment.linenum = filepos.linenum+1               # first line o fsegment is next
 
     seg_regexs = r"(^#\+(?:BEGIN_SRC|BEGIN_QUOTE).*\n)"            # split content into premable/session;
@@ -606,21 +608,27 @@ class OrgSuiteParser:
     return segment
 
 def do_test_suite():
+  """code for testing parsing"""
   suite = OrgSuiteParser().parse_file("examples/parse_example.org")
-  
   for test in suite.tests:
     print(f"TITLE: {test.title} <{test.linenum}>")
-    i = 0
-    for seg in test.segments:
+    for (i,seg) in enumerate(test.segments):
       print(f"{i} <{seg.linenum}>:\n{seg.comments}\nPROGRAM: {seg.program}\n{seg.session}")
-      i += 1
 
-short_description = """\
+PARSER_TYPES = {
+  "org" : OrgSuiteParser()
+}
+"""mapping of file types to parsers"""
+
+################################################################################
+## main() setup
+
+SHORT_DESCRIPTION = """\
 Run tests for a shell program specified in an org-like file and report
 the results.
 """
 
-long_description = """\
+LONG_DESCRIPTION = """\
 ----------------------------------------
 --- RUNNING TESTS ---
 ----------------------------------------
@@ -630,31 +638,33 @@ a pass/fail and failures have results files indicating what went
 wrong. Below is an example from the examples/ directory:
 """
 
-parser_types = {
-  "org" : OrgSuiteParser()
-}
 
-def main():
+def main(cmd_args):
+  """main entry point for command line runs of """
+  # cmd_args explicit makes it easier to do debugging sessions in
+  # python interactive loop
+
+
   # set up arg parsing, don't line-wrap descriptions
-  argparser = argparse.ArgumentParser(description=short_description,
-                                      epilog=long_description,
+  argparser = argparse.ArgumentParser(description=SHORT_DESCRIPTION,
+                                      epilog=LONG_DESCRIPTION,
                                       formatter_class=argparse.RawDescriptionHelpFormatter)
   argparser.add_argument("-t","--input_type",default="org",action="store",
-                         choices=["org","json"],
+                         choices=list(PARSER_TYPES.keys()),
                          help="Specify the test input file type")
   argparser.add_argument("testfile",metavar="testfile",
                          help="File containing tests (default org format)")
   argparser.add_argument("testnums",metavar="testnum",nargs='*',type=int,
                          help="Optional test numbers to run (default all)")
 
-  args = argparser.parse_args()
+  args = argparser.parse_args(cmd_args)
   print(f"testfile: {args.testfile}")
   print(f"testnums: {args.testnums}")
 
-  if args.input_type not in parser_types:
+  if args.input_type not in PARSER_TYPES:
     print(f"ERROR: test suite file type {args.input_type} is not supported")
     sys.exit(1)
-  suite_parser = parser_types[args.input_type]
+  suite_parser = PARSER_TYPES[args.input_type]
 
   try:
     suite = suite_parser.parse_file(args.testfile)
@@ -666,11 +676,16 @@ def main():
 
   suite.testnums_torun = args.testnums or list(range(1,len(suite.tests)+1))
 
-
+  for testi in suite.testnums_torun:
+    test = suite.tests[testi]
+    for (segi, seg) in enumerate(test.segments):
+      seg.run()
+      print(f"Test {testi} Segment {segi}")
+      print(seg.output_actual)
 
 
 
 ################################################################################
 # Main Entry point
 if __name__ == '__main__':
-  main()  
+  main(sys.argv)
