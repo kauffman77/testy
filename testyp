@@ -77,7 +77,7 @@ class Test:
 class Segment:
   """Encapsulate a segment of a test
 
-  Segments run a particular program and check that is output and
+  Segments run a particular program and check that its output and
   behavior match an expecation. They comprise some preamble / comments
   followed by a session which shows a transcript of what is to be done
   in the test along with its output.
@@ -105,7 +105,7 @@ class Segment:
     self.max_out_bytes = 2**20         # maximum size of output from tested program, kill if this is exceeded
     self.post_filter = None            # filter to run on output after test completes, before verifying output
     self.test_result_files = True      # True produces individual test result files
-    self.prefix = "test"               # file prefix for result output files
+    self.prefix = "test"               # file prefix for result output files if any are created
     self.results_dir = "test-results"  # base directory for test results files
     self.save_rawfiles = False         # whether to retain any raw input/output files in the raw/ directory
     self.raw_dir = "raw"               # location of raw output files such as Valgrind logs
@@ -116,9 +116,10 @@ class Segment:
     self.full_program = []             # full program invocation, may be decorated (usually with valgrind call)
     self.input_str = ""                # string of input extracted from session
     self.output_expect = ""            # expected output extracted from session
+    self.pid = None                    # process ID of child process
     self.output_actual = None          # output program actually produces
     self.output_original = None        # original program output prior to applying post_filter, None if no post filter is used
-    self.output_valgrind = None        # output from Valgrind log file if in use present
+    self.output_valgrind = None        # output from Valgrind when in use
     self.sbs_diff = None               # side-by-side diff
     self.lbl_diff = None               # line-by-line diff
     self.diff_failed = None            # True if the diff failed
@@ -163,7 +164,7 @@ class Segment:
         self.messages.append("Valgrind not found for test that has use_valgrind=1")
         return
       self.full_program.extend(VALGRIND_PROG)  # add base valgrind program and options
-      self.full_program.extend(shlex.split(self.valg_opts))
+      self.full_program.extend(shlex.split(self.valgrind_opts))
     # end valgrind block
 
     self.full_program.extend(shlex.split(self.program))  # add on actual program
@@ -185,16 +186,35 @@ class Segment:
   def check_passed(self):                  # TODO
     """Determines if the segment passed according to fields"""
 
+  def run_shell_commands(self):            # TODO
+    """Execute shell commands in segment"""
 
+  def separate_valgrind_output(self):
+    """Separate valgrind output from output_actual"""
+
+    if not self.use_valgrind:
+      return
+    out_lines = []
+    val_lines = []
+    val_prefix = f"=={self.pid}=="
+    for line in self.output_actual.splitlines():
+      if line.startswith(val_prefix):
+        val_lines.append(line)
+      else:
+        out_lines.append(line)
+    self.output_actual =   "\n".join(out_lines)
+    self.output_valgrind = "\n".join(val_lines)
 
   def prerun_setup(self):
     """Completes any internal setup name before running"""
     self.set_full_program()
     self.set_input_str()
     self.set_output_expect()
+    self.run_shell_commands()
 
   def post_run_setup(self):
     """Finalize fields which can be set after the run finishes"""
+    self.separate_valgrind_output()
     self.add_prompt_to_output()
     self.run_post_filter()
     self.diff_output()
@@ -220,12 +240,12 @@ class Segment:
                  stderr=STDOUT,            # merge stderr with stdout
                  bufsize=0, text=True,     # limit buffering : is this a good idea?
                  encoding=out_encoding,    # optionally transform output
-                 errors=out_errors,        # and suppress / catch errors
-                 )
+                 errors=out_errors)        # and suppress / catch errors
+    self.pid = subp.pid
 
     # send input / collect output, limit time/bytes
     (stdout,timed_out,maxed_out) = \
-      limited_communicate(subp,self.input_str, 
+      limited_communicate(subp,self.input_str,
                           timeout=self.timeout,
                           max_out_bytes=self.max_out_bytes)
 
@@ -240,101 +260,6 @@ class Segment:
     self.output_actual = stdout
     self.post_run_setup()                  # finalize remaining fields
     return
-
-class SuiteParser:
-  """Interface for test file parsers.
-
-  Represents shared functionality of parsers. Implementing classes
-  should override parse_file(filename) which will open a given file,
-  parse it, and return a Suite
-  """
-
-  def parse_file(self,filename):
-    """Parse a file (abstract method)
-
-    To be overriden by derived classes. Opens and reads the contents
-    of filename and returns a Suite read from it.
-    """
-
-
-  # other shared methods built from parse_file can go here such as
-  # parsing_string which can simply convert the given string to a
-  # StringIO and then call parse_file
-
-
-class ParseError(Exception):
-  """Exception to throw when a parsing error occurred"""
-
-
-
-# def limited_communicate(subp,to_str=None,timeout=None,max_from_bytes=None):
-#   """Communicate on a to/from pipe with limits
-
-#   Write to_str to the to_fd in chunks and receive data from from_fd in
-#   chunks. If this takes longer than timeout (fractional seconds),
-#   bail. If more than from_bytes are read, bail. Returns a tuple of
-#     (from_str, timed_out T/F, maxed_out T/F)
-
-#   Makes use of poll() under the hood to synchornously handle the I/O
-#   and avoid blocking for too long.
-#   """
-
-#   poll_timeout_millis = 100              # timeout for poll calls
-#   block_size = 4096                      # size of blocks of data to communicate
-
-#   pollset = select.poll()                # set of file descriptors to track
-#   pollset.register(to_fd,   POLLOUT)
-#   pollset.register(from_fd, POLLIN)
-
-#   from_blocks = []                       # blocks read from from_fd
-#   from_bytes = 0                         # total bytes read from from_fd
-#   from_eof = False                       # reached tht end of from_fd
-#   total_time = 0.0                       # total time elapsed in the loop
-#   to_pos = 0                             # advancing position write in to_str
-#   beg_time = time.monotonic()            # start time of main loop
-
-#   (loop_count,write_count,read_count) = 0,0,0  # for debugging
-
-#   print(f"working on to_fd {to_fd} from_fd {from_fd}")
-#   print(f"POLLOUT {POLLOUT} POLLIN {POLLIN} POLLHUP {POLLHUP} POLLERR {POLLERR} POLLNVAL {POLLNVAL}")
-
-#   while (not from_eof and                         # other from still has data
-#          total_time <= timeout and                # still within timeout
-#          from_bytes <= max_from_bytes):           # still under max bytes read
-#     loop_count += 1
-#     fileops = pollset.poll(poll_timeout_millis)
-#     print(fileops)
-
-#     # handle 1 event per loop, slightly less efficient than multiple
-#     # events but avoids possilbe
-#     for (fd,event) in fileops:
-
-#       if (not to_fd.closed and                         # can write to other side
-#           fd==to_fd.fileno() and event&POLLOUT and     # and have some left to write
-#           to_pos < len(to_str)):
-#         write_count += 1
-#         end_pos = min(len(to_str),to_pos+block_size)
-#         to_pos += to_fd.write(to_str[to_pos:end_pos])
-#         if to_pos >= len(to_str):                      # IMPORTANT: close outward stream
-#           pollset.unregister(to_fd)                    # when all data written so the
-#           to_fd.close()                                # other side knows it's done
-
-#       elif fd==from_fd.fileno() and event&POLLIN:      # can read from inward stream
-#         read_count += 1
-#         block = from_fd.read(block_size)
-#         if len(block)==0:                              # inward stream closed, terminate
-#           from_eof = True                              # loop; possibly redundant
-#         else:
-#           from_blocks.append(block)
-#           from_bytes += len(block)
-
-#       elif fd==from_fd.fileno() and event&POLLHUP:     # inward stream closed, terminate
-#         from_eof = True                                # loop
-#     total_time = time.monotonic() - beg_time
-
-#   # print(loop_count,write_count,read_count)             # debugging
-#   from_str = "".join(from_blocks)                      # join the read blocks of data
-#   return (from_str, (total_time > timeout), (from_bytes > max_from_bytes))
 
 def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
   """Communicate on a to/from pipe with limits
@@ -444,12 +369,6 @@ def propagate_fields(obj, options):
 # except Exception as e:
 #   str(e)
 
-class FilePos:
-  """Encodes a file position for error reporting"""
-  def __init__(self, fname):
-    self.filename = fname
-    self.linenum = 0
-
 def slurp(filename):
   """Read an entire file into memory"""
   with open(filename,encoding='utf-8') as f:
@@ -471,6 +390,107 @@ def shave_blanks(line_list):
   return line_list[beg:end]
 
 
+class SuiteParser:
+  """Interface for test file parsers.
+
+  Represents shared functionality of parsers. Implementing classes
+  should override parse_file(filename) which will open a given file,
+  parse it, and return a Suite
+  """
+
+  def parse_file(self,filename):
+    """Parse a file (abstract method)
+
+    To be overriden by derived classes. Opens and reads the contents
+    of filename and returns a Suite read from it.
+    """
+
+
+  # other shared methods built from parse_file can go here such as
+  # parsing_string which can simply convert the given string to a
+  # StringIO and then call parse_file
+
+
+class ParseError(Exception):
+  """Exception to throw when a parsing error occurred"""
+
+
+
+# def limited_communicate(subp,to_str=None,timeout=None,max_from_bytes=None):
+#   """Communicate on a to/from pipe with limits
+
+#   Write to_str to the to_fd in chunks and receive data from from_fd in
+#   chunks. If this takes longer than timeout (fractional seconds),
+#   bail. If more than from_bytes are read, bail. Returns a tuple of
+#     (from_str, timed_out T/F, maxed_out T/F)
+
+#   Makes use of poll() under the hood to synchornously handle the I/O
+#   and avoid blocking for too long.
+#   """
+
+#   poll_timeout_millis = 100              # timeout for poll calls
+#   block_size = 4096                      # size of blocks of data to communicate
+
+#   pollset = select.poll()                # set of file descriptors to track
+#   pollset.register(to_fd,   POLLOUT)
+#   pollset.register(from_fd, POLLIN)
+
+#   from_blocks = []                       # blocks read from from_fd
+#   from_bytes = 0                         # total bytes read from from_fd
+#   from_eof = False                       # reached tht end of from_fd
+#   total_time = 0.0                       # total time elapsed in the loop
+#   to_pos = 0                             # advancing position write in to_str
+#   beg_time = time.monotonic()            # start time of main loop
+
+#   (loop_count,write_count,read_count) = 0,0,0  # for debugging
+
+#   print(f"working on to_fd {to_fd} from_fd {from_fd}")
+#   print(f"POLLOUT {POLLOUT} POLLIN {POLLIN} POLLHUP {POLLHUP} POLLERR {POLLERR} POLLNVAL {POLLNVAL}")
+
+#   while (not from_eof and                         # other from still has data
+#          total_time <= timeout and                # still within timeout
+#          from_bytes <= max_from_bytes):           # still under max bytes read
+#     loop_count += 1
+#     fileops = pollset.poll(poll_timeout_millis)
+#     print(fileops)
+
+#     # handle 1 event per loop, slightly less efficient than multiple
+#     # events but avoids possilbe
+#     for (fd,event) in fileops:
+
+#       if (not to_fd.closed and                         # can write to other side
+#           fd==to_fd.fileno() and event&POLLOUT and     # and have some left to write
+#           to_pos < len(to_str)):
+#         write_count += 1
+#         end_pos = min(len(to_str),to_pos+block_size)
+#         to_pos += to_fd.write(to_str[to_pos:end_pos])
+#         if to_pos >= len(to_str):                      # IMPORTANT: close outward stream
+#           pollset.unregister(to_fd)                    # when all data written so the
+#           to_fd.close()                                # other side knows it's done
+
+#       elif fd==from_fd.fileno() and event&POLLIN:      # can read from inward stream
+#         read_count += 1
+#         block = from_fd.read(block_size)
+#         if len(block)==0:                              # inward stream closed, terminate
+#           from_eof = True                              # loop; possibly redundant
+#         else:
+#           from_blocks.append(block)
+#           from_bytes += len(block)
+
+#       elif fd==from_fd.fileno() and event&POLLHUP:     # inward stream closed, terminate
+#         from_eof = True                                # loop
+#     total_time = time.monotonic() - beg_time
+
+#   # print(loop_count,write_count,read_count)             # debugging
+#   from_str = "".join(from_blocks)                      # join the read blocks of data
+#   return (from_str, (total_time > timeout), (from_bytes > max_from_bytes))
+
+class FilePos:
+  """Encodes a file position for error reporting"""
+  def __init__(self, fname):
+    self.filename = fname
+    self.linenum = 0
+
 class OrgSuiteParser:
   """Handle Emacs Org formatted files"""
 
@@ -484,19 +504,32 @@ class OrgSuiteParser:
 
     contents = slurp(filename)
 
-    preamble_endpos = contents.find("\n* ")              # locate preamble end/test start
-    if preamble_endpos==-1:                              # check if any tests exist
+
+    # preamble_endpos = contents.find("\n* ")              # locate preamble end/test start
+    # if preamble_endpos==-1:                              # check if any tests exist
+    #   msg = f"{filename} does not contain any tests"
+    #   raise ParseError(msg)
+    # preamble = contents[:preamble_endpos+1]              # include the newline
+
+
+    # test_regex = re.compile(r"(^\* .*\n)",re.MULTILINE)  # split content
+    # tc_list = re.split(test_regex,                       # into tests based on test headers;
+    #                    contents[preamble_endpos+1:])     # then zip the header and test
+    # tc_len = len(tc_list)                                # content together for later
+    # test_titles_contents = zip(tc_list[1:tc_len:2],      # iteration
+    #                            tc_list[2:tc_len:2])
+
+    test_regex = re.compile(r"(^\* .*\n)",re.MULTILINE)  # split content into tests based
+    tc_list = re.split(test_regex,contents)              # on test headers
+    tc_len = len(tc_list)
+    if tc_len <= 1:
       msg = f"{filename} does not contain any tests"
       raise ParseError(msg)
-    preamble = contents[:preamble_endpos+1]              # include the newline
-
-
-    test_regex = re.compile(r"(^\* .*\n)",re.MULTILINE)  # split remaining content
-    tc_list = re.split(test_regex,                       # into tests based on test headers;
-                       contents[preamble_endpos+1:])     # then zip the header and test
-    tc_len = len(tc_list)                                # content together for later
-    test_titles_contents = zip(tc_list[1:tc_len:2],      # iteration
+    preamble = tc_list[0]                                # everything before first '* title'
+    test_titles_contents = zip(tc_list[1:tc_len:2],      # content together for iteration
                                tc_list[2:tc_len:2])
+
+
 
     filepos = FilePos(filename)                          # track global file position
     try:                                                 # try block for parsing errors
@@ -680,9 +713,10 @@ def main(cmd_args):
     test = suite.tests[testi]
     for (segi, seg) in enumerate(test.segments):
       seg.run()
+      print("----------------------------------------")
       print(f"Test {testi} Segment {segi}")
       print(seg.output_actual)
-
+      print(f"Valgrind:\n{seg.output_valgrind}")
 
 
 ################################################################################
