@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """This is a module docstring"""
 
+import sys
 import re
-# import sys
+import argparse
 
 class Suite:
   """Encapsulates a collection of tests"""
@@ -10,7 +11,7 @@ class Suite:
   def __init__(self):
     """Initialize a default empty Suite"""
     # these fields are set during parsing / initialization, most are options governing behavior
-    self.tests = []                    # list of Tests encoded in the suite
+    self.tests = {}                    # tests in the suite in a dictioary with numeric keys starting at 1; first test is "test 1" 
     self.testsnums_torun = []          # contains a list of numbers of tests to run; all tests by default
     self.test_opts = {}                # key/val options affecting tests and sessions set in the preamble
     self.title = None                  # title of the suite from the #+title: directive, None will use the file name
@@ -157,13 +158,13 @@ def shave_blanks(line_list):
   """Elimnate whitespace-only strings from beginning/end of list"""
   beg = 0
   for line in line_list:
-    if not re.fullmatch("\s*",line):
+    if not re.fullmatch(r"\s*",line):
       break
     beg += 1
 
   end = len(line_list)
   for line in reversed(line_list):
-    if not re.fullmatch("\s*",line):
+    if not re.fullmatch(r"\s*",line):
       break
     end -= 1
   return line_list[beg:end]
@@ -199,10 +200,12 @@ class OrgSuiteParser:
     filepos = FilePos(filename)                          # track global file position
     try:                                                 # try block for parsing errors
       suite = self.parse_suite_preamble(preamble,filepos)
+      test_index = 1
       for test_title,test_content in test_titles_contents:
         test = self.parse_test(test_title, test_content,
                                suite.test_opts, filepos)
-        suite.tests.append(test)
+        suite.tests[test_index] = test
+        test_index++
 
     except ParseError as e:
       msg = f"{filepos.filename}:{filepos.linenum}: {str(e)}"
@@ -226,7 +229,7 @@ class OrgSuiteParser:
         suite.title = rest
 
       elif first == "#+TESTY:":            # option directive like [#+TESTY: program='bc -iq']
-        (key,val) = get_keyval(rest)       # may throw if badly formatted
+        (key,val) = get_keyval(rest)       # raises an exception if badly formatted
         if key in suite.__dict__:
           suite.__dict__[key] = val        # python objects are dicts, exploit this to assign the value
         else:
@@ -285,7 +288,7 @@ class OrgSuiteParser:
       if first=="#+TESTY:" and rest[0]=="!":          # shell command as in [#+TESTY: !rm file.txt]
         segment.commands.append(rest[1:])             # peel off the ! at the start
       elif first == "#+TESTY:":
-        (key,val) = get_keyval(rest)                  # may throw if badly formatted
+        (key,val) = get_keyval(rest)                  # raises exception if badly formatted
         segment.__dict__[key] = val
       else:
         comment_lines.append(line)
@@ -302,11 +305,68 @@ class OrgSuiteParser:
 
     return segment
 
-suite = OrgSuiteParser().parse_file("examples/parse_example.org")
+def test_suite():
+  suite = OrgSuiteParser().parse_file("examples/parse_example.org")
+  
+  for test in suite.tests:
+    print(f"TITLE: {test.title} <{test.linenum}>")
+    i = 0
+    for seg in test.segments:
+      print(f"{i} <{seg.linenum}>:\n{seg.comments}\nPROGRAM: {seg.program}\n{seg.session}")
+      i += 1
 
-for test in suite.tests:
-  print(f"TITLE: {test.title} <{test.linenum}>")
-  i = 0
-  for seg in test.segments:
-    print(f"{i} <{seg.linenum}>:\n{seg.comments}\nPROGRAM: {seg.program}\n{seg.session}")
-    i += 1
+short_description = """\
+Run tests for a shell program specified in an org-like file and report
+the results.
+"""
+
+long_description = """\
+----------------------------------------
+--- RUNNING TESTS ---
+----------------------------------------
+Running a test is done from the command line and will default to
+running all tests in a provided test file. Output shows each test with
+a pass/fail and failures have results files indicating what went
+wrong. Below is an example from the examples/ directory:
+"""
+
+parser_types = {
+  "org" : OrgSuiteParser()
+}
+
+def main():
+  # set up arg parsing, don't line-wrap descriptions
+  argparser = argparse.ArgumentParser(description=short_description,
+                                      epilog=long_description,
+                                      formatter_class=argparse.RawDescriptionHelpFormatter)
+  argparser.add_argument("-t","--input_type",default="org",action="store",
+                         choices=["org","json"],
+                         help="Specify the test input file type")
+  argparser.add_argument("testfile",metavar="testfile",
+                         help="File containing tests (default org format)")
+  argparser.add_argument("testnums",metavar="testnum",nargs='*',type=int,
+                         help="Optional test numbers to run (default all)")
+
+  args = argparser.parse_args()
+  print(f"testfile: {args.testfile}")
+  print(f"testnums: {args.testnums}")
+
+  if args.input_type not in parser_types:
+    print(f"ERROR: test suite file type {args.input_type} is not supported")
+    sys.exit(1)
+  suite_parser = parser_types[args.input_type]
+
+  try:
+    suite = suite_parser.parse_file(args.testfile)
+  except ParseError as e:
+    print(str(e))
+    sys.exit(1)
+
+  print(f"parsing succeeded, suite has {len(suite.tests)} tests")
+
+  suite.testnums_torun = args.testnums or list(range(1,len(suite.tests)+1))
+
+
+  
+if __name__ == '__main__':
+  main()  
