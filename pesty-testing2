@@ -220,6 +220,83 @@ def communicate_with_limits(to_str,to_fd,from_fd,timeout,max_from_bytes):
   print(loop_count,write_count,read_count)
   return (from_str,total_time > timeout,from_bytes > max_from_bytes)
     
+def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
+  """Communicate on a to/from pipe with limits
+
+  Write to_str to the to_fd in chunks and receive data from from_fd in
+  chunks. If this takes longer than timeout (fractional seconds),
+  bail. If more than from_bytes are read, bail. Returns a tuple of
+    (from_str, timed_out T/F, maxed_out T/F)
+
+  Makes use of poll() under the hood to synchornously handle the I/O
+  and avoid blocking for too long.
+  """
+
+  to_fd = subp.stdin
+  from_fd = subp.stdout
+
+  poll_timeout_millis = 100              # timeout for poll calls
+  block_size = 4096                      # size of blocks of data to communicate
+
+  pollset = select.poll()                # set of file descriptors to track
+  pollset.register(to_fd,   POLLOUT)
+  pollset.register(from_fd, POLLIN)
+
+  from_blocks = []                       # blocks read from from_fd
+  from_bytes = 0                         # total bytes read from from_fd
+  from_eof = False                       # reached tht end of from_fd
+  total_time = 0.0                       # total time elapsed in the loop
+  to_pos = 0                             # advancing position write in to_str
+  beg_time = time.monotonic()            # start time of main loop
+  
+  (loop_count,write_count,read_count) = 0,0,0  # for debugging
+
+  print(f"working on to_fd {to_fd} from_fd {from_fd}")
+  print(f"POLLOUT {POLLOUT} POLLIN {POLLIN} POLLHUP {POLLHUP} POLLERR {POLLERR} POLLNVAL {POLLNVAL}")
+
+  while (not from_eof and                                       # other from still has data
+         (not timeout or total_time <= timeout) and             # still within timeout
+         (not max_out_bytes or from_bytes <= max_out_bytes)): # still under max bytes read
+    loop_count += 1
+    fileops = pollset.poll(poll_timeout_millis)
+    # print(fileops)
+
+    # handle 1 event per loop, slightly less efficient than multiple
+    # events but avoids possilbe 
+    for (fd,event) in fileops:                      
+
+      if (not to_fd.closed and                         # can write to other side
+          fd==to_fd.fileno() and event&POLLOUT and     # and have some left to write
+          to_pos < len(to_str)):                    
+        write_count += 1
+        end_pos = min(len(to_str),to_pos+block_size)
+        to_pos += to_fd.write(to_str[to_pos:end_pos])
+        if to_pos >= len(to_str):                      # IMPORTANT: close outward stream
+          pollset.unregister(to_fd)                    # when all data written so the 
+          to_fd.close()                                # other side knows it's done
+
+      elif fd==from_fd.fileno() and event&POLLIN:      # can read from inward stream
+        read_count += 1
+        block = from_fd.read(block_size)
+        if len(block)==0:                              # inward stream closed, terminate
+          from_eof = True                              # loop; possibly redundant
+        else:
+          from_blocks.append(block)
+          from_bytes += len(block)
+
+      elif fd==from_fd.fileno() and event&POLLHUP:     # inward stream closed, terminate
+        from_eof = True                                # loop
+    total_time = time.monotonic() - beg_time
+        
+  print(loop_count,write_count,read_count)             # debugging
+  from_str = "".join(from_blocks)                      # join the read blocks of data
+  timed_out = False
+  return (from_str,
+          timeout!=None and total_time > timeout,
+          max_out_bytes!=None and from_bytes > max_out_bytes)
+
+
+
     
 subp = Popen(#["cat", "-"],
              # ["bash", "-c", "sleep 0.5 && cat -"],
@@ -231,8 +308,9 @@ subp = Popen(#["cat", "-"],
              errors='as_question_marks')
 print("communicating")
 
-
-(stdout,timed_out,maxed_out) = communicate_with_limits("what's up",subp.stdin,subp.stdout,1.0, 2**20)
+# run the process
+(stdout,timed_out,maxed_out) = \
+  limited_communicate(subp,"what's up",timeout=1,max_out_bytes=None)
 
 if timed_out or maxed_out:
   subp.kill()                                       # misbehaving, kill it
