@@ -2,7 +2,3 @@
 2. Explicit is better than implicit.
 3. Simple is better than complex.
 4. Complex is better than complicated.
-
-
-cccccccccccccc
-ddd

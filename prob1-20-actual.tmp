@@ -1,0 +1,128 @@
+{
+    // Checks that ERR is displayed if the temperature is
+    // out of range in either celsius or fahrenheit.
+    temp->tenths_degrees = -462;      // below min celsius
+    temp->temp_mode      = 1;         // celsius
+    THERMO_SENSOR_PORT  = 0;          // ports should be ignored
+    THERMO_STATUS_PORT  = 0b00000000;
+    THERMO_DISPLAY_PORT = -1;
+    ret = set_display_from_temp(*temp, dispint);
+    printf("ret: %d\n",ret);
+    printf("%-19s : %s\n", "dispint",bitstr(*dispint,&dispspec));
+    printf("%-19s : %s\n", "index",bitstr_index(&dispspec));
+    print_ports();
+    printf("SIMULATED DISPLAY:\n");
+    THERMO_DISPLAY_PORT = *dispint;
+    print_thermo_display();
+}
+TEST OUTPUT:
+ret: 0
+dispint             : 00 01 0000100 1001110 1110111 0111101
+index               : 30 28      21      14       7       0
+THERMO_SENSOR_PORT  : 0
+THERMO_STATUS_PORT  : 0000 0000
+index               :    4    0
+THERMO_DISPLAY_PORT : 11 11 1111111 1111111 1111111 1111111
+index               : 30 28      21      14       7       0
+SIMULATED DISPLAY:
+           ~~   ~~   
+     |  | |       | o
+ ~~   ~~   ~~   ~~   C
+        | |  | |     
+           ~~ o ~~   
+{
+    // Checks that ERR is displayed if the temperature is
+    // out of range in either celsius or fahrenheit.
+    temp->tenths_degrees = -451;      // above max celsius
+    temp->temp_mode      = 1;         // celsius
+    THERMO_SENSOR_PORT  = 0;          // ports should be ignored
+    THERMO_STATUS_PORT  = 0b00000000;
+    THERMO_DISPLAY_PORT = -1;
+    ret = set_display_from_temp(*temp, dispint);
+    printf("ret: %d\n",ret);
+    printf("%-19s : %s\n", "dispint",bitstr(*dispint,&dispspec));
+    printf("%-19s : %s\n", "index",bitstr_index(&dispspec));
+    print_ports();
+    printf("SIMULATED DISPLAY:\n");
+    THERMO_DISPLAY_PORT = *dispint;
+    print_thermo_display();
+}
+TEST OUTPUT:
+ret: 0
+dispint             : 00 01 0000100 1001110 1100111 1001000
+index               : 30 28      21      14       7       0
+THERMO_SENSOR_PORT  : 0
+THERMO_STATUS_PORT  : 0000 0000
+index               :    4    0
+THERMO_DISPLAY_PORT : 11 11 1111111 1111111 1111111 1111111
+index               : 30 28      21      14       7       0
+SIMULATED DISPLAY:
+           ~~        
+     |  | |       | o
+ ~~   ~~   ~~        C
+        |    |    |  
+           ~~ o      
+{
+    // Checks that ERR is displayed if the temperature is
+    // out of range in either celsius or fahrenheit.
+    temp->tenths_degrees = -495;      // below min fahrenheit
+    temp->temp_mode      = 2;         // fahrenheit
+    THERMO_SENSOR_PORT  = 0;          // ports should be ignored
+    THERMO_STATUS_PORT  = 0b00000000;
+    THERMO_DISPLAY_PORT = -1;
+    ret = set_display_from_temp(*temp, dispint);
+    printf("ret: %d\n",ret);
+    printf("%-19s : %s\n", "dispint",bitstr(*dispint,&dispspec));
+    printf("%-19s : %s\n", "index",bitstr_index(&dispspec));
+    print_ports();
+    printf("SIMULATED DISPLAY:\n");
+    THERMO_DISPLAY_PORT = *dispint;
+    print_thermo_display();
+}
+TEST OUTPUT:
+ret: 1
+dispint             : 00 00 0110111 1011111 1011111 0000000
+index               : 30 28      21      14       7       0
+THERMO_SENSOR_PORT  : 0
+THERMO_STATUS_PORT  : 0000 0000
+index               :    4    0
+THERMO_DISPLAY_PORT : 11 11 1111111 1111111 1111111 1111111
+index               : 30 28      21      14       7       0
+SIMULATED DISPLAY:
+ ~~   ~~   ~~        
+|    |  | |  |       
+ ~~   ~~   ~~        
+|    |  | |  |       
+ ~~           o      
+{
+    // Checks that ERR is displayed if the temperature is
+    // out of range in either celsius or fahrenheit.
+    temp->tenths_degrees = 1169;      // above max fahrenheit
+    temp->temp_mode      = 2;         // fahrenheit
+    THERMO_SENSOR_PORT  = 0;          // ports should be ignored
+    THERMO_STATUS_PORT  = 0b00000000;
+    THERMO_DISPLAY_PORT = -1;
+    ret = set_display_from_temp(*temp, dispint);
+    printf("ret: %d\n",ret);
+    printf("%-19s : %s\n", "dispint",bitstr(*dispint,&dispspec));
+    printf("%-19s : %s\n", "index",bitstr_index(&dispspec));
+    print_ports();
+    printf("SIMULATED DISPLAY:\n");
+    THERMO_DISPLAY_PORT = *dispint;
+    print_thermo_display();
+}
+TEST OUTPUT:
+ret: 1
+dispint             : 00 00 0110111 1011111 1011111 0000000
+index               : 30 28      21      14       7       0
+THERMO_SENSOR_PORT  : 0
+THERMO_STATUS_PORT  : 0000 0000
+index               :    4    0
+THERMO_DISPLAY_PORT : 11 11 1111111 1111111 1111111 1111111
+index               : 30 28      21      14       7       0
+SIMULATED DISPLAY:
+ ~~   ~~   ~~        
+|    |  | |  |       
+ ~~   ~~   ~~        
+|    |  | |  |       
+ ~~           o      

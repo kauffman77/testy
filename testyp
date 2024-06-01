@@ -185,13 +185,14 @@ class Segment:
 
   def check_passed(self):                  # TODO
     """Determines if the segment passed according to fields"""
+    
+
 
   def run_shell_commands(self):            # TODO
     """Execute shell commands in segment"""
 
   def separate_valgrind_output(self):
     """Separate valgrind output from output_actual"""
-
     if not self.use_valgrind:
       return
     out_lines = []
@@ -259,6 +260,7 @@ class Segment:
     self.output_original = stdout
     self.output_actual = stdout
     self.post_run_setup()                  # finalize remaining fields
+    
     return
 
 def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
