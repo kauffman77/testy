@@ -441,36 +441,37 @@ def sbs_diff(alines,blines,
              sym_equal=' ',sym_replace='|',
              sym_delete='<',sym_insert='>'):
              # ignore_blanklines=False,
-    if type(alines) is str:
-        alines = alines.splitlines()
-    if type(blines) is str:
-        blines = blines.splitlines()
+  """Create a side-by-side diff string"""
+  if type(alines) is str:
+      alines = alines.splitlines()
+  if type(blines) is str:
+      blines = blines.splitlines()
 
-    aseq = alines
-    bseq = blines
-    if ignore_whitespace:
-        aseq = [re.subn(r"\s+"," ",x)[0] for x in alines]
-        bseq = [re.subn(r"\s+"," ",x)[0] for x in blines]
-  
-    (align,_) = global_alignment(aseq,bseq)
-    seq_equal = 0==sum([x!="equal" for (_,_,x,_) in align])
+  aseq = alines
+  bseq = blines
+  if ignore_whitespace:
+    aseq = [re.subn(r"\s+"," ",x)[0] for x in alines]
+    bseq = [re.subn(r"\s+"," ",x)[0] for x in blines]
 
-    difflines = []
-    awidth = max(len(x) for x in alines)
-    bwidth = max(len(x) for x in blines)
+  (align,_) = global_alignment(aseq,bseq)
+  seq_equal = 0==sum([x!="equal" for (_,_,x,_) in align])
 
-    for (ai,bj,tag,_) in align:
-      dline = ""
-      if tag=="delete":
-        dline = f"{alines[ai]:{awidth}} {sym_delete} {'':{bwidth}}"
-      elif tag=="insert":
-        dline = f"{'':{bwidth}} {sym_insert} {blines[bj]:{bwidth}}"
-      else:
-        sym = sym_equal if tag=="equal" else sym_replace
-        dline = f"{alines[ai]:{awidth}} {sym} {blines[bj]:{bwidth}}"
-      difflines.append(dline)
+  difflines = []
+  awidth = max(len(x) for x in alines)
+  bwidth = max(len(x) for x in blines)
 
-    return (seq_equal, "\n".join(difflines))
+  for (ai,bj,tag,_) in align:
+    dline = ""
+    if tag=="delete":
+      dline = f"{alines[ai]:{awidth}} {sym_delete} {'':{bwidth}}"
+    elif tag=="insert":
+      dline = f"{'':{bwidth}} {sym_insert} {blines[bj]:{bwidth}}"
+    else:
+      sym = sym_equal if tag=="equal" else sym_replace
+      dline = f"{alines[ai]:{awidth}} {sym} {blines[bj]:{bwidth}}"
+    difflines.append(dline)
+
+  return (seq_equal, "\n".join(difflines))
 
 
 def get_keyval(string):
@@ -497,13 +498,6 @@ def propagate_fields(obj, options):
   for key,val in options.items():
     if key in obj.__dict__:
       obj.__dict__[key] = val
-
-
-# # Example of how to extract an excetion message
-# try:
-#   get_keyval("""program='./test_el_malloc "Single Allocation\"""")
-# except Exception as e:
-#   str(e)
 
 def slurp(filename):
   """Read an entire file into memory"""
@@ -541,7 +535,6 @@ class SuiteParser:
     of filename and returns a Suite read from it.
     """
 
-
   # other shared methods built from parse_file can go here such as
   # parsing_string which can simply convert the given string to a
   # StringIO and then call parse_file
@@ -550,77 +543,6 @@ class SuiteParser:
 class ParseError(Exception):
   """Exception to throw when a parsing error occurred"""
 
-
-
-# def limited_communicate(subp,to_str=None,timeout=None,max_from_bytes=None):
-#   """Communicate on a to/from pipe with limits
-
-#   Write to_str to the to_fd in chunks and receive data from from_fd in
-#   chunks. If this takes longer than timeout (fractional seconds),
-#   bail. If more than from_bytes are read, bail. Returns a tuple of
-#     (from_str, timed_out T/F, maxed_out T/F)
-
-#   Makes use of poll() under the hood to synchornously handle the I/O
-#   and avoid blocking for too long.
-#   """
-
-#   poll_timeout_millis = 100              # timeout for poll calls
-#   block_size = 4096                      # size of blocks of data to communicate
-
-#   pollset = select.poll()                # set of file descriptors to track
-#   pollset.register(to_fd,   POLLOUT)
-#   pollset.register(from_fd, POLLIN)
-
-#   from_blocks = []                       # blocks read from from_fd
-#   from_bytes = 0                         # total bytes read from from_fd
-#   from_eof = False                       # reached tht end of from_fd
-#   total_time = 0.0                       # total time elapsed in the loop
-#   to_pos = 0                             # advancing position write in to_str
-#   beg_time = time.monotonic()            # start time of main loop
-
-#   (loop_count,write_count,read_count) = 0,0,0  # for debugging
-
-#   print(f"working on to_fd {to_fd} from_fd {from_fd}")
-#   print(f"POLLOUT {POLLOUT} POLLIN {POLLIN} POLLHUP {POLLHUP} POLLERR {POLLERR} POLLNVAL {POLLNVAL}")
-
-#   while (not from_eof and                         # other from still has data
-#          total_time <= timeout and                # still within timeout
-#          from_bytes <= max_from_bytes):           # still under max bytes read
-#     loop_count += 1
-#     fileops = pollset.poll(poll_timeout_millis)
-#     print(fileops)
-
-#     # handle 1 event per loop, slightly less efficient than multiple
-#     # events but avoids possilbe
-#     for (fd,event) in fileops:
-
-#       if (not to_fd.closed and                         # can write to other side
-#           fd==to_fd.fileno() and event&POLLOUT and     # and have some left to write
-#           to_pos < len(to_str)):
-#         write_count += 1
-#         end_pos = min(len(to_str),to_pos+block_size)
-#         to_pos += to_fd.write(to_str[to_pos:end_pos])
-#         if to_pos >= len(to_str):                      # IMPORTANT: close outward stream
-#           pollset.unregister(to_fd)                    # when all data written so the
-#           to_fd.close()                                # other side knows it's done
-
-#       elif fd==from_fd.fileno() and event&POLLIN:      # can read from inward stream
-#         read_count += 1
-#         block = from_fd.read(block_size)
-#         if len(block)==0:                              # inward stream closed, terminate
-#           from_eof = True                              # loop; possibly redundant
-#         else:
-#           from_blocks.append(block)
-#           from_bytes += len(block)
-
-#       elif fd==from_fd.fileno() and event&POLLHUP:     # inward stream closed, terminate
-#         from_eof = True                                # loop
-#     total_time = time.monotonic() - beg_time
-
-#   # print(loop_count,write_count,read_count)             # debugging
-#   from_str = "".join(from_blocks)                      # join the read blocks of data
-#   return (from_str, (total_time > timeout), (from_bytes > max_from_bytes))
-
 class FilePos:
   """Encodes a file position for error reporting"""
   def __init__(self, fname):
@@ -628,7 +550,7 @@ class FilePos:
     self.linenum = 0
 
 class OrgSuiteParser:
-  """Handle Emacs Org formatted files"""
+  """Handle Emacs Org formatted test files"""
 
   def parse_file(self,filename):
     """Parse an Emacs Org formatted files
@@ -639,22 +561,6 @@ class OrgSuiteParser:
     """
 
     contents = slurp(filename)
-
-
-    # preamble_endpos = contents.find("\n* ")              # locate preamble end/test start
-    # if preamble_endpos==-1:                              # check if any tests exist
-    #   msg = f"{filename} does not contain any tests"
-    #   raise ParseError(msg)
-    # preamble = contents[:preamble_endpos+1]              # include the newline
-
-
-    # test_regex = re.compile(r"(^\* .*\n)",re.MULTILINE)  # split content
-    # tc_list = re.split(test_regex,                       # into tests based on test headers;
-    #                    contents[preamble_endpos+1:])     # then zip the header and test
-    # tc_len = len(tc_list)                                # content together for later
-    # test_titles_contents = zip(tc_list[1:tc_len:2],      # iteration
-    #                            tc_list[2:tc_len:2])
-
     test_regex = re.compile(r"(^\* .*\n)",re.MULTILINE)  # split content into tests based
     tc_list = re.split(test_regex,contents)              # on test headers
     tc_len = len(tc_list)
@@ -662,11 +568,8 @@ class OrgSuiteParser:
       msg = f"{filename} does not contain any tests"
       raise ParseError(msg)
     preamble = tc_list[0]                                # everything before first '* title'
-    test_titles_contents = zip(tc_list[1:tc_len:2],      # content together for iteration
+    test_titles_contents = zip(tc_list[1:tc_len:2],      # title/content together for iteration
                                tc_list[2:tc_len:2])
-
-
-
     filepos = FilePos(filename)                          # track global file position
     try:                                                 # try block for parsing errors
       suite = self.parse_suite_preamble(preamble,filepos)
@@ -811,7 +714,7 @@ wrong. Below is an example from the examples/ directory:
 def main(cmd_args):
   """main entry point for command line runs of """
   # cmd_args explicit makes it easier to do debugging sessions in
-  # python interactive loop
+  # python interactive loop; must remove script name from the args 
 
 
   # set up arg parsing, don't line-wrap descriptions
@@ -851,7 +754,6 @@ def main(cmd_args):
       seg.run()
       print("----------------------------------------")
       print(f"Test {testi} Segment {segi}")
-      # print(seg.output_actual)
       print(f"Diff Failed: {seg.diff_failed}")
       print(f"SIDE-BY-SIDE DIFF of Expected vs Actual\n{seg.sbs_diff}")
       print(f"Valgrind:\n{seg.output_valgrind}")
@@ -860,4 +762,4 @@ def main(cmd_args):
 # Main Entry point
 if __name__ == '__main__':
   print(sys.argv)
-  main(sys.argv[1:])
+  main(sys.argv[1:])            # remove script name from args
