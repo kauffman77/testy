@@ -37,7 +37,7 @@ VALGRIND_PROG = [
 ]
 
 ################################################################################
-# Basic data types associated with representing tests
+# Basic data types associated with tests
 class Suite:
   """Encapsulates a collection of tests"""
 
@@ -75,6 +75,7 @@ class Test:
 
     # these fields are set during formatting
     self.result = None                 # formatted result for test, usually a string but may be anythingthe formatter finds usesful
+    self.result_filename = None        # file where result for the test is stored, None if no file has been created
 
 class Segment:
   """Encapsulate a segment of a test
@@ -266,6 +267,10 @@ class Segment:
     self.post_run_setup()                  # finalize remaining fields
     
     return
+  ## End Segment class
+
+################################################################################
+## Global functions
 
 def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
   """Communicate on a to/from pipe with limits
@@ -520,6 +525,18 @@ def shave_blanks(line_list):
   return line_list[beg:end]
 
 
+################################################################################
+## Parsing classes and hierarchy
+class ParseError(Exception):
+  """Exception to throw when a parsing error occurred"""
+
+class FilePos:
+  """Encodes a file position for error reporting"""
+  def __init__(self, fname):
+    self.filename = fname
+    self.linenum = 0
+
+
 class SuiteParser:
   """Interface for test file parsers.
 
@@ -539,15 +556,6 @@ class SuiteParser:
   # parsing_string which can simply convert the given string to a
   # StringIO and then call parse_file
 
-
-class ParseError(Exception):
-  """Exception to throw when a parsing error occurred"""
-
-class FilePos:
-  """Encodes a file position for error reporting"""
-  def __init__(self, fname):
-    self.filename = fname
-    self.linenum = 0
 
 class OrgSuiteParser:
   """Handle Emacs Org formatted test files"""
@@ -679,6 +687,32 @@ class OrgSuiteParser:
 
     return segment
 
+################################################################################
+## Progress reporting
+
+class ProgressReporter:
+  """Base class for reporting progress while tests run.
+
+  Provides a simple implementation of test reporting"""
+
+  def __init__(suite):
+    self.test_num_width = max([len(f"{i}") for i in suite.testsnums_torun])
+    self.test_title_width = max([len(suite.tests[i].title)
+                                 for i in suite.testsnums_torun])
+
+  def report_test_done(test,testnum):
+    result_string = "ok"
+    if test.passed is False:
+      if test.result_filename is None:
+        result_string = "FAIL"
+      else:
+        result_string = f"FAIL -> see {test.result_filename}"
+    print(f"{testnum:{self.test_num_width}}) {test.title:{self.test_title_width}} : {result_string}")
+    
+
+
+################################################################################
+## junk that can be ignored
 def do_test_suite():
   """code for testing parsing"""
   suite = OrgSuiteParser().parse_file("examples/parse_example.org")
@@ -687,13 +721,13 @@ def do_test_suite():
     for (i,seg) in enumerate(test.segments):
       print(f"{i} <{seg.linenum}>:\n{seg.comments}\nPROGRAM: {seg.program}\n{seg.session}")
 
+
+################################################################################
+## main() setup
 PARSER_TYPES = {
   "org" : OrgSuiteParser()
 }
 """mapping of file types to parsers"""
-
-################################################################################
-## main() setup
 
 SHORT_DESCRIPTION = """\
 Run tests for a shell program specified in an org-like file and report
