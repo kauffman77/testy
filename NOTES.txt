@@ -34,9 +34,15 @@
 - The "classes" suite / test / segment are *data* and won't have
   methods themselves. There is no inheritance between these and no
   need to for method dispatch; will lead to names like
-#+BEGIN_SRC python
-suite_run_test(suite, testnum)                     # runs the test
-#+END_SRC
+  #+BEGIN_SRC python
+  suite_run_test(suite, testnum)                     # runs the test
+  #+END_SRC
+- *NIXED THIS* and moved towards thins like
+  #+BEGIN_SRC python
+  seg.run()
+  #+END_SRC
+  As it seemed more sane to house most of the option/state within the
+  segment anyway
 - there is strong coupling between suite / test / segment here which I
   think I'm okay with; find myself wanting to split them but I don't
   think that's good: they aren't separate entities and are useless on
@@ -45,6 +51,9 @@ suite_run_test(suite, testnum)                     # runs the test
 - Largely operations will be on the suite: 
   - Run one of its tests
   - Format result output of a test, etc
+- *NIXED THIS* early on as it became a drag pass state between levels;
+  Segment does most of the work anyway so its methods do a lot of the
+  work 
 - Within those operations there is tight coupling
 - This might later enable one to pull out testy as and use its
   functionality programmatically: *code to enable use of classes
@@ -98,7 +107,7 @@ if suite.overall_result_file:                      # output an overall file if d
 - ProgressIndicator classes can represent how the progress of a
   running a suite progresses; line-by-line, single-line dots, silence,
   GUI?? nah...
- 
+-  
 
 
 ** Notes
@@ -347,8 +356,6 @@ similar anyway
 : #+END_SRC
 
 
- 
-
 ** Reflection and Dynamic Eval
 Still struggling to see whether commands in testy should be
 1. open and eval'd in some fashion in python OR
@@ -422,7 +429,24 @@ optionally allow agglomerated results in a single file / output stream
 - Run test without capturing output in files / merging stdout/stderr
   streams to enable quick debugging 
 
-** I/O read/write
+** Multi-processing
+- subprocess module provides ways to do this but they are tedious and
+  low-level
+- multiprocessing module provides a way to do this more quickly,
+  provides a high-level data for a process pool and a functional
+  interface to it
+  #+BEGIN_SRC python
+  from multiprocessing import Pool
+  
+  def f(x):
+      return x*x
+  
+  if __name__ == '__main__':
+      with Pool(5) as p:
+          for result in p.map(f, [1, 2, 3]):
+              print(result)
+  #+END_SRC
+  This should allow easy multiprocessing of the tests later on 
 
 
 * TODO General Improvements
