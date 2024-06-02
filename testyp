@@ -3,14 +3,16 @@
 
 import sys
 import re
-import argparse                        # command args
-import shlex                           # string split respecting quoting
-import shutil                          # which, file copying, etc.
-import time                            # for time.monotonic()
-import codecs                          # for characeter coding translattions
-import select                          # for poll
-from select import POLLIN,POLLOUT,POLLHUP #, POLLERR, POLLNVAL
-from subprocess import Popen,PIPE,STDOUT
+import argparse                           # command args
+import shlex                              # string split respecting quoting
+import shutil                             # which, file copying, etc.
+import time                               # for time.monotonic()
+import codecs                             # for characeter coding translattions
+import select                             # for poll
+from select import POLLIN,POLLOUT,POLLHUP #,POLLERR,POLLNVAL
+from subprocess import Popen,PIPE,STDOUT  # subprocess communication
+from difflib import SequenceMatcher       # for diffing actual/expect output
+
 
 ################################################################################
 # Module level initialization
@@ -151,7 +153,9 @@ class Segment:
 
   def diff_output(self):                   # TODO
     """Calculate the diff of the output"""
-    self.diff_failed = False
+    (seq_equal, sbs_diff_str) = sbs_diff(self.output_expect,self.output_actual)
+    self.sbs_diff = sbs_diff_str
+    self.diff_failed = not seq_equal
 
 
   def set_full_program(self):
@@ -337,6 +341,136 @@ def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
           timeout is not None and total_time > timeout,
           max_out_bytes is not None and from_bytes > max_out_bytes)
 
+
+def global_alignment(seqA, seqB,
+                     scorefunc="RQR",
+                     score_min=-0.25,
+                     score_max=1.0,
+                     gap_cost=-0.1):
+  """Compute global sequence alignmnet of lines in seqA and seqB
+
+  Uses the Needlman-Wunsch algorithm (common to bioinformatics
+  sequence alignment).  This adaptation assumes seqA and seqB are
+  lists of lines (strings) and the alignment is a diff-like aligmnet
+  between the lines.
+
+  Returns a pair of (matches,tot_score). tot_score is the overall
+  score for the alignment.
+
+  matches is a list of the form [(ai, bj, tag, score)...] where the
+  ai,bj are the index of elements in seqA,seqB that match at that
+  position, score is the score contritubed by that part of hte match,
+  and tag describes the alignment action, one of
+  - "equal": seqA(ai) and seqB(bj) lines were equal and matched
+  - "replace": seqA(ai) and seqB(bj) where matched with some
+    differences
+  - "delete": seqA(ai) doesn't match, should be deleted to transform
+    to seqB
+  - "insert": seqB(bj) doesn't match, should be inserted to transform
+    from seqB
+
+  scorefunc: The default options use a fast comparision of lines
+  (SequenceMather.real_quick_ration(None,lineA,lineB)) but by adjsting
+  from RQR to QR or R the comparisons get more accurate at comparing
+  lines at the cost of increasing the comutation time. For standard
+  diff-like behavior, RQR with the other default parameters is pretty
+  close. 
+
+  score_min and score_max scale the scoring of matches
+  (equal/replace). The ratio()-based function used are normalied to
+  0.0-1.0 but are scaled to between score_min and score_max so that
+  badly mismatched lines can be penalized in favor of gaps
+  (insert/delete).
+
+  gap_cost adjusts the cost of adding gaps (insert/delete) in the
+  alignment.
+
+  The defaults for score_min, score_max, are set so that if lineA and
+  lineB have no characters in common, the alignment will favor an
+  insert/delete over a replace.
+  """
+  scorefuncs = {                                              # compare seq elements for scoring
+    "RQR": lambda seqmatcher: seqmatcher.real_quick_ratio(),  # fastest with least accuracy
+    "QR" : lambda seqmatcher: seqmatcher.quick_ratio(),       # fast with more accuracy
+    "R"  : lambda seqmatcher: seqmatcher.ratio(),             # slow with high accuracy
+  }
+  match_score = scorefuncs.get(scorefunc,None)
+  if not match_score:
+    raise Exception("scorefunc '{scorefunc}' is not known, options are {scorefuncs.keys()}")
+
+  score_scale = score_max-score_min
+
+  (m,n) = (len(seqA), len(seqB))                     # set up NW score/trace matrix
+  scoremat = [[None]*(n+1) for _ in range(m+1)]      # seqA along rows, seqB along cols
+  for i in range(0, m + 1):                          # initialize matrices for opening gaps
+    scoremat[i][0] = (gap_cost*i,(i,0,"delete",gap_cost))
+  for j in range(0, n + 1):
+    scoremat[0][j] = (gap_cost*j,(0,j,"insert",gap_cost))
+  
+  # MAIN SCORING ALGORITHM
+  for i in range(1, m+1):
+    seqmatcher = SequenceMatcher(None,"",seqA[i-1])  # seqmatcher optimized for stable seq2, vary seq1 more frequentyly
+    for j in range(1, n + 1):
+      if seqA[i-1]==seqB[j-1]:                       # equal elems score a 1.0
+        (tag,raw_score) = ("equal",1.0)
+      else:                                          # unequal elems score in range -0.2 to 1.0
+        seqmatcher.set_seq1(seqB[j-1])               # use seqmatcher for comparison 
+        (tag,raw_score) = ("replace",match_score(seqmatcher))
+      mscore = raw_score*score_scale + score_min                             # scale the score in range
+      scores = ((scoremat[i-1][j-1][0] + mscore,(i-1,j-1,tag,mscore)),       # match seq1/2 elem  
+                (scoremat[i-1][j][0] + gap_cost,(i-1,j,"insert",gap_cost)),  # insert seq2 elem   
+                (scoremat[i][j-1][0] + gap_cost,(i,j-1,"delete",gap_cost)))  # delete seq1 elem   
+      scoremat[i][j] = max(scores)
+  
+  # TRACEBACK COMPUTATION
+  align_score = scoremat[-1][-1][0]              # overall score of the global alignmnet
+  align = []                                     # traceback alignment, elements (seq1,seq2,tag,cost)
+  i,j = m,n
+  while i > 0 or j > 0:
+    (_,info) = scoremat[i][j]
+    align.append(info)
+    i=info[0]
+    j=info[1]
+
+  align.reverse()                                # reverse the alignment in place
+  return (align, align_score)
+
+
+def sbs_diff(alines,blines,
+             ignore_whitespace=False,
+             sym_equal=' ',sym_replace='|',
+             sym_delete='<',sym_insert='>'):
+             # ignore_blanklines=False,
+    if type(alines) is str:
+        alines = alines.splitlines()
+    if type(blines) is str:
+        blines = blines.splitlines()
+
+    aseq = alines
+    bseq = blines
+    if ignore_whitespace:
+        aseq = [re.subn(r"\s+"," ",x)[0] for x in alines]
+        bseq = [re.subn(r"\s+"," ",x)[0] for x in blines]
+  
+    (align,_) = global_alignment(aseq,bseq)
+    seq_equal = 0==sum([x!="equal" for (_,_,x,_) in align])
+
+    difflines = []
+    awidth = max(len(x) for x in alines)
+    bwidth = max(len(x) for x in blines)
+
+    for (ai,bj,tag,_) in align:
+      dline = ""
+      if tag=="delete":
+        dline = f"{alines[ai]:{awidth}} {sym_delete} {'':{bwidth}}"
+      elif tag=="insert":
+        dline = f"{'':{bwidth}} {sym_insert} {blines[bj]:{bwidth}}"
+      else:
+        sym = sym_equal if tag=="equal" else sym_replace
+        dline = f"{alines[ai]:{awidth}} {sym} {blines[bj]:{bwidth}}"
+      difflines.append(dline)
+
+    return (seq_equal, "\n".join(difflines))
 
 
 def get_keyval(string):
@@ -717,11 +851,13 @@ def main(cmd_args):
       seg.run()
       print("----------------------------------------")
       print(f"Test {testi} Segment {segi}")
-      print(seg.output_actual)
+      # print(seg.output_actual)
+      print(f"Diff Failed: {seg.diff_failed}")
+      print(f"SIDE-BY-SIDE DIFF of Expected vs Actual\n{seg.sbs_diff}")
       print(f"Valgrind:\n{seg.output_valgrind}")
-
 
 ################################################################################
 # Main Entry point
 if __name__ == '__main__':
-  main(sys.argv)
+  print(sys.argv)
+  main(sys.argv[1:])
