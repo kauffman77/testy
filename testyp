@@ -13,6 +13,7 @@ import time                               # time.monotonic()
 import codecs                             # characeter coding translattions
 import select                             # poll
 from select import POLLIN,POLLOUT,POLLHUP #,POLLERR,POLLNVAL
+import subprocess                         # run() shell commands
 from subprocess import Popen,PIPE,STDOUT  # subprocess communication
 from difflib import SequenceMatcher       # diffing actual/expect output
 
@@ -124,7 +125,7 @@ class Test:
     self.segments = []                 # list of segments that comprise the
     self.test_directory = None         # directory to use for this test or None if run in the working directory
     self.comments = ""                 # comments for the test
-    self.test_result_file = True       # True produces individual test result files
+    self.make_result_file = True       # True produces individual test result files
     self.prefix = "test"               # file prefix for result output files if any are created
     self.results_dir = "test-results"  # base directory for test results files
     self.save_rawfiles = False         # whether to retain any raw input/output files in the raw/ directory
@@ -162,7 +163,7 @@ class Segment:
     self.title = "Segment"             # title for tests
     self.linenum = None                # line number on which segment starts
     self.comments = ""                 # comments accumulated in the session
-    self.commands = []                 # list of shell commands to be run prior to running the session
+    self.shell_precommands = []        # list of shell commands to be run prior to running the session
     self.program = "bash -v"           # program to run for the session, may be #+BEGIN_QUOTE which outputs a file
     self.prompt  = ">>"                # prompt string used by the program being run
     self.echoing = "input"             # style of echoing done by the program, "input" echoes input, "both" for prompt+input echoing
@@ -198,34 +199,31 @@ class Segment:
   def run(self):
     """Run an individual segment"""
     # Aiming to avoid any directory creation, file creation, etc.
-
-    self.prerun_setup()                    # set up pending fields for the run
-    if self.passed is False:               # already failed in setup
+    self.prerun_setup()                         # set up pending fields for the run
+    if self.passed is False:                    # already failed in setup
       return
 
     out_encoding = None
     out_errors = None
-    if self.force_ascii_output:            # possibly transform output to ascii
+    if self.force_ascii_output:                 # possibly transform output to ascii
       out_encoding = 'ascii'
       out_errors = 'as_question_marks'
 
-    subp = Popen(self.full_program,        # start a subprocess to run the testd program
-                 stdin=PIPE, stdout=PIPE,  # communicate with pipes
-                 stderr=STDOUT,            # merge stderr with stdout
-                 bufsize=0, text=True,     # limit buffering : is this a good idea?
-                 encoding=out_encoding,    # optionally transform output
-                 errors=out_errors)        # and suppress / catch errors
+    subp = Popen(self.full_program,             # start a subprocess to run the tested program
+                 stdin=PIPE, stdout=PIPE,       # communicate with pipes
+                 stderr=STDOUT,                 # merge stderr with stdout
+                 bufsize=0, text=True,          # limit buffering : is this a good idea?
+                 encoding=out_encoding,         # optionally transform output
+                 errors=out_errors)             # and suppress / catch errors
     self.pid = subp.pid
 
-    # send input / collect output, limit time/bytes
     (stdout,timed_out,maxed_out) = \
-      limited_communicate(subp,self.input_str,
+      limited_communicate(subp,self.input_str,  # limit time/bytes for completion
                           timeout=self.timeout,
                           max_out_bytes=self.max_out_bytes)
-
     if timed_out or maxed_out:
-      subp.kill()                          # misbehaving, kill it
-    subp.wait()                            # should return almost immediately
+      subp.kill()                               # misbehaving, kill it
+    subp.wait()                                 # should return almost immediately
 
     self.retcode = subp.returncode
     self.timed_out = timed_out
@@ -233,17 +231,14 @@ class Segment:
     self.output_original = stdout
     self.output_actual = stdout
     self.post_run_setup()                  # finalize remaining fields
-    
     return
 
   def prerun_setup(self):
     """Completes any internal setup name before running"""
-
-
     self.set_full_program()
     self.set_input_str()
     self.set_output_expect()
-    self.run_shell_commands()
+    self.run_shell_precommands()
 
   def post_run_setup(self):
     """Finalize fields which can be set after the run finishes"""
@@ -294,9 +289,11 @@ class Segment:
       self.full_program.extend(shlex.split(self.valgrind_opts))
     self.full_program.extend(shlex.split(self.program))  # add on actual program
 
-  def run_shell_commands(self):            # TODO
-    """Execute shell commands in segment"""
-
+  def run_shell_precommands(self):
+    """Execute specified shell commands prior to segment"""
+    for cmd in self.shell_precommands:
+      result = subprocess.run(cmd, shell=True)  # shell is important to support pipes, etc.
+    
   ### Post-run functions
   def diff_output(self):
     """Calculate the diff of the output"""
@@ -356,16 +353,22 @@ class Segment:
     self.output_actual =   "\n".join(out_lines)
     self.output_valgrind = "\n".join(val_lines)
 
+  def run_post_filter(self):
+    """Run output_actual through a specified filter to modify it"""
+    if not self.post_filter:
+      return
+    result = subprocess.run(self.post_filter,          # subprocess for filter program
+                            input=self.output_actual,  # input is program output
+                            text=True,                 # text only
+                            capture_output=True)       # save the output in the process
+    self.output_actual = result.stdout
+
   ## End Segment class
+    
+
 
 ################################################################################
-  def run_post_filter(self):               # TODO
-    """Run the post filter to modify otput_actual"""
-
-
-
 ### Global Utility Functions
-
 def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
   """Communicate on a to/from pipe with limits
 
@@ -784,7 +787,7 @@ class OrgSuiteParser:
         (first, rest) = line.split(" ",1)             # extract the first token on the line
         first = first.upper()                         # upper case for case insensitive matching
       if first=="#+TESTY:" and rest[0]=="!":          # shell command as in [#+TESTY: !rm file.txt]
-        segment.commands.append(rest[1:])             # peel off the ! at the start
+        segment.shell_precommands.append(rest[1:])    # peel off the ! at the start
       elif first == "#+TESTY:":
         (key,val) = get_keyval(rest)                  # raises exception if badly formatted
         segment.__dict__[key] = val
@@ -870,7 +873,7 @@ class ProgressReporter:
 class ResultFormatter:
   """Format results for each test / entire suite"""
 
-  def __init(self,suite):
+  def __init__(self,suite):
     """Initialize any state needed based on the suite"""
 
   def add_test_result(self,test):
@@ -887,6 +890,9 @@ class ResultFormatter:
     
 class OrgResultFormatter(ResultFormatter):
   """Create Org output.Suite result is just a concatenation for all results."""
+
+  def __init__(self,suite):
+    """Initialize any state needed based on the suite"""
 
   def single_seg_test_result(self,test):
     """Add results to a single-segment test; segment results are not nested"""
@@ -1023,11 +1029,11 @@ class OrgResultFormatter(ResultFormatter):
   def make_test_result_file(self,test):
     """Create an Org result file for this individual test if indicated by its fields"""
     # TODO: Add creation of raw files if requsted
-    if not test.test_result_file:
+    if not test.make_result_file:
       return
     fname = f'{test.prefix}-{test.testnum:#02d}-result.org'
-    test.test_result_file = os.path.join(test.results_dir, fname)
-    with open(test.test_result_file,'w') as f:
+    test.result_filename = os.path.join(test.results_dir, fname)
+    with open(test.result_filename,'w') as f:
       f.write(test.result)
 
   def add_suite_result(self,suite):
@@ -1119,15 +1125,15 @@ def main(cmd_args):
     suite = suite_parser.parse_file(args.testfile)
     suite.testnums_torun = args.testnums or list(range(1,len(suite.tests)+1))
     progress_reporter = ProgressReporter(suite)
-    result_formatter = OrgResultFormatter()
+    result_formatter = OrgResultFormatter(suite)
     suite.run(progress_reporter, result_formatter)
   except ParseError as e:
     print(str(e))
     sys.exit(1)
-  except KeyboardInterrupt:
-    print()
-    print("testy received a keyboard interrupt; Exiting")
-    sys.exit(1)
+  # except KeyboardInterrupt:
+  #   print()
+  #   print("testy received a keyboard interrupt; Exiting")
+  #   sys.exit(1)
 
 
   # for testi in suite.testnums_torun:
