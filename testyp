@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""This is a module docstring"""
+"""Testy: run test cases on command line programs"""
 
 ### Imports
 import sys                                # argv etc
@@ -83,6 +83,7 @@ class Suite:
     self.points_possible = 0           # total possible points if points are in use, set during parsing
     self.points_scale = 1.0            # Set to a float scaling factor points should be scaled (e.t. 0.5 to halve everything)
     self.show = False                  # True means print all results on from all tests on the command line; defaults to true for single tests
+    self.single_show_fail = True       # True means print test results when a single test is run and fails
     self.filename = None               # filename from which the suite came from or None if not from a file
     self.overall_result_file = False   # True produce an overall result file
 
@@ -263,7 +264,7 @@ class Segment:
     inpos = 0
     for outline in self.output_actual.splitlines():
       if inpos < len(input_lines) and outline==input_lines[inpos]:
-        outline = self.prompt + outline
+        outline = f"{self.prompt} {outline}"
         inpos += 1
       prompt_lines.append(outline)
     self.output_actual = "\n".join(prompt_lines)
@@ -272,15 +273,21 @@ class Segment:
   def set_input_str(self):
     """Creates input_str by extracting prompt lines from session"""
     prompt_len = len(self.prompt)
-    with io.StringIO() as input_lines:
+    with io.StringIO() as instr:
       for line in self.session.splitlines():
         if line.startswith(self.prompt):
-          writeline(input_lines, line[prompt_len:].lstrip())
-      self.input_str = input_lines.getvalue()
+          writeline(instr, line[prompt_len:].lstrip())
+        if line.startswith("#+TESTY_EOF"):
+          break
+      self.input_str = instr.getvalue()
 
   def set_output_expect(self):
     """Sets the expected output based on the session"""
-    self.output_expect = self.session        # unmodified session string is the expected output
+    with io.StringIO() as out:
+      for line in self.session.splitlines():
+        if not line.startswith("#+TESTY_EOF"):  # exclude lines that signal end of input
+          writeline(out,line)
+      self.output_expect = out.getvalue()
 
   def set_full_program(self):
     """Sets full_program field which may include valgrind"""
@@ -313,7 +320,7 @@ class Segment:
     (seq_equal, sbs_diff_str) = sbs_diff(self.output_expect,
                                          self.output_actual,
                                          sym_equal=sym_equal,
-                                         titles=("EXPECT","ACTUAL"))
+                                         titles=("===EXPECT===","===ACTUAL==="))
     self.sbs_diff = sbs_diff_str
     self.sbs_diff_key = f"{sym_equal} lines match; | lines differ; < expected line missing; > extra line in actual"
     self.diff_passed = seq_equal
@@ -605,6 +612,7 @@ def get_keyval(string):
   if "=" not in string:
     raise ParseError(f"key=value string [{string}] is not formatted correctly")
   (key,val)=string.split("=",1)
+  key = key.lower()                  # all lower case keys
   try:
     val = eval(val)
   except Exception:
@@ -715,7 +723,7 @@ class OrgSuiteParser:
         testnum=tidx+1
         test = self.parse_test(test_title, test_content,
                                suite.test_opts, filepos)
-        test.testnum = testnum  # should this be done in parsing?
+        test.testnum = testnum
         suite.points_possible += test.points
         suite.tests[testnum] = test
 
@@ -730,31 +738,27 @@ class OrgSuiteParser:
   def parse_suite_preamble(self, preamble, filepos):
     """Preamble parsing preceding the first test of org file tests"""
     suite = Suite()
-    preamble_comments = []                 # comment lines accumulated in the preamble
-    for line in preamble.splitlines():
-      filepos.linenum += 1                 # track line number for error reporting
-      (first,rest) = ("",line)
-      if " " in line:
-        (first, rest) = line.split(" ",1)  # extract the first token on the line
-        first = first.upper()              # upper case for case insensitive matching
+    with io.StringIO() as comments:          # comment lines accumulated in the preamble
+      for line in preamble.splitlines():
+        filepos.linenum += 1                 # track line number for error reporting
+        (first,rest) = ("",line)
+        if " " in line:
+          (first, rest) = line.split(" ",1)  # extract the first token on the line
+          first = first.upper()              # upper case for case insensitive matching
 
-      if first == "#+TITLE:":              # title as in [#+TITLE: Tests for blather]
-        suite.title = rest
+        if first == "#+TITLE:":              # title as in [#+TITLE: Tests for blather]
+          suite.title = rest
 
-      elif first == "#+TESTY:":            # option directive like [#+TESTY: program='bc -iq']
-        (key,val) = get_keyval(rest)       # raises an exception if badly formatted
-        key = key.lower()                  # all lower case keys i nthis version
-        if key in suite.__dict__:
-          suite.__dict__[key] = val        # python objects are dicts, exploit this to assign the value
-        else:
-          suite.test_opts[key] = val
-      else:
-        preamble_comments.append(line)     # not a directive or key val, append to comments
-
-    preamble_comments = shave_blanks(preamble_comments)
-
-    suite.comments = "\n".join(preamble_comments)
-    return suite
+        elif first == "#+TESTY:":            # option directive like [#+TESTY: program='bc -iq']
+          (key,val) = get_keyval(rest)       # raises an exception if badly formatted
+          if key in suite.__dict__:
+            suite.__dict__[key] = val        # python objects are dicts, exploit this to assign the value
+          else:
+            suite.test_opts[key] = val
+        elif len(line)==0 or line[0]!="#":   # org-comments are ignored
+          writeline(comments,line)           # not a directive or key val, append to comments
+      suite.comments = comments.getvalue().strip()
+      return suite
 
 
   def parse_test(self,test_title,content,opts,filepos):
@@ -920,7 +924,8 @@ class OrgResultFormatter(ResultFormatter):
     seg = test.segments[0]
     writeline(res, f'* (TEST {test.testnum}) {test.title} : {okfail}')
     writeline(res, f'** COMMENTS')
-    writeline(res, f'{test.comments}')
+    if test.comments:
+      writeline(res, f'{test.comments}')
     writeline(res, f'{seg.comments}')
 
     writeline(res, f'** PROGRAM: {seg.program}')
@@ -1079,14 +1084,6 @@ class OrgResultFormatter(ResultFormatter):
 
 ################################################################################
 ### Junk that can be ignored
-def do_test_suite():
-  """code for testing parsing"""
-  suite = OrgSuiteParser().parse_file("examples/parse_example.org")
-  for test in suite.tests:
-    print(f"TITLE: {test.title} <{test.linenum}>")
-    for (i,seg) in enumerate(test.segments):
-      print(f"{i} <{seg.linenum}>:\n{seg.comments}\nPROGRAM: {seg.program}\n{seg.session}")
-
 
 ################################################################################
 ### Main() setup
@@ -1152,8 +1149,15 @@ def main(cmd_args):
     sys.exit(1)
 
   if suite.show:
+    print()
+    print("---- Showing Testing Results -----")
     print(suite.result)
+  elif suite.single_show_fail and len(suite.testnums_torun)==1:
+    test = suite.tests[suite.testnums_torun[0]]
+    if not test.passed:
+      print()
+      print("---- Showing Testing Results -----")
+      print(test.result)
 
 if __name__ == '__main__':
-  print(sys.argv)
   main(sys.argv[1:])            # remove script name from args
