@@ -81,6 +81,7 @@ class Suite:
     self.show_all = False              # True means print all results on from all tests on the command line; defaults to true for single tests
     self.filename = None               # filename from which the suite came from or None if not from a file
     self.overall_result_file = False   # True produce an overall result file
+    self.show = True                   # whether to print the results at the end of testing
 
     # these fields are set during/after the suite evaluation
     self.passed_tests = 0              # total tests passed
@@ -213,6 +214,7 @@ class Segment:
                  stdin=PIPE, stdout=PIPE,       # communicate with pipes
                  stderr=STDOUT,                 # merge stderr with stdout
                  bufsize=0, text=True,          # limit buffering : is this a good idea?
+                 # shell=True,
                  encoding=out_encoding,         # optionally transform output
                  errors=out_errors)             # and suppress / catch errors
     self.pid = subp.pid
@@ -267,11 +269,11 @@ class Segment:
   def set_input_str(self):
     """Creates input_str by extracting prompt lines from session"""
     prompt_len = len(self.prompt)
-    input_lines = []
-    for line in self.session.splitlines():
-      if line.startswith(self.prompt):
-        input_lines.append(line[prompt_len:])
-    self.input_str = "\n".join(input_lines)  # input to the be fed to the program
+    with io.StringIO() as input_lines:
+      for line in self.session.splitlines():
+        if line.startswith(self.prompt):
+          writeline(input_lines, line[prompt_len:].lstrip())
+      self.input_str = input_lines.getvalue()
 
   def set_output_expect(self):
     """Sets the expected output based on the session"""
@@ -1130,23 +1132,13 @@ def main(cmd_args):
   except ParseError as e:
     print(str(e))
     sys.exit(1)
-  # except KeyboardInterrupt:
-  #   print()
-  #   print("testy received a keyboard interrupt; Exiting")
-  #   sys.exit(1)
+  except KeyboardInterrupt:
+    print()
+    print("testy received a keyboard interrupt; Exiting")
+    sys.exit(1)
 
-
-  # for testi in suite.testnums_torun:
-  #   test = suite.tests[testi]
-  #   for (segi, seg) in enumerate(test.segments):
-  #     # seg.run()
-  #     print("----------------------------------------")
-  #     print(f"Test {testi} Segment {segi}")
-  #     print(f"Diff Passed: {seg.diff_passed}")
-  #     print(f"SIDE-BY-SIDE DIFF of Expected vs Actual\n{seg.sbs_diff}")
-  #     print(f"Valgrind:\n{seg.output_valgrind}")
-
-  #   progress_reporter.report_test_done(test,testi)
+  if suite.show:
+    print(suite.result)
 
 if __name__ == '__main__':
   print(sys.argv)

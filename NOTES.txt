@@ -402,6 +402,26 @@ optionally allow agglomerated results in a single file / output stream
   - Iterate over each test
 
 
+** Buffering in Python Version
+- Encountered problems when executing tests with sub proceses due
+  to buffering issues
+- Not running anything under stdbuf which causes failures
+- Will need to include this as a feature as well, leads to a
+  dependence on stdbuf utility 
+- Investigated whether it's possible to avoid this but stdbuf is some
+  nice tricky code
+  - Uses dynamic linker tricks to load libstdbuf.so late 
+  - During loading, the library looks at environment variables which
+    then make calls to setvbuf() to adjust buffering for the run
+    process
+  - Could make use of the environment variables directly BUT this is
+    pointless: if stdbuf is not available then libstdbuf.so is not
+    available so the environment variables would likely be ignored
+- Approach will be to add stdbuf decoration options and fail if stdbuf
+  is not availble
+- DIFFERENCE FROM ORIGINAL TESTY: make default not use stdbuf, turn on
+  with a test option
+
 ** Miscellaneous Python port ideas
 - Support syntax like the following for shell escapes:
   : #+TESTY: !rm -f xyz.txt
