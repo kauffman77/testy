@@ -64,7 +64,19 @@ SIGNAL_DESCRIPTIONS = {
 }
 """Dict of signal numbers to descriptions"""
 
-
+ENVVARS_HONORED = {
+  "show",
+  "single_show_fail",
+  "overall_result_file",
+  "results_dir",
+  "save_rawfiles",
+  "timeout",
+}
+"""Set of environment variables that are checked during parsing and
+honored if present as though they appeared after top-level options in
+the test file. Names are Case-insesnsitive: all are lower-cased when
+evaluated.
+"""
 
 ################################################################################
 ### Data Types associated with tests
@@ -115,6 +127,25 @@ class Suite:
     result_formatter.make_suite_result_file(self)
     progress_reporter.report_suite_done(self)
     
+  def honor_envvars(self):
+    """Check environment variables to see propogate any values to the suite
+
+    This method should be called AFTER reading the suite preamble so
+    that environment variables override premable options.
+    """
+    env = {k.lower() : v for k,v in os.environ.items()}  # lowercase environment variables
+    for var in ENVVARS_HONORED:
+      var = var.lower()
+      if var in env:
+        val = env[var]
+        try:
+          val = eval(val)                    # try converting to internal python
+        except Exception:
+          pass                               # if it fails, leave as a string
+        if var in self.__dict__:
+          self.__dict__[var] = val           # override suite option
+        else:
+          self.test_opts[var] = val          # override test/segment option
 
 class Test:
   """Encapsulates a single test which may have multiple segments"""
@@ -758,6 +789,7 @@ class OrgSuiteParser:
         elif len(line)==0 or line[0]!="#":   # org-comments are ignored
           writeline(comments,line)           # not a directive or key val, append to comments
       suite.comments = comments.getvalue().strip()
+      suite.honor_envvars()                  # override premable opts with environment vars
       return suite
 
 
