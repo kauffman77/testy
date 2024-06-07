@@ -40,7 +40,11 @@ VALGRIND_PROG = [
   "--show-leak-kinds=all",
   "--track-origins=yes",
 ]
-"""Beginning of invocation of valgrind broken down by options"""
+"""valgrind invocation broken down by options"""
+
+STDBUF_PROG = ["stdbuf","-i","0","-o","0","-e","0"]
+"""stdbuf invocation broken down by options"""
+  
 
 SIGNAL_DESCRIPTIONS = {
    1 : "<SIGHUP> : controlling terminal has closed",
@@ -78,10 +82,9 @@ class Suite:
     self.use_points = False            # True if points should be used
     self.points_possible = 0           # total possible points if points are in use, set during parsing
     self.points_scale = 1.0            # Set to a float scaling factor points should be scaled (e.t. 0.5 to halve everything)
-    self.show_all = False              # True means print all results on from all tests on the command line; defaults to true for single tests
+    self.show = False                  # True means print all results on from all tests on the command line; defaults to true for single tests
     self.filename = None               # filename from which the suite came from or None if not from a file
     self.overall_result_file = False   # True produce an overall result file
-    self.show = True                   # whether to print the results at the end of testing
 
     # these fields are set during/after the suite evaluation
     self.passed_tests = 0              # total tests passed
@@ -172,13 +175,13 @@ class Segment:
     self.use_valgrind = False          # whether to run program under valgrind
     self.valgrind_reachable = True     # whether to count reachable memory as an error in valgrind; usually reachable memory is fopen() with no fclose()
     self.valgrind_opts = ""            # additional options to pass to valgrind such as suppression
+    self.use_stdbuf = False            # whether to run program under stdbuf program to eliminate I/O buffering
     self.skip_diff = False             # True if diffing the expect/actual should be skipped
     self.skip_retcode = False          # True if a non-zero exit code should be accepted (e.g. not trigger a failure)
     self.force_ascii_output = True     # translate non-ascii characters in test results to ascii
     self.timeout = 5                   # timeout in (fractional) second to be used before segment is killed
     self.max_out_bytes = 2**20         # maximum size of output from tested program, kill if this is exceeded
     self.post_filter = None            # filter to run on output after test completes, before verifying output
-    # self.test_title_width = 0          # max width of test titles for aligned printing, calculated during parsing
 
     # these fields are set after the segment is run
     self.full_program = []             # full program invocation, may be decorated (usually with valgrind call)
@@ -289,6 +292,13 @@ class Segment:
         return
       self.full_program.extend(VALGRIND_PROG)  # add base valgrind program and options
       self.full_program.extend(shlex.split(self.valgrind_opts))
+    if self.use_stdbuf:
+      if not shutil.which("stdbuf"):
+        self.passed = False
+        self.messages.append("stdbuf not found for test that has use_stdbuf=1")
+        return
+      self.full_program.extend(STDBUF_PROG)
+
     self.full_program.extend(shlex.split(self.program))  # add on actual program
 
   def run_shell_precommands(self):
@@ -595,10 +605,14 @@ def get_keyval(string):
   if "=" not in string:
     raise ParseError(f"key=value string [{string}] is not formatted correctly")
   (key,val)=string.split("=",1)
-  if val[0] in """\"\'""":      # check for leading quotes in val
-    if val[-1] != val[0]:       # ensure the quoting is complete, error otherwise
-      raise ParseError(f"key=value string [{string}] has an unterminated quote")
-    val = val[1:-1]             # quoted properly so peel quotes off of value
+  try:
+    val = eval(val)
+  except Exception:
+    raise ParseError(f"[{string}] is not valid syntax for right-hand side")
+  # if val[0] in """\"\'""":      # check for leading quotes in val
+  #   if val[-1] != val[0]:       # ensure the quoting is complete, error otherwise
+  #     raise ParseError(f"key=value string [{string}] has an unterminated quote")
+  #   val = val[1:-1]             # quoted properly so peel quotes off of value
   return (key,val)
 
 def propagate_fields(obj, options):
