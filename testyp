@@ -96,7 +96,7 @@ class Suite:
     """Initialize a default empty Suite"""
     # these fields are set during parsing / initialization, most are options governing behavior
     self.tests = {}                    # tests in the suite in a dictioary with numeric keys starting at 1; first test is "test 1"
-    self.testsnums_torun = []          # contains a list of numbers of tests to run; all tests by default
+    self.tests_torun = []              # tests in the suite to run, set after parsing
     self.test_opts = {}                # key/val options affecting tests and sessions set in the preamble
     self.title = None                  # title of the suite from the #+title: directive, None will use the file name
     self.comments = ""                 # comments in the preamble that aren't part of any test
@@ -124,7 +124,7 @@ class Suite:
     indicate to do so.
     """
     progress_reporter.report_suite_start(self)
-    for test in [self.tests[i] for i in self.testnums_torun]:
+    for test in self.tests_torun:
       test.run()
       result_formatter.add_test_result(test)
       result_formatter.make_test_result_file(test)
@@ -891,9 +891,8 @@ class ProgressReporter:
     computed here. Currently this version calculates some widths to
     allow for nicer output
     """
-    self.testnum_width = max([len(f"{i}") for i in suite.testnums_torun])
-    self.test_title_width = max([len(suite.tests[i].title)
-                                 for i in suite.testnums_torun])
+    self.testnum_width = max([len(f"{t.testnum}") for t in suite.tests_torun])
+    self.test_title_width = max([len(t.title) for t in suite.tests_torun])
     if suite.filename is None and suite.title is None:
       self.header = f"== Unnamed Suite"
     elif suite.filename is not None and suite.title is None:
@@ -907,7 +906,7 @@ class ProgressReporter:
     """Print header information of the suite after parsing"""
     print("="*len(self.header))
     print(self.header)
-    print(f"== Running {len(suite.testnums_torun)} / {len(suite.tests)} tests")
+    print(f"== Running {len(suite.tests_torun)} / {len(suite.tests)} tests")
 
   def report_test_done(self,test):
     """Print info on the completion of a test.
@@ -934,7 +933,7 @@ class ProgressReporter:
       print(f"RESULTS: {passed:.2f} / {possible:.2f} points ")
     else:
       passed = suite.passed_tests
-      possible = len(suite.testnums_torun)
+      possible = len(suite.tests_torun)
       print(f"RESULTS: {passed} / {possible} tests passed")
 
             
@@ -1113,7 +1112,7 @@ class OrgResultFormatter(ResultFormatter):
     writeline(res, f'#+TITLE: {suite.title} Results')
     writeline(res, f'{suite.comments}')
     writeline(res, f'')
-    for test in [suite.tests[i] for i in suite.testnums_torun]:
+    for test in suite.tests_torun:
       writeline(res, test.result)
     suite.result = res.getvalue()
     res.close()
@@ -1194,8 +1193,9 @@ def main(cmd_args):
   try:
     log.debug(f"Parsing file {args.testfile}")
     suite = suite_parser.parse_file(args.testfile)
-    suite.testnums_torun = args.testnums or list(range(1,len(suite.tests)+1))
-    log.debug(f"Selected following tests: {suite.testnums_torun}")
+    testnums_torun = args.testnums or list(range(1,len(suite.tests)+1))
+    log.debug(f"Selected following tests: {testnums_torun}")
+    suite.tests_torun = [suite.tests[i] for i in testnums_torun]
     progress_reporter = ProgressReporter(suite)
     result_formatter = OrgResultFormatter(suite)
     log.debug(f"Running suite")
@@ -1212,8 +1212,8 @@ def main(cmd_args):
     print()
     print("---- Showing Testing Results -----")
     print(suite.result)
-  elif suite.single_show_fail and len(suite.testnums_torun)==1:
-    test = suite.tests[suite.testnums_torun[0]]
+  elif suite.single_show_fail and len(suite.tests_torun)==1:
+    test = suite.tests_torun[0]
     if not test.passed:
       print()
       print("---- Showing Testing Results -----")
