@@ -751,7 +751,6 @@ class OrgSuiteParser:
     test files. This function parses an Org file and builds a Suite
     from it.
     """
-
     contents = slurp(filename)
     test_regex = re.compile(r"(^\* .*\n)",re.MULTILINE)  # split content into tests based
     tc_list = re.split(test_regex,contents)              # on test headers
@@ -760,8 +759,10 @@ class OrgSuiteParser:
       msg = f"{filename} does not contain any tests"
       raise ParseError(msg)
     preamble = tc_list[0]                                # everything before first '* title'
-    test_titles_contents = zip(tc_list[1:tc_len:2],      # title/content together for iteration
-                               tc_list[2:tc_len:2])
+    test_titles_contents = \
+      [(t,c) for (t,c)                                   # title/content together for iteration
+       in zip(tc_list[1:tc_len:2], tc_list[2:tc_len:2]) 
+       if not t.startswith('* COMMENT')]                 # filter commented tests
     filepos = FilePos(filename)                          # track global file position
     try:                                                 # try block for parsing errors
       suite = self.parse_suite_preamble(preamble,filepos)
@@ -772,14 +773,11 @@ class OrgSuiteParser:
         test.testnum = testnum
         suite.points_possible += test.points
         suite.tests[testnum] = test
-
     except ParseError as e:
       msg = f"{filepos.filename}:{filepos.linenum}: {str(e)}"
       raise ParseError(msg) from e                       # decorate parsing errors position
-
     suite.filename = filename
     return suite
-
 
   def parse_suite_preamble(self, preamble, filepos):
     """Preamble parsing preceding the first test of org file tests"""
