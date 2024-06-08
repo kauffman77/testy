@@ -16,9 +16,18 @@ from select import POLLIN,POLLOUT,POLLHUP #,POLLERR,POLLNVAL
 import subprocess                         # run() shell commands
 from subprocess import Popen,PIPE,STDOUT  # subprocess communication
 from difflib import SequenceMatcher       # diffing actual/expect output
+import logging as log                     # for loggers / debug messages
+import logging
 
 ################################################################################
 ### Module level initialization
+
+# log = logging.getLogger(__name__)
+# """Log events for debugging via log.info(msg) and log.debug(msg)"""
+# log.basicConfig(encoding='utf-8')
+
+LOGFORMAT = "==%(levelname)s== [%(filename)s:%(lineno)d %(funcName)s] %(message)s"
+"""Format for debug messages"""
 
 # # allow showing embedded newlines in strings
 # escape_strs = str.maketrans({"\n" : r"\n"})
@@ -128,7 +137,7 @@ class Suite:
     progress_reporter.report_suite_done(self)
     
   def honor_envvars(self):
-    """Check environment variables to see propogate any values to the suite
+    """Check environment variables to see propagate any values to the suite
 
     This method should be called AFTER reading the suite preamble so
     that environment variables override premable options.
@@ -142,6 +151,7 @@ class Suite:
           val = eval(val)                    # try converting to internal python
         except Exception:
           pass                               # if it fails, leave as a string
+        log.debug(f"{var}={val} option set from environment")
         if var in self.__dict__:
           self.__dict__[var] = val           # override suite option
         else:
@@ -176,8 +186,10 @@ class Test:
 
   def run(self):
     """Run this test to see if it it passes"""
+    log.debug(f"running test number {self.testnum} : {self.title}")
     self.passed = True
-    for seg in self.segments:
+    for (segi,seg) in enumerate(self.segments):
+      log.debug(f"starting segment {segi}: {seg.title}")
       seg.run()
       if not seg.passed:               # terminate test if segment fails
         self.passed = False            # mark test as failed
@@ -253,12 +265,13 @@ class Segment:
                  encoding=out_encoding,         # optionally transform output
                  errors=out_errors)             # and suppress / catch errors
     self.pid = subp.pid
-
+    log.debug(f"started program PID {self.pid}: [{' '.join(self.full_program)}]")
     (stdout,timed_out,maxed_out) = \
       limited_communicate(subp,self.input_str,  # limit time/bytes for completion
                           timeout=self.timeout,
                           max_out_bytes=self.max_out_bytes)
     if timed_out or maxed_out:
+      log.debug(f"timed out: {timed_out} / maxed_out: {maxed_out}, killing {self.pid}")
       subp.kill()                               # misbehaving, kill it
     subp.wait()                                 # should return almost immediately
 
@@ -342,6 +355,7 @@ class Segment:
   def run_shell_precommands(self):
     """Execute specified shell commands prior to segment"""
     for cmd in self.shell_precommands:
+      log.debug(f"running shell command [{cmd}]")
       result = subprocess.run(cmd, shell=True)  # shell is important to support pipes, etc.
     
   ### Post-run functions
@@ -430,7 +444,6 @@ def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
   Makes use of poll() under the hood to synchornously handle the I/O
   and avoid blocking for too long.
   """
-
   to_fd = subp.stdin
   from_fd = subp.stdout
 
@@ -452,7 +465,7 @@ def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
 
   # print(f"working on to_fd {to_fd} from_fd {from_fd}")
   # print(f"POLLOUT {POLLOUT} POLLIN {POLLIN} POLLHUP {POLLHUP} POLLERR {POLLERR} POLLNVAL {POLLNVAL}")
-
+  log.debug(f"communicate loop start")
   while (not from_eof and                                       # other from still has data
          (not timeout or total_time <= timeout) and             # still within timeout
          (not max_out_bytes or from_bytes <= max_out_bytes)): # still under max bytes read
@@ -487,7 +500,9 @@ def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
         from_eof = True                                # loop
     total_time = time.monotonic() - beg_time
 
-  # print(loop_count,write_count,read_count)             # debugging
+  log.debug(f"communicate loop done")
+  log.debug(f"loop_count: {loop_count} write_count: {write_count} read_count: {read_count}")
+  log.debug(f"total_time: {total_time:.4f} from_bytes: {from_bytes}")
   from_str = "".join(from_blocks)                      # join the read blocks of data
   return (from_str,
           timeout is not None and total_time > timeout,
@@ -784,8 +799,10 @@ class OrgSuiteParser:
           (key,val) = get_keyval(rest)       # raises an exception if badly formatted
           if key in suite.__dict__:
             suite.__dict__[key] = val        # python objects are dicts, exploit this to assign the value
+            log.debug(f"[{key}={val}] suite option set in file preamble")
           else:
             suite.test_opts[key] = val
+            log.debug(f"[{key}={val}] test/segment option set in file preamble")
         elif len(line)==0 or line[0]!="#":   # org-comments are ignored
           writeline(comments,line)           # not a directive or key val, append to comments
       suite.comments = comments.getvalue().strip()
@@ -843,6 +860,7 @@ class OrgSuiteParser:
       elif first == "#+TESTY:":
         (key,val) = get_keyval(rest)                  # raises exception if badly formatted
         segment.__dict__[key] = val
+        log.debug(f"[{key}={val}] segment option set in segment preamble")
       else:
         comment_lines.append(line)
 
@@ -1152,6 +1170,8 @@ def main(cmd_args):
   argparser = argparse.ArgumentParser(description=SHORT_DESCRIPTION,
                                       epilog=LONG_DESCRIPTION,
                                       formatter_class=argparse.RawDescriptionHelpFormatter)
+  argparser.add_argument("-d","--debug",default=False,action="store_const",const=True,
+                         help="Print debugging messages")
   argparser.add_argument("-t","--input_type",default="org",action="store",
                          choices=list(PARSER_TYPES.keys()),
                          help="Specify the test input file type")
@@ -1161,16 +1181,24 @@ def main(cmd_args):
                          help="Optional test numbers to run (default all)")
 
   args = argparser.parse_args(cmd_args)
+  if args.debug or "TESTYDEBUG" in os.environ:
+    log.basicConfig(format=LOGFORMAT,level=logging.DEBUG,encoding='utf-8')
+    log.debug("Debugging messages enabled")
+
+  log.debug(f"'{args.input_type}' input_type selected")
   if args.input_type not in PARSER_TYPES:
     print(f"ERROR: test suite file type {args.input_type} is not supported")
     sys.exit(1)
   suite_parser = PARSER_TYPES[args.input_type]
 
   try:
+    log.debug(f"Parsing file {args.testfile}")
     suite = suite_parser.parse_file(args.testfile)
     suite.testnums_torun = args.testnums or list(range(1,len(suite.tests)+1))
+    log.debug(f"Selected following tests: {suite.testnums_torun}")
     progress_reporter = ProgressReporter(suite)
     result_formatter = OrgResultFormatter(suite)
+    log.debug(f"Running suite")
     suite.run(progress_reporter, result_formatter)
   except ParseError as e:
     print(str(e))
