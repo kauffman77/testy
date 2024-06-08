@@ -424,6 +424,8 @@ class Segment:
     result = subprocess.run(self.post_filter,          # subprocess for filter program
                             input=self.output_actual,  # input is program output
                             text=True,                 # text only
+                            shell=True,                # run in a shell: no shell lex
+                            check=True,                # exception if filter fails
                             capture_output=True)       # save the output in the process
     self.output_actual = result.stdout
 
