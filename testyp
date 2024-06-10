@@ -188,12 +188,21 @@ class Test:
     """Run this test to see if it it passes"""
     log.debug(f"running test number {self.testnum} : {self.title}")
     self.passed = True
+    workdir = os.getcwd()
+    if self.test_directory:
+      log.debug(f"changing to requested test directory: {self.test_directory}")
+      subprocess.run(['rm','-rf',self.test_directory],check=True)
+      subprocess.run(['mkdir','-p',self.test_directory],check=True)
+      os.chdir(self.test_directory)
     for (segi,seg) in enumerate(self.segments):
       log.debug(f"starting segment {segi}: {seg.title}")
       seg.run()
       if not seg.passed:               # terminate test if segment fails
         self.passed = False            # mark test as failed
         break
+    if self.test_directory:
+      log.debug(f"returning to workdir: {workdir}")
+      os.chdir(workdir)
 
 class Segment:
   """Encapsulate a segment of a test
@@ -226,6 +235,7 @@ class Segment:
     self.timeout = 5                   # timeout in (fractional) second to be used before segment is killed
     self.max_out_bytes = 2**20         # maximum size of output from tested program, kill if this is exceeded
     self.post_filter = None            # filter to run on output after test completes, before verifying output
+    self.test_directory = None         # directory to use for this test or None if run in the working directory
 
     # these fields are set after the segment is run
     self.full_program = []             # full program invocation, may be decorated (usually with valgrind call)
@@ -247,6 +257,12 @@ class Segment:
   def run(self):
     """Run an individual segment"""
     # Aiming to avoid any directory creation, file creation, etc.
+    workdir = os.getcwd()
+    if self.test_directory:
+      log.debug(f"changing to requested test directory: {self.test_directory}")
+      subprocess.run(['rm','-rf',self.test_directory],check=True)
+      subprocess.run(['mkdir','-p',self.test_directory],check=True)
+      os.chdir(self.test_directory)
     self.prerun_setup()                         # set up pending fields for the run
     if self.passed is False:                    # already failed in setup
       return
@@ -281,6 +297,10 @@ class Segment:
     self.output_original = stdout
     self.output_actual = stdout
     self.post_run_setup()                  # finalize remaining fields
+    if self.test_directory:
+      log.debug(f"returning to workdir: {workdir}")
+      os.chdir(workdir)
+      
     return
 
   def prerun_setup(self):
@@ -352,6 +372,9 @@ class Segment:
 
     self.full_program.extend(shlex.split(self.program))  # add on actual program
 
+  def go_to_testdir(self):
+    """Change into the testing directory"""
+    
   def run_shell_precommands(self):
     """Execute specified shell commands prior to segment"""
     for cmd in self.shell_precommands:
@@ -649,7 +672,7 @@ def sbs_diff(alines,blines,
   return (seq_equal, "\n".join(difflines))
 
 
-def get_keyval(string):
+def get_keyval(string,localenv):
   """For 'key=val', returns (key,val)
 
   Accept a string of the form 'key=val' and separate the key/value
@@ -662,9 +685,9 @@ def get_keyval(string):
   (key,val)=string.split("=",1)
   key = key.lower()                  # all lower case keys
   try:
-    val = eval(val)
-  except Exception:
-    raise ParseError(f"[{string}] is not valid syntax for right-hand side")
+    val = eval(val,localenv)
+  except Exception as e:
+    raise ParseError(f"[{string}] is not valid syntax for right-hand side") from e
   # if val[0] in """\"\'""":      # check for leading quotes in val
   #   if val[-1] != val[0]:       # ensure the quoting is complete, error otherwise
   #     raise ParseError(f"key=value string [{string}] has an unterminated quote")
@@ -795,8 +818,8 @@ class OrgSuiteParser:
         if first == "#+TITLE:":              # title as in [#+TITLE: Tests for blather]
           suite.title = rest
 
-        elif first == "#+TESTY:":            # option directive like [#+TESTY: program='bc -iq']
-          (key,val) = get_keyval(rest)       # raises an exception if badly formatted
+        elif first == "#+TESTY:":               # option directive like [#+TESTY: program='bc -iq']
+          (key,val) = get_keyval(rest,locals()) # raises an exception if badly formatted
           if key in suite.__dict__:
             suite.__dict__[key] = val        # python objects are dicts, exploit this to assign the value
             log.debug(f"[{key}={val}] suite option set in file preamble")
@@ -858,7 +881,7 @@ class OrgSuiteParser:
       if first=="#+TESTY:" and rest[0]=="!":          # shell command as in [#+TESTY: !rm file.txt]
         segment.shell_precommands.append(rest[1:])    # peel off the ! at the start
       elif first == "#+TESTY:":
-        (key,val) = get_keyval(rest)                  # raises exception if badly formatted
+        (key,val) = get_keyval(rest,locals())         # raises exception if badly formatted
         segment.__dict__[key] = val
         log.debug(f"[{key}={val}] segment option set in segment preamble")
       else:
@@ -1026,7 +1049,7 @@ class OrgResultFormatter(ResultFormatter):
 
   def multiple_seg_test_result(self,test):
     """Add results to multiple-segment test; segment results are nested"""
-    fail_messages = None
+    failseg = None
     res = io.StringIO()
     okfail = "ok" if test.passed else "FAIL"
     writeline(res, f'* (TEST {test.testnum}) {test.title} : {okfail}')
@@ -1061,10 +1084,10 @@ class OrgResultFormatter(ResultFormatter):
       # TODO: get line-by-line differences
 
       if not seg.use_valgrind:
-        writeline(res,f'** VALGRIND Not in Use')
+        writeline(res,f'*** VALGRIND Not in Use')
       else:
         fullprog = " ".join(seg.full_program)
-        writeline(res, f'** VALGRIND REPORT')
+        writeline(res, f'*** VALGRIND REPORT')
         writeline(res, f'The program is run on under valgrind as')
         writeline(res, f'{fullprog}')
         writeline(res, f'which may be pasted onto a command line to run it.')
@@ -1074,7 +1097,7 @@ class OrgResultFormatter(ResultFormatter):
         writeline(res, f'#+END_SRC')
         writeline(res, f'')
       if not seg.passed:          # segments beyond first failure
-        fail_messsages = seg.messages
+        failseg = seg
         break                     # will not have been run
     # END loop over segments
 
@@ -1083,7 +1106,7 @@ class OrgResultFormatter(ResultFormatter):
       writeline(res, f'Test Passed')
     else:
       writeline(res, f'Test FAILED for the following reasons')
-      for msg in fail_messages:
+      for msg in failseg.messages:
         writeline(res, f'- {msg}')
 
     test.result = res.getvalue()
