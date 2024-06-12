@@ -296,7 +296,7 @@ class Segment:
     self.maxed_out = maxed_out
     self.output_original = stdout
     self.output_actual = stdout
-    self.post_run_setup()                  # finalize remaining fields
+    self.post_run_setup()                       # finalize remaining fields
     if self.test_directory:
       log.debug(f"returning to workdir: {workdir}")
       os.chdir(workdir)
@@ -487,9 +487,6 @@ def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
   beg_time = time.monotonic()            # start time of main loop
 
   (loop_count,write_count,read_count) = 0,0,0  # for debugging
-
-  # print(f"working on to_fd {to_fd} from_fd {from_fd}")
-  # print(f"POLLOUT {POLLOUT} POLLIN {POLLIN} POLLHUP {POLLHUP} POLLERR {POLLERR} POLLNVAL {POLLNVAL}")
   log.debug(f"communicate loop start")
   while (not from_eof and                                       # other from still has data
          (not timeout or total_time <= timeout) and             # still within timeout
@@ -501,7 +498,6 @@ def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
     # handle 1 event per loop, slightly less efficient than multiple
     # events but avoids possilbe
     for (fd,event) in fileops:
-
       if (not to_fd.closed and                         # can write to other side
           fd==to_fd.fileno() and event&POLLOUT and     # and have some left to write
           to_pos < len(to_str)):
@@ -724,17 +720,12 @@ def shave_blanks(line_list):
     end -= 1
   return line_list[beg:end]
 
-
-################################################################################
 def writeline(file,line):
   """Write line of text to file output; reverses file/text order in
   call for nicer formatting."""
   print(line,file=file)
 
-def printall(seq):
-  for x in seq:
-    print(x)
-
+################################################################################
 ### Parsing classes and hierarchy
 class ParseError(Exception):
   """Exception to throw when a parsing error occurred"""
@@ -744,7 +735,6 @@ class FilePos:
   def __init__(self, fname):
     self.filename = fname
     self.linenum = 0
-
 
 class SuiteParser:
   """Interface for test file parsers.
@@ -807,29 +797,29 @@ class OrgSuiteParser:
   def parse_suite_preamble(self, preamble, filepos):
     """Preamble parsing preceding the first test of org file tests"""
     suite = Suite()
-    with io.StringIO() as comments:          # comment lines accumulated in the preamble
+    with io.StringIO() as comments:             # comment lines accumulated in the preamble
       for line in preamble.splitlines():
-        filepos.linenum += 1                 # track line number for error reporting
+        filepos.linenum += 1                    # track line number for error reporting
         (first,rest) = ("",line)
         if " " in line:
-          (first, rest) = line.split(" ",1)  # extract the first token on the line
-          first = first.upper()              # upper case for case insensitive matching
+          (first, rest) = line.split(" ",1)     # extract the first token on the line
+          first = first.upper()                 # upper case for case insensitive matching
 
-        if first == "#+TITLE:":              # title as in [#+TITLE: Tests for blather]
+        if first == "#+TITLE:":                 # title as in [#+TITLE: Tests for blather]
           suite.title = rest
 
         elif first == "#+TESTY:":               # option directive like [#+TESTY: program='bc -iq']
           (key,val) = get_keyval(rest,locals()) # raises an exception if badly formatted
           if key in suite.__dict__:
-            suite.__dict__[key] = val        # python objects are dicts, exploit this to assign the value
+            suite.__dict__[key] = val           # python objects are dicts, exploit this to assign the value
             log.debug(f"[{key}={val}] suite option set in file preamble")
           else:
             suite.test_opts[key] = val
             log.debug(f"[{key}={val}] test/segment option set in file preamble")
-        elif len(line)==0 or line[0]!="#":   # org-comments are ignored
-          writeline(comments,line)           # not a directive or key val, append to comments
+        elif len(line)==0 or line[0]!="#":      # org-comments are ignored
+          writeline(comments,line)              # not a directive or key val, append to comments
       suite.comments = comments.getvalue().strip()
-      suite.honor_envvars()                  # override premable opts with environment vars
+      suite.honor_envvars()                     # override premable opts with environment vars
       return suite
 
 
@@ -865,23 +855,25 @@ class OrgSuiteParser:
 
     segment = Segment()
     propagate_fields(segment,opts)
-    segment.linenum = filepos.linenum+1               # first line o fsegment is next
+    segment.linenum = filepos.linenum+1                # first line o fsegment is next
 
-    seg_regexs = r"(^#\+(?:BEGIN_SRC|BEGIN_QUOTE).*\n)"            # split content into premable/session;
-    seg_regex = re.compile(seg_regexs, re.MULTILINE|re.IGNORECASE) # retain the SRC/QUOTE as it is
-    (preamble,token1,session) = re.split(seg_regex, content)       # used to alter the session program
+    seg_regexs = r"(^#\+(?:BEGIN_SRC|BEGIN_QUOTE).*\n)"  # split content into premable/session;
+    seg_regex = re.compile(seg_regexs,                   # retain the SRC/QUOTE as it is
+                           re.MULTILINE|re.IGNORECASE)   # retain the SRC/QUOTE as it is
+    (preamble,token1,session) = \
+      re.split(seg_regex, content)                     # used to alter the session program
 
-    comment_lines = []                                # handle the preamble, comments and
-    for line in preamble.splitlines():                # prior to the first test
+    comment_lines = []                                 # handle the preamble, comments and
+    for line in preamble.splitlines():                 # prior to the first test
       filepos.linenum += 1
       (first,rest) = ("",line)
       if " " in line:
-        (first, rest) = line.split(" ",1)             # extract the first token on the line
-        first = first.upper()                         # upper case for case insensitive matching
-      if first=="#+TESTY:" and rest[0]=="!":          # shell command as in [#+TESTY: !rm file.txt]
-        segment.shell_precommands.append(rest[1:])    # peel off the ! at the start
+        (first, rest) = line.split(" ",1)              # extract the first token on the line
+        first = first.upper()                          # upper case for case insensitive matching
+      if first=="#+TESTY:" and rest[0]=="!":           # shell command as in [#+TESTY: !rm file.txt]
+        segment.shell_precommands.append(rest[1:])     # peel off the ! at the start
       elif first == "#+TESTY:":
-        (key,val) = get_keyval(rest,locals())         # raises exception if badly formatted
+        (key,val) = get_keyval(rest,locals())          # raises exception if badly formatted
         segment.__dict__[key] = val
         log.debug(f"[{key}={val}] segment option set in segment preamble")
       else:
@@ -1149,11 +1141,6 @@ class OrgResultFormatter(ResultFormatter):
     with open(suite.result_filename,'w') as f:
       f.write(suite.result)
   
-                                              
-      
-
-
-
 ################################################################################
 ### Junk that can be ignored
 
