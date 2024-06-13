@@ -128,6 +128,7 @@ class Suite:
       test.run()
       result_formatter.add_test_result(test)
       result_formatter.make_test_result_file(test)
+      result_formatter.make_test_rawfiles(test)
       progress_reporter.report_test_done(test)
       if test.passed:
         self.passed_tests  += 1
@@ -177,7 +178,7 @@ class Test:
     self.prefix = "test"               # file prefix for result output files if any are created
     self.results_dir = "test-results"  # base directory for test results files
     self.save_rawfiles = False         # whether to retain any raw input/output files in the raw/ directory
-    self.raw_dir = "raw"               # location of raw output files such as Valgrind logs
+    self.raw_dir = "raw"               # location of raw output files such as Valgrind logs, relative to results_dir (e.g. test-results/raw)
 
     # these fields are set during/after the test evaluation
     self.passed = None                 # True for pass, False for fail, None for not run yet
@@ -230,7 +231,7 @@ class Segment:
     self.use_valgrind = False          # whether to run program under valgrind
     self.valgrind_reachable = True     # whether to count reachable memory as an error in valgrind; usually reachable memory is fopen() with no fclose()
     self.valgrind_opts = ""            # additional options to pass to valgrind such as suppression
-    self.use_stdbuf = False            # whether to run program under stdbuf program to eliminate I/O buffering
+    self.use_stdbuf = True             # whether to run program under stdbuf program to eliminate I/O buffering
     self.skip_diff = False             # True if diffing the expect/actual should be skipped
     self.skip_retcode = False          # True if a non-zero exit code should be accepted (e.g. not trigger a failure)
     self.force_ascii_output = True     # translate non-ascii characters in test results to ascii
@@ -1030,7 +1031,26 @@ class ResultFormatter:
 
   def make_suite_result_file(self,test):
     """Create a result file for the entire suite"""
-    
+
+  def make_test_rawfiles(self,test):
+    """Create raw output files if requested
+
+    This method may be inherited by all formatters and used without modification
+    """
+    if not test.save_rawfiles:
+      return
+    raw_dir = os.path.join(test.results_dir, test.raw_dir)
+    subprocess.run(['mkdir','-p',raw_dir],check=True)
+    raw_fields = ["output_actual","output_expect",
+                  "output_original", "input_str"]
+    for (segi,seg) in enumerate(test.segments):
+      for field in raw_fields:
+        fname = f"{test.prefix}-{test.testnum:02d}-s{segi:02d}-{field}.txt"
+        with open(os.path.join(raw_dir,fname),"w") as out:
+          out.write(seg.__dict__[field])
+      if not seg.passed:
+        break
+
 class OrgResultFormatter(ResultFormatter):
   """Create Org output.Suite result is just a concatenation for all results."""
 
@@ -1175,7 +1195,8 @@ class OrgResultFormatter(ResultFormatter):
     # TODO: Add creation of raw files if requsted
     if not test.make_result_file:
       return
-    fname = f'{test.prefix}-{test.testnum:#02d}-result.org'
+    subprocess.run(['mkdir','-p',test.results_dir],check=True)  # ensure results diretory is present
+    fname = f'{test.prefix}-{test.testnum:02d}-result.org'
     test.result_filename = os.path.join(test.results_dir, fname)
     with open(test.result_filename,'w') as f:
       f.write(test.result)
