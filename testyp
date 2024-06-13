@@ -18,6 +18,7 @@ from subprocess import Popen,PIPE,STDOUT  # subprocess communication
 from difflib import SequenceMatcher       # diffing actual/expect output
 import logging as log                     # for loggers / debug messages
 import logging
+import multiprocessing as multiproc
 
 ################################################################################
 ### Module level initialization
@@ -138,6 +139,41 @@ class Suite:
     result_formatter.add_suite_result(self)
     result_formatter.make_suite_result_file(self)
     progress_reporter.report_suite_done(self)
+    
+  def run_multiproc(self, progress_reporter, result_formatter):
+    """Run tests using multiple proceses """
+    progress_reporter.report_suite_start(self)
+    args = [(t,result_formatter) for t in self.tests_torun]
+    with multiproc.Pool(4) as pool:
+      results = 
+      for test in pool.starmap(run_test, args, 1):
+        self.tests[test.testnum] = test
+        progress_reporter.report_test_done(test)
+        if test.passed:
+          self.passed_tests  += 1
+          self.points_earned += test.points
+    self.points_possible *= self.points_scale
+    self.points_earned   *= self.points_scale
+    result_formatter.add_suite_result(self)
+    result_formatter.make_suite_result_file(self)
+    progress_reporter.report_suite_done(self)
+    
+  # def run_multiproc(self, progress_reporter, result_formatter):
+  #   """Run tests using multiple proceses """
+  #   progress_reporter.report_suite_start(self)
+  #   args = [(t,result_formatter) for t in self.tests_torun]
+  #   with multiproc.Pool(4) as pool:
+  #     for test in pool.starmap(run_test, args, 1):
+  #       self.tests[test.testnum] = test
+  #       progress_reporter.report_test_done(test)
+  #       if test.passed:
+  #         self.passed_tests  += 1
+  #         self.points_earned += test.points
+  #   self.points_possible *= self.points_scale
+  #   self.points_earned   *= self.points_scale
+  #   result_formatter.add_suite_result(self)
+  #   result_formatter.make_suite_result_file(self)
+  #   progress_reporter.report_suite_done(self)
     
   def honor_envvars(self):
     """Check environment variables to see propagate any values to the suite
@@ -728,6 +764,14 @@ def writeline(file,line):
   print(line,file=file)
 
 ################################################################################
+def run_test(test, result_formatter):  
+  """helper for multiprocess mapping"""
+  test.run()
+  result_formatter.add_test_result(test)
+  result_formatter.make_test_result_file(test)
+  result_formatter.make_test_rawfiles(test)
+  return test
+
 ### Parsing classes and hierarchy
 class ParseError(Exception):
   """Exception to throw when a parsing error occurred"""
@@ -1299,7 +1343,8 @@ def main(cmd_args):
     progress_reporter = PROGRESS_TYPES[args.progress](suite)
     result_formatter = OrgResultFormatter(suite)
     log.debug(f"Running suite")
-    suite.run(progress_reporter, result_formatter)
+    # suite.run(progress_reporter, result_formatter)
+    suite.run_multiproc(progress_reporter, result_formatter)
   except ParseError as e:
     print(str(e))
     sys.exit(1)
