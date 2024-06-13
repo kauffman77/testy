@@ -358,21 +358,20 @@ class Segment:
 
   def set_full_program(self):
     """Sets full_program field which may include valgrind"""
-    self.full_program = []      # set up the full arg list for the segment
-    if self.use_valgrind:
+    self.full_program = []                     # set up the full arg list for the segment
+    if self.use_stdbuf:                        # stdbuf first as valgrind output is truncated otherwise
+      if not shutil.which("stdbuf"):
+        self.passed = False
+        self.messages.append("stdbuf not found for test that has use_stdbuf=1")
+        return
+      self.full_program.extend(STDBUF_PROG)
+    if self.use_valgrind:                      # valgrind next if it is in use
       if not shutil.which("valgrind"):
         self.passed = False
         self.messages.append("Valgrind not found for test that has use_valgrind=1")
         return
       self.full_program.extend(VALGRIND_PROG)  # add base valgrind program and options
       self.full_program.extend(shlex.split(self.valgrind_opts))
-    if self.use_stdbuf:
-      if not shutil.which("stdbuf"):
-        self.passed = False
-        self.messages.append("stdbuf not found for test that has use_stdbuf=1")
-        return
-      self.full_program.extend(STDBUF_PROG)
-
     self.full_program.extend(shlex.split(self.program))  # add on actual program
 
   def go_to_testdir(self):
