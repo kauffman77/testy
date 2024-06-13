@@ -2,13 +2,13 @@
 
 * TODO Python Port
 - [X] Finalize docs of current Bash version and commit
-- [ ] Enumerate different Python process abstractions and pick one
+- [X] Enumerate different Python process abstractions and pick one
   line of attack. Some preliminary work in file:pesty-testing
 - [ ] Revisit the architecture interplay between testy-single and
   testy-multi: the single case is quite complex due to sharing
   infrastructure with multi in the Bash version and I'd like something
   a little simpler
-- [ ] Outline priority features of the port
+- [X] Outline priority features of the port
   1. Single testing
   2. Points
   3. testy-regen support for multi-part tests; would make regeneration a
@@ -24,11 +24,43 @@
   7. Automatic Gradescope output generation: JSON results
   8. Rerun past test with new options 
 - New features
-  - [ ] Single file output
-  - [ ] Multiple output formats: markdown, json, json-gradescope, html
+  - [X] Single file output
+  - [X] Multiple output formats: markdown, json, json-gradescope, html
   Keep an eye out for utilizing multiple processes at some point down
   the line and try to make design decisions that don't make this
   harder
+
+** Gradescope Interactions
+Wanted to make it easier to handle gradescope output from within
+testyp BUT found that this is more complex than I thought at first if
+one wants to replicate the output style
+- output from ~make test-prob1~ is captured in the current version
+- this includes compilation and progress of output and it is already
+  formatted pretty nicely with the janky awk scripts I use
+- would not be able to capture the compilation output ever
+- troublesome to capture the progress output with the current setup as
+  would need to either couple ProgressReporter and OutputFormatter or
+  redirect stdout from within testy
+- Seems that it is not worth it to do this as can't easily replicate
+  the behavior desired and the current setup is fine as is
+- A better option might be to convert the awk / bash scripts over to
+  a python script that does the formatting / json conversion
+  - Find working directory
+  - Copy over testing files
+  - Run make test for each problem, capture output of the run
+  - Total the points and create a JSON output file
+- Possibly have an action script which carries out the above
+  activities AND a data script that specifies the data associated with
+  a project to copy
+  - search_file to find working directory
+  - files / file patterns to copy 
+  - points / make command for each problem
+  Import this data into the action script and execute it
+
+** Additional Features / Testing
+- [ ] Parallel execution with MPI especially with Valgrind, see 5451
+  examples from S2023
+- [ ] TESTY_MULTI design and implementation
 
 ** Design Principle
 - The "classes" suite / test / segment are *data* and won't have
@@ -382,6 +414,16 @@ context during exection
     passed in, e.g. ~formatter.result_file(suit.tests[i], i)~ or
     something similar
 
+*** Resolution
+- Limited to key/val with eval of the value
+- Works for the majority of cases but missing some flexibility
+- Example is the ability to set the test directory based on other
+  features such as the test title
+- Also have a bit of trouble with setting the test directory
+  throughout for all segments in a test and NOT clobber the test
+  directory - this will need attention at some point
+- The last bit speaks the difficulty of supporting a full org format
+  with multiple segments but wanting a spot for whole-test data
 
 ** Producing Results
 - Support for multiple output formats should be coded in
@@ -422,13 +464,18 @@ optionally allow agglomerated results in a single file / output stream
 - DIFFERENCE FROM ORIGINAL TESTY: make default not use stdbuf, turn on
   with a test option
 
+
+*** Resolution
+Adjusted back to making stdbuf the default; folks can adjust the
+option if they want to avoid the dependency
+
 ** Miscellaneous Python port ideas
-- Support syntax like the following for shell escapes:
+- [X] Support syntax like the following for shell escapes:
   : #+TESTY: !rm -f xyz.txt
-- Will want a way to set environment variables during testing; likely
-  some setenv stuff or eval()'able python code somewhere, preamble or
-  test segments
-- Don't less need for a test-results/raw directory as Python provides
+- [ ] Will want a way to set environment variables during testing;
+  likely some setenv stuff or eval()'able python code somewhere,
+  preamble or test segments
+- Less need for a test-results/raw directory as Python provides
   reasonable temporary files for this; example
   #+BEGIN_SRC python
   >>> fp = tempfile.NamedTemporaryFile(mode='r',delete_on_close=True)
