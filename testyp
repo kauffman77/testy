@@ -82,6 +82,9 @@ ENVVARS_HONORED = {
   "save_rawfiles",
   "timeout",
   "parallel",
+  "diff_sym_equal",
+  "diff_ignore_whitespace",
+  "diff_ignore_blanklines",
 }
 """Set of environment variables that are checked during parsing and
 honored if present as though they appeared after top-level options in
@@ -296,6 +299,9 @@ class Segment:
     self.max_out_bytes = 2**20         # maximum size of output from tested program, kill if this is exceeded
     self.post_filter = None            # filter to run on output after test completes, before verifying output
     self.test_directory = None         # directory to use for this test or None if run in the working directory
+    self.diff_ignore_whitespace = True # Whitespace on a line is treated as single spaces when diffing
+    self.diff_ignore_blanklines = True # Blank lines do not affect diff results
+    self.diff_sym_equal = "."          # Symbol to use in side-by-side diff for equal lines
 
     # these fields are set after the segment is run
     self.full_program = []             # full program invocation, may be decorated (usually with valgrind call)
@@ -443,14 +449,32 @@ class Segment:
   ### Post-run functions
   def diff_output(self):
     """Calculate the diff of the output"""
-    sym_equal = '.'
-    (seq_equal, sbs_diff_str) = sbs_diff(self.output_expect,
-                                         self.output_actual,
-                                         sym_equal=sym_equal,
-                                         titles=("===EXPECT===","===ACTUAL==="))
-    self.sbs_diff = sbs_diff_str
-    self.sbs_diff_key = f"{sym_equal} lines match; | lines differ; < expected line missing; > extra line in actual"
+    alines = self.output_expect.splitlines()                 # compare expected and actual
+    blines = self.output_actual.splitlines()                 # output for the diff
+
+    aseq = alines
+    bseq = blines
+    if self.diff_ignore_whitespace:                          # all whitespace treated as 1 whitespace
+      aseq = [re.subn(r"\s+"," ",x)[0] for x in alines]      # modify sequence elements to compare to 
+      bseq = [re.subn(r"\s+"," ",x)[0] for x in blines]      # facilitate matching
+    blank_func = lambda x: False
+
+    if self.diff_ignore_blanklines:                          # mark blank lines as blank which
+      blank_func = lambda x: x==""                           # will allow for 0-cost gaps on them
+
+    (align,score) = global_alignment(aseq,bseq,blank_func=blank_func)
+
+    seq_equal = 0==sum([x in {"insert","delete","replace"}   # presence of any of these means
+                        for (_,_,x,_) in align])             # sequences are not equal
     self.diff_passed = seq_equal
+
+    self.sbs_diff = sbs_diff(align, alines, blines,          # compute side-by-side diff string
+                             sym_equal=self.diff_sym_equal,
+                             titles=("===EXPECT===","===ACTUAL==="))
+    self.sbs_diff_key = f"{self.diff_sym_equal} lines match; | lines differ; < expected line missing; > extra line in actual"
+
+    # self.lbl_diff = lbl_diff(align, alines, blines)
+
 
   def check_passed(self):
     """Determines if the segment passed according to fields"""
@@ -703,34 +727,16 @@ def global_alignment(seqA, seqB,
   return (align, align_score)
 
 
-def sbs_diff(alines,blines,
-             ignore_whitespace=False,
+def sbs_diff(align,alines,blines,
              titles=(None,None),
              sym_equal=' ',sym_replace='|',
              sym_delete='<',sym_insert='>',
              sym_delblank='(', sym_insblank=')'):
-             # ignore_blanklines=False,
-  """Create a side-by-side diff string"""
-  # TODO: add blank line handling, adjust to StringIO rather than line
-  # joining
-  if type(alines) is str:
-      alines = alines.splitlines()
-  if type(blines) is str:
-      blines = blines.splitlines()
-
-  aseq = alines
-  bseq = blines
-  if ignore_whitespace:
-    aseq = [re.subn(r"\s+"," ",x)[0] for x in alines]
-    bseq = [re.subn(r"\s+"," ",x)[0] for x in blines]
-
-  (align,_) = global_alignment(aseq,bseq,blank_func=lambda x:x=="")
-  seq_equal = 0==sum([x in {"insert","delete","replace"} for (_,_,x,_) in align])
-
-  difflines = []
+  """Create a side-by-side diff string from an alignment"""
+  # TODO: adjust to StringIO rather than line joining
   awidth = max(len(x) for x in alines)
   bwidth = max(len(x) for x in blines)
-
+  difflines = []
   if titles != (None,None):
     difflines.append(f'{titles[0]:{awidth}}   {titles[1]:{bwidth}}')
 
@@ -748,8 +754,7 @@ def sbs_diff(alines,blines,
       sym = sym_equal if tag=="equal" else sym_replace
       dline = f"{alines[ai]:{awidth}} {sym} {blines[bj]:{bwidth}}"
     difflines.append(dline)
-
-  return (seq_equal, "\n".join(difflines))
+  return "\n".join(difflines)
 
 
 def get_keyval(string,localenv):
