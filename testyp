@@ -623,7 +623,7 @@ def global_alignment(seqA, seqB,
   diff-like behavior, RQR with the other default parameters is pretty
   close. 
 
-n  score_min and score_max scale the scoring of matches
+  score_min and score_max scale the scoring of matches
   (equal/replace). The ratio()-based function used are normalied to
   0.0-1.0 but are scaled to between score_min and score_max so that
   badly mismatched lines can be penalized in favor of gaps
@@ -682,6 +682,46 @@ n  score_min and score_max scale the scoring of matches
   align.reverse()                                # reverse the alignment in place
   return (align, align_score)
 
+
+def align_lines(alines,blines,
+                ignore_whitespace=False,
+                ignore_blanklines=False)
+  """Create an alignment between two sequences of lines
+
+  Wraps global_alignment() to allow whitespce and blanklines to be
+  ignored.
+  """
+  if type(alines) is str:
+    alines = alines.splitlines()
+  if type(blines) is str:
+    blines = blines.splitlines()
+  aseq = alines
+  bseq = blines
+  if ignore_whitespace:
+    aseq = [re.subn(r"\s+"," ",x)[0] for x in alines]
+    bseq = [re.subn(r"\s+"," ",x)[0] for x in blines]
+
+  # amap = [(i,line) for i,line in enumerate(aseq) if not re.fullmatch(r"\s*",line)]
+  # bmap = [(i,line) for i,line in enumerate(bseq) if not re.fullmatch(r"\s*",line)]
+  amap = [[None,0]]
+  for line in aseq:
+    if re.fullmatch(r"\s*",line):
+      amap[-1][1] += 1
+    else:
+      amap.append([line,0])
+  bmap = [[None,0]]
+  for line in bseq:
+    if re.fullmatch(r"\s*",line):
+      bmap[-1][1] += 1
+    else:
+      bmap.append([line,0])
+  
+  aseq = [x[0] for x in amap]
+  bseq = [x[0] for x in bmap]
+
+  (align,_) = global_alignment(aseq,bseq)
+  seq_equal = 0==sum([x!="equal" for (_,_,x,_) in align])
+  
 
 def sbs_diff(alines,blines,
              ignore_whitespace=False,
