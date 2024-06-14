@@ -514,7 +514,52 @@ option if they want to avoid the dependency
               print(result)
   #+END_SRC
   This should allow easy multiprocessing of the tests later on 
+** Multi-processing performance
+Results are favorable for multiprocessing, below is a limited
+benchmark on val
+#+BEGIN_SRC sh
+>> cd /home/kauffman/teaching/216-S2024/projects/p2-bits-gdb-datastructs/solution-p2-216
 
+# No process pool
+val [solution-p2-216]% time ~/testy/testyp test_thermo_update_new.org
+========================================================================
+== test_thermo_update_new.org : test_thermo_update and thermo_main tests
+== Running 40 / 40 tests
+...
+RESULTS: 19.50 / 20.00 points 
+real	0m37.929s
+user	0m35.150s
+sys	0m3.180s
+
+# Proc pool but only a single proc
+val [solution-p2-216]% export USE_PROC_POOL=1
+val [solution-p2-216]% time ~/testy/testyp test_thermo_update_new.org
+========================================================================
+== test_thermo_update_new.org : test_thermo_update and thermo_main tests
+== Running 40 / 40 tests
+...
+RESULTS: 19.50 / 20.00 points 
+real	0m38.480s
+user	0m35.499s
+sys	0m3.432s
+
+# Select max processes, equal to CPUs, 8 in this case
+val [solution-p2-216]% export USE_PROC_POOL=auto
+val [solution-p2-216]% time ~/testy/testyp test_thermo_update_new.org
+========================================================================
+== test_thermo_update_new.org : test_thermo_update and thermo_main tests
+== Running 40 / 40 tests
+...
+RESULTS: 19.50 / 20.00 points 
+
+real	0m8.371s
+user	0m54.305s
+sys	0m7.787s
+#+END_SRC
+- Execution time scales reasonably but Python makes the IPC expensive
+  a seen in user / system: data must be pickled, set over, etc.
+- Still, very easy to implement and gets the time savings we are
+  interested in
 
 * TODO General Improvements
 - Refactor Mac install script to remove massive redundancy in code

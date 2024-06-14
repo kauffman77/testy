@@ -81,6 +81,7 @@ ENVVARS_HONORED = {
   "results_dir",
   "save_rawfiles",
   "timeout",
+  "parallel",
 }
 """Set of environment variables that are checked during parsing and
 honored if present as though they appeared after top-level options in
@@ -108,6 +109,7 @@ class Suite:
     self.single_show_fail = True       # True means print test results when a single test is run and fails
     self.filename = None               # filename from which the suite came from or None if not from a file
     self.overall_result_file = False   # True produce an overall result file
+    self.parallel = False              # Set to int to use multiple procs or True/auto for max procs
 
     # these fields are set during/after the suite evaluation
     self.passed_tests = 0              # total tests passed
@@ -124,6 +126,9 @@ class Suite:
     well as generating output files if fields in the suite/test
     indicate to do so.
     """
+    if self.parallel:
+      self.run_parallel(progress_reporter, result_formatter)
+      return
     progress_reporter.report_suite_start(self)
     for test in self.tests_torun:
       test.run()
@@ -140,15 +145,48 @@ class Suite:
     result_formatter.make_suite_result_file(self)
     progress_reporter.report_suite_done(self)
     
-  def run_multiproc(self, progress_reporter, result_formatter):
-    """Run tests using multiple proceses """
+
+  def get_proc_pool(self):
+    """Create a pool of processes for multiple test processing
+
+    Honors the self.parallel which may be an integer specifying the
+    numbe of processes or the string "AUTO" which will select a number
+    of processes equal to the total CPUs available. If it is False,
+    use pool size 1.
+
+    """
+    pool_size = 1
+    if type(self.parallel) == int:
+      pool_size = self.parallel
+    elif self.parallel in [True,'yes','YES','auto','AUTO','max','MAX']:
+      pool_size = os.cpu_count()
+    log.debug(f"parallel is {self.parallel}, setting pool_size to {pool_size}")
+    return multiproc.Pool(pool_size)
+    
+  def run_parallel(self, progress_reporter, result_formatter):
+    """Run tests in parallel using multiple proceses
+
+    Uses proces pool produced by get_proc_pool() to execute tests in
+    multiple processes speeding up execution in multi-CPU
+    environments. Processes usually provide better speedup than
+    threads due to Python's poor thread support.
+    """
+    # NOTES: imap() is preferred as alternative as it returns
+    # individual elements immediately on being available while map()
+    # and starmap() wait for completion of all elements. imap() only
+    # support a 1-arg function for mapping; overcome this by passing a
+    # 2-tuple of test/formatter which allows the test to be formatted
+    # on completion. The test spat out is received via IPC so is
+    # distinct from the test passed in; copy the received and
+    # completed test over to this process to ensure the data is
+    # retained.
     progress_reporter.report_suite_start(self)
-    args = [(t,result_formatter) for t in self.tests_torun]
-    with multiproc.Pool(4) as pool:
-      results = 
-      for test in pool.starmap(run_test, args, 1):
-        self.tests[test.testnum] = test
-        progress_reporter.report_test_done(test)
+    args = [(test,result_formatter)                          # package test/formatter
+            for test in self.tests_torun]
+    with self.get_proc_pool() as pool:
+      for test in pool.imap(run_test, args, 1):              # imap for lazy returns
+        self.tests[test.testnum] = test                      # copy test over
+        progress_reporter.report_test_done(test)             
         if test.passed:
           self.passed_tests  += 1
           self.points_earned += test.points
@@ -157,24 +195,7 @@ class Suite:
     result_formatter.add_suite_result(self)
     result_formatter.make_suite_result_file(self)
     progress_reporter.report_suite_done(self)
-    
-  # def run_multiproc(self, progress_reporter, result_formatter):
-  #   """Run tests using multiple proceses """
-  #   progress_reporter.report_suite_start(self)
-  #   args = [(t,result_formatter) for t in self.tests_torun]
-  #   with multiproc.Pool(4) as pool:
-  #     for test in pool.starmap(run_test, args, 1):
-  #       self.tests[test.testnum] = test
-  #       progress_reporter.report_test_done(test)
-  #       if test.passed:
-  #         self.passed_tests  += 1
-  #         self.points_earned += test.points
-  #   self.points_possible *= self.points_scale
-  #   self.points_earned   *= self.points_scale
-  #   result_formatter.add_suite_result(self)
-  #   result_formatter.make_suite_result_file(self)
-  #   progress_reporter.report_suite_done(self)
-    
+
   def honor_envvars(self):
     """Check environment variables to see propagate any values to the suite
 
@@ -763,15 +784,23 @@ def writeline(file,line):
   call for nicer formatting."""
   print(line,file=file)
 
-################################################################################
-def run_test(test, result_formatter):  
-  """helper for multiprocess mapping"""
-  test.run()
-  result_formatter.add_test_result(test)
+def run_test(arg):
+  """Helper for multiprocess mapping to run a test
+
+  Accept (test,result_formatter) and run the test then use the
+  formatter to format the results. Global helper required due to
+  limitations in Python's API for multiprocessing and limits in
+  scoping/pickling. Used with imap() in multiprocessing so returns the
+  completed test.
+  """
+  (test, result_formatter) = arg                             # destructure arg
+  test.run()                                                 # run test and
+  result_formatter.add_test_result(test)                     # format output
   result_formatter.make_test_result_file(test)
   result_formatter.make_test_rawfiles(test)
-  return test
+  return test                                                # return completed test
 
+################################################################################
 ### Parsing classes and hierarchy
 class ParseError(Exception):
   """Exception to throw when a parsing error occurred"""
@@ -1344,7 +1373,7 @@ def main(cmd_args):
     result_formatter = OrgResultFormatter(suite)
     log.debug(f"Running suite")
     # suite.run(progress_reporter, result_formatter)
-    suite.run_multiproc(progress_reporter, result_formatter)
+    suite.run(progress_reporter, result_formatter)
   except ParseError as e:
     print(str(e))
     sys.exit(1)
