@@ -593,7 +593,8 @@ def global_alignment(seqA, seqB,
                      scorefunc="RQR",
                      score_min=-0.25,
                      score_max=1.0,
-                     gap_cost=-0.1):
+                     gap_cost=-0.1,
+                     ignore_blanks=True):
   """Compute global sequence alignmnet of lines in seqA and seqB
 
   Uses the Needlman-Wunsch algorithm (common to bioinformatics
@@ -653,6 +654,18 @@ def global_alignment(seqA, seqB,
     scoremat[i][0] = (gap_cost*i,(i-1,0,"delete",gap_cost))
   for j in range(0, n + 1):
     scoremat[0][j] = (gap_cost*j,(0,j-1,"insert",gap_cost))
+
+  scoremat[0][0] = (0,(0,0,"done",0))
+  for i in range(1, m + 1):                          # initialize matrices for opening gaps
+    if ignore_blanks and seqA[i-1]=="":
+      scoremat[i][0] = (scoremat[i-1][0][0],(i-1,0,"delblank",0))
+    else:
+      scoremat[i][0] = (scoremat[i-1][0][0]+gap_cost,(i-1,0,"delete",gap_cost))
+  for j in range(1, n + 1):
+    if ignore_blanks and seqB[j-1]=="":
+      scoremat[0][j] = (scoremat[0][j-1][0],(0,j-1,"insblank",0))
+    else:
+      scoremat[0][j] = (scoremat[0][j-1][0]+gap_cost,(0,j-1,"insert",0))
   
   # MAIN SCORING ALGORITHM
   for i in range(1, m+1):
@@ -664,9 +677,13 @@ def global_alignment(seqA, seqB,
         seqmatcher.set_seq1(seqB[j-1])               # use seqmatcher for comparison 
         (tag,raw_score) = ("replace",match_score(seqmatcher))
       mscore = raw_score*score_scale + score_min                             # scale the score in range
-      scores = ((scoremat[i-1][j-1][0] + mscore,(i-1,j-1,tag,mscore)),       # match seq1/2 elem  
+      scores = [(scoremat[i-1][j-1][0] + mscore,(i-1,j-1,tag,mscore)),       # match seq1/2 elem  
                 (scoremat[i-1][j][0] + gap_cost,(i-1,j,"delete",gap_cost)),  # delete seq1 elem   
-                (scoremat[i][j-1][0] + gap_cost,(i,j-1,"insert",gap_cost)))  # insert seq2 elem   
+                (scoremat[i][j-1][0] + gap_cost,(i,j-1,"insert",gap_cost))]  # insert seq2 elem   
+      if seqA[i-1]=="":
+        scores.append((scoremat[i-1][j][0],(i-1,j,"delblank",0)))
+      if seqB[j-1]=="":
+        scores.append((scoremat[i][j-1][0],(i,j-1,"insblank",0)))
       scoremat[i][j] = max(scores)
   
   # TRACEBACK COMPUTATION
@@ -683,51 +700,12 @@ def global_alignment(seqA, seqB,
   return (align, align_score)
 
 
-def align_lines(alines,blines,
-                ignore_whitespace=False,
-                ignore_blanklines=False)
-  """Create an alignment between two sequences of lines
-
-  Wraps global_alignment() to allow whitespce and blanklines to be
-  ignored.
-  """
-  if type(alines) is str:
-    alines = alines.splitlines()
-  if type(blines) is str:
-    blines = blines.splitlines()
-  aseq = alines
-  bseq = blines
-  if ignore_whitespace:
-    aseq = [re.subn(r"\s+"," ",x)[0] for x in alines]
-    bseq = [re.subn(r"\s+"," ",x)[0] for x in blines]
-
-  # amap = [(i,line) for i,line in enumerate(aseq) if not re.fullmatch(r"\s*",line)]
-  # bmap = [(i,line) for i,line in enumerate(bseq) if not re.fullmatch(r"\s*",line)]
-  amap = [[None,0]]
-  for line in aseq:
-    if re.fullmatch(r"\s*",line):
-      amap[-1][1] += 1
-    else:
-      amap.append([line,0])
-  bmap = [[None,0]]
-  for line in bseq:
-    if re.fullmatch(r"\s*",line):
-      bmap[-1][1] += 1
-    else:
-      bmap.append([line,0])
-  
-  aseq = [x[0] for x in amap]
-  bseq = [x[0] for x in bmap]
-
-  (align,_) = global_alignment(aseq,bseq)
-  seq_equal = 0==sum([x!="equal" for (_,_,x,_) in align])
-  
-
 def sbs_diff(alines,blines,
              ignore_whitespace=False,
              titles=(None,None),
              sym_equal=' ',sym_replace='|',
-             sym_delete='<',sym_insert='>'):
+             sym_delete='<',sym_insert='>',
+             sym_delblank='(', sym_insblank=')'):
              # ignore_blanklines=False,
   """Create a side-by-side diff string"""
   # TODO: add blank line handling, adjust to StringIO rather than line
@@ -744,7 +722,7 @@ def sbs_diff(alines,blines,
     bseq = [re.subn(r"\s+"," ",x)[0] for x in blines]
 
   (align,_) = global_alignment(aseq,bseq)
-  seq_equal = 0==sum([x!="equal" for (_,_,x,_) in align])
+  seq_equal = 0==sum([x in {"insert","delete","replace"} for (_,_,x,_) in align])
 
   difflines = []
   awidth = max(len(x) for x in alines)
@@ -757,8 +735,12 @@ def sbs_diff(alines,blines,
     dline = ""
     if tag=="delete":
       dline = f"{alines[ai]:{awidth}} {sym_delete} {'':{bwidth}}"
+    elif tag=="delblank":
+      dline = f"{alines[ai]:{awidth}} {sym_delblank} {'':{bwidth}}"
     elif tag=="insert":
       dline = f"{'':{awidth}} {sym_insert} {blines[bj]:{bwidth}}"
+    elif tag=="insblank":
+      dline = f"{'':{awidth}} {sym_insblank} {blines[bj]:{bwidth}}"
     else:
       sym = sym_equal if tag=="equal" else sym_replace
       dline = f"{alines[ai]:{awidth}} {sym} {blines[bj]:{bwidth}}"
