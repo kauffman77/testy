@@ -23,21 +23,14 @@ import multiprocessing as multiproc
 ################################################################################
 ### Module level initialization
 
-# log = logging.getLogger(__name__)
-# """Log events for debugging via log.info(msg) and log.debug(msg)"""
-# log.basicConfig(encoding='utf-8')
-
 LOGFORMAT = "==%(levelname)s== [%(filename)s:%(lineno)d %(funcName)s] %(message)s"
 """Format for debug messages"""
 
-# # allow showing embedded newlines in strings
-# escape_strs = str.maketrans({"\n" : r"\n"})
-
-# Register translation mechanisms for bad ASCII characters in test
-# output. These are passed as the 'errors' argument to Popen() when
-# ASCII encoding is in use for output.
 codecs.register_error('as_question_marks', lambda e: ('?',e.start + 1))
 codecs.register_error('as_nonascii', lambda e: (':nonascii:',e.start + 1))
+""""Register translation mechanisms for bad ASCII characters in test
+output. These are passed as the 'errors' argument to Popen() when
+ASCII encoding is in use for output."""
 
 # default valgrind program
 VALGRIND_ERROR_CODE = 13
@@ -129,11 +122,11 @@ class Suite:
     well as generating output files if fields in the suite/test
     indicate to do so.
     """
-    if self.parallel:
+    if self.parallel:                           # parallel execution requested, dispatch to that method
       self.run_parallel(progress_reporter, result_formatter)
       return
-    progress_reporter.report_suite_start(self)
-    for test in self.tests_torun:
+    progress_reporter.report_suite_start(self)  # otherwise do serial execution
+    for test in self.tests_torun:               # reach each test requested, format results
       test.run()
       result_formatter.add_test_result(test)
       result_formatter.make_test_result_file(test)
@@ -389,16 +382,16 @@ class Segment:
     """Modify output_actual to include the prompt on appropriate lines"""
     if self.echoing!="input":              # method only works input echoing is enabled
       return                               # inappropriate for "both" echoing
-    prompt_lines = []
+
     input_lines = self.input_str.splitlines()
     inpos = 0
-    for outline in self.output_actual.splitlines():
-      if inpos < len(input_lines) and outline==input_lines[inpos]:
-        outline = f"{self.prompt} {outline}"
-        inpos += 1
-      prompt_lines.append(outline)
-    self.output_actual = "\n".join(prompt_lines)
-
+    with io.StringIO() as prompt_lines:
+      for outline in self.output_actual.splitlines():
+        if inpos < len(input_lines) and outline==input_lines[inpos]:
+          outline = f"{self.prompt} {outline}"
+          inpos += 1
+        writeline(prompt_lines,outline)
+      self.output_actual = prompt_lines.getvalue()
 
   def set_input_str(self):
     """Creates input_str by extracting prompt lines from session"""
@@ -512,16 +505,15 @@ class Segment:
     """Separate valgrind output from output_actual"""
     if not self.use_valgrind:
       return
-    out_lines = []
-    val_lines = []
     val_prefix = f"=={self.pid}=="
-    for line in self.output_actual.splitlines():
-      if line.startswith(val_prefix):
-        val_lines.append(line)
-      else:
-        out_lines.append(line)
-    self.output_actual =   "\n".join(out_lines)
-    self.output_valgrind = "\n".join(val_lines)
+    with io.StringIO() as out_lines, io.StringIO() as val_lines:
+      for line in self.output_actual.splitlines():
+        if line.startswith(val_prefix):
+          writeline(val_lines,line)
+        else:
+          writeline(out_lines,line)
+      self.output_actual =   out_lines.getvalue()
+      self.output_valgrind = val_lines.getvalue()
 
   def run_post_filter(self):
     """Run output_actual through a specified filter to modify it"""
@@ -733,28 +725,24 @@ def sbs_diff(align,alines,blines,
              sym_delete='<',sym_insert='>',
              sym_delblank='(', sym_insblank=')'):
   """Create a side-by-side diff string from an alignment"""
-  # TODO: adjust to StringIO rather than line joining
   awidth = max(len(x) for x in alines)
   bwidth = max(len(x) for x in blines)
-  difflines = []
-  if titles != (None,None):
-    difflines.append(f'{titles[0]:{awidth}}   {titles[1]:{bwidth}}')
-
-  for (ai,bj,tag,_) in align:
-    dline = ""
-    if tag=="delete":
-      dline = f"{alines[ai]:{awidth}} {sym_delete} {'':{bwidth}}"
-    elif tag=="delblank":
-      dline = f"{alines[ai]:{awidth}} {sym_delblank} {'':{bwidth}}"
-    elif tag=="insert":
-      dline = f"{'':{awidth}} {sym_insert} {blines[bj]:{bwidth}}"
-    elif tag=="insblank":
-      dline = f"{'':{awidth}} {sym_insblank} {blines[bj]:{bwidth}}"
-    else:
-      sym = sym_equal if tag=="equal" else sym_replace
-      dline = f"{alines[ai]:{awidth}} {sym} {blines[bj]:{bwidth}}"
-    difflines.append(dline)
-  return "\n".join(difflines)
+  with io.StringIO() as diff:
+    if titles != (None,None):
+      writeline(diff,f'{titles[0]:{awidth}}   {titles[1]:{bwidth}}')
+    for (ai,bj,tag,_) in align:
+      if tag=="delete":
+        writeline(diff,f"{alines[ai]:{awidth}} {sym_delete} {'':{bwidth}}")
+      elif tag=="delblank":
+        writeline(diff,f"{alines[ai]:{awidth}} {sym_delblank} {'':{bwidth}}")
+      elif tag=="insert":
+        writeline(diff,f"{'':{awidth}} {sym_insert} {blines[bj]:{bwidth}}")
+      elif tag=="insblank":
+        writeline(diff,f"{'':{awidth}} {sym_insblank} {blines[bj]:{bwidth}}")
+      else:
+        sym = sym_equal if tag=="equal" else sym_replace
+        writeline(diff,f"{alines[ai]:{awidth}} {sym} {blines[bj]:{bwidth}}")
+    return diff.getvalue()
 
 
 def lbl_diff(align,alines,blines, titles=("OLD","NEW")):
@@ -987,33 +975,31 @@ class OrgSuiteParser:
     seg_regex = re.compile(seg_regexs,                   # retain the SRC/QUOTE as it is
                            re.MULTILINE|re.IGNORECASE)   # retain the SRC/QUOTE as it is
     (preamble,token1,session) = \
-      re.split(seg_regex, content)                     # used to alter the session program
+      re.split(seg_regex, content)                       # used to alter the session program
 
-    comment_lines = []                                 # handle the preamble, comments and
-    for line in preamble.splitlines():                 # prior to the first test
-      filepos.linenum += 1
-      (first,rest) = ("",line)
-      if " " in line:
-        (first, rest) = line.split(" ",1)              # extract the first token on the line
-        first = first.upper()                          # upper case for case insensitive matching
-      if first=="#+TESTY:" and rest[0]=="!":           # shell command as in [#+TESTY: !rm file.txt]
-        segment.shell_precommands.append(rest[1:])     # peel off the ! at the start
-      elif first == "#+TESTY:":
-        (key,val) = get_keyval(rest,locals())          # raises exception if badly formatted
-        segment.__dict__[key] = val
-        log.debug(f"[{key}={val}] segment option set in segment preamble")
-      else:
-        comment_lines.append(line)
+    with io.StringIO() as comments:                      # handle the preamble, comments and
+      for line in preamble.splitlines():                 # prior to the first test
+        filepos.linenum += 1
+        (first,rest) = ("",line)
+        if " " in line:
+          (first, rest) = line.split(" ",1)              # extract the first token on the line
+          first = first.upper()                          # upper case for case insensitive matching
+        if first=="#+TESTY:" and rest[0]=="!":           # shell command as in [#+TESTY: !rm file.txt]
+          segment.shell_precommands.append(rest[1:])     # peel off the ! at the start
+        elif first == "#+TESTY:":
+          (key,val) = get_keyval(rest,locals())          # raises exception if badly formatted
+          segment.__dict__[key] = val
+          log.debug(f"[{key}={val}] segment option set in segment preamble")
+        else:
+          writeline(comments,line)
+      segment.comments = comments.getvalue().strip()     # eliminate beg/end blanks comments
 
-    comment_lines = shave_blanks(comment_lines)       # eliminate blanks and join comments
-    segment.comments = "\n".join(comment_lines)       # to comprise the segemnt comments
-
-    filepos.linenum += 1                              # accounts for beginning token
-    if not token1.upper().startswith("#+BEGIN_SRC"):  # not a program-based session
-      segment.program = token1                        # overwrite program
+    filepos.linenum += 1                                 # accounts for beginning token
+    if not token1.upper().startswith("#+BEGIN_SRC"):     # not a program-based session
+      segment.program = token1                           # overwrite program
 
     segment.session = session
-    filepos.linenum += session.count("\n")            # update based on #lines in session
+    filepos.linenum += session.count("\n")               # update based on #lines in session
 
     return segment
 
