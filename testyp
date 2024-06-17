@@ -472,12 +472,12 @@ class Segment:
                              sym_equal=self.diff_sym_equal,
                              titles=("===EXPECT===","===ACTUAL==="))
     self.sbs_diff_key = f"{self.diff_sym_equal} lines match; | lines differ; < expected line missing; > extra line in actual"
-
-    # self.lbl_diff = lbl_diff(align, alines, blines)
+    self.lbl_diff = lbl_diff(align, alines, blines,
+                             titles=("EXPECT","ACTUAL"))
 
 
   def check_passed(self):
-    """Determines if the segment passed according to fields"""
+    """Determines if the segment passed according to fields set during testing"""
     self.passed = True
     if self.retcode==VALGRIND_ERROR_CODE:
       self.passed = False
@@ -757,6 +757,27 @@ def sbs_diff(align,alines,blines,
   return "\n".join(difflines)
 
 
+def lbl_diff(align,alines,blines, titles=("OLD","NEW")):
+  """Create a line-by-line diff showing only non-matching lines from alingment
+
+  The comparison is literally line-by-line rather than block-by-block as is the case 
+  """
+  (atit,btit) = (titles[0],titles[1])
+  twidth = max(len(atit),len(btit))
+  with io.StringIO() as diff:
+    for (ai,bj,tag,_) in align:                  # ignore equal, ins/del blank as these
+      if tag=="delete":                          # are not the source of failures
+        writeline(diff,f"{atit:<{twidth}} {ai+1:>3d}) {alines[ai]}")
+        writeline(diff,f"{btit:<{twidth}} {"--":>3}) ")
+      elif tag=="insert":
+        writeline(diff,f"{atit:<{twidth}} {"--":>3}) ")
+        writeline(diff,f"{btit:<{twidth}} {bj+1:>3d}) {blines[bj]}")
+      elif tag=="replace":
+        writeline(diff,f"{atit:<{twidth}} {ai+1:>3d}) {alines[ai]}")
+        writeline(diff,f"{btit:<{twidth}} {bj+1:>3d}) {blines[bj]}")
+    return diff.getvalue()
+
+
 def get_keyval(string,localenv):
   """For 'key=val', returns (key,val)
 
@@ -809,10 +830,10 @@ def shave_blanks(line_list):
     end -= 1
   return line_list[beg:end]
 
-def writeline(file,line):
+def writeline(file,line,end='\n'):
   """Write line of text to file output; reverses file/text order in
   call for nicer formatting."""
-  print(line,file=file)
+  print(line,file=file,end=end)
 
 def run_test(arg):
   """Helper for multiprocess mapping to run a test
@@ -1193,7 +1214,15 @@ class OrgResultFormatter(ResultFormatter):
     writeline(res, f'{seg.sbs_diff}')
     writeline(res, f'#+END_SRC')
     writeline(res, f'')
-    # TODO: get line-by-line differences
+
+    writeline(res, f'** LINE-BY-LINE DIFF of Expected vs Actual')
+    if not seg.lbl_diff:
+      writeline(res, f'No differences found')
+    else:
+      writeline(res, f'#+BEGIN_SRC text')
+      writeline(res, f'{seg.lbl_diff}',end="")
+      writeline(res, f'#+END_SRC')
+    writeline(res, f'')
     
     if not seg.use_valgrind:
       writeline(res, f'** VALGRIND Not in Use')
