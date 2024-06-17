@@ -961,7 +961,7 @@ function diff_expect_actual() {
         msg+="- Differing lines have a character like '|' and '<' in the middle\n"
         msg+="\n"
         msg+="#+BEGIN_SRC sdiff\n"
-        msg+="$(cat ${diff_file})"
+        msg+="$(cat ${outfile_sbs})"
         msg+="\n"
         msg+="#+END_SRC\n"
         msg+="\n"
@@ -970,7 +970,7 @@ function diff_expect_actual() {
         msg+="If this section is empty, there are no line differences\n"
         msg+="\n"
         msg+="#+BEGIN_SRC text\n"
-        msg+="$(cat ${diffline_file})"
+        msg+="$(cat ${outfile_line})"
         msg+="\n#+END_SRC\n"
         msg+="\n"
         failmsg_long+=("$msg")
