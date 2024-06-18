@@ -14,6 +14,41 @@
   support multi-part tests now and this would make regeneration a lot
   easier
 
+* Comparing Length of Bash vs Python version
+Line comparison at v0.7
+
+#+BEGIN_SRC sh
+val (master) [testy]% cat testy | grep -c -v '^ *$\|^ *#'
+1495   # 326 lines for usage / todo, 197 deprecated lines
+val (master) [testy]% cat testyp | grep -v '^ *$\|^ *#' | awk '/^ *"""/{S=1} !S{print} /"""$/{S=0}'|wc -l
+994    # 14 lines for short/long usage
+#+END_SRC
+|----------+----------+------------------------------------------------|
+|      <r> |      <r> | <l>                                            |
+|    testy |   testyp |                                                |
+|     BASH |   PYTHON | METRIC                                         |
+|----------+----------+------------------------------------------------|
+|     2131 |     1444 | Total Lines                                    |
+|     1298 |      994 | Remove comments, blank Lines, deprecated funcs |
+|      326 |       14 | Usage Lines                                    |
+|      972 |      980 | *Functional Lines*                             |
+|----------+----------+------------------------------------------------|
+|          |          | DIFFERING FEATURES                             |
+|      Yes |       No | testy_multi                                    |
+|      Yes |       No | Signals in input                               |
+|       No |      Yes | Parallel Processing                            |
+|        1 |        2 | Progress Formats                               |
+| External | Internal | Diffing Functionality                          |
+| External | Internal | Timeout Functionality                          |
+|----------+----------+------------------------------------------------|
+#+TBLFM: @7$1=@5-@6::@7$2=@5-@6
+- It's interesting that the expressive power is similar as
+  approximately the same though it spent in different places; 
+- Python has more expressive power as it includes several internal
+  implementations and has a similar line count
+- Readability and extensibility are vastly better in the Python
+  version
+
 * Completed
 ** DONE Completed General Improvements
 - Add message on how to run test with interactive input in GDB, now
