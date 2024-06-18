@@ -177,11 +177,13 @@ class Suite:
     # completed test over to this process to ensure the data is
     # retained.
     progress_reporter.report_suite_start(self)
-    args = [(test,result_formatter)                          # package test/formatter
+    args = [(test,result_formatter)                 # package test/formatter
             for test in self.tests_torun]
+    self.tests_torun = []                           # must rebuild this list due to parallel ops
     with self.get_proc_pool() as pool:
-      for test in pool.imap(run_test, args, 1):              # imap for lazy returns
-        self.tests[test.testnum] = test                      # copy test over
+      for test in pool.imap(run_test, args, 1):     # imap for lazy returns
+        self.tests[test.testnum] = test             # copy test over
+        self.tests_torun.append(test)               # rebuild torun list
         progress_reporter.report_test_done(test)             
         if test.passed:
           self.passed_tests  += 1
