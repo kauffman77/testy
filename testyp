@@ -1021,31 +1021,34 @@ class OrgSuiteParser:
     """
     def_suite = Suite()                                  # defaults structs to determine
     def_test = Test()                                    # deviations from defaults
+    propagate_fields(def_test, suite.test_opts)
     def_seg  = Segment()
+    propagate_fields(def_seg, suite.test_opts)
 
     suite_fields = {'use_points','points_scale'}         # fields to honor and place in regenerated test
     test_fields = {'points','test_directory','make_result_file',
-                   'prefix', 'results_dir','save_rawfiles','raw_dir'
-                   }.difference(suite.test_opts.keys())
+                   'prefix', 'results_dir','save_rawfiles','raw_dir'}
     seg_fields = {'program','prompt','echoing',
                   'use_valgrind','valgrind_reachable','valgrind_opts',
                   'use_stdbuf','skip_diff','skip_retcode',
                   'force_ascii_output','timeout','max_out_bytes',
                   'post_filter','test_directory',
                   'diff_ignore_whitespace','diff_ignore_blanklines',
-                  'diff_sym_equal'
-                  }.difference(suite.test_opts.keys())
+                  'diff_sym_equal'}
 
     with open(fname,'w') as out:
       if suite.title:
         writeline(out,f'#+TITLE: {suite.title}')
       if suite.comments:
         writeline(out,suite.comments)
+        writeline(out,"")
       for k in suite_fields:
         if suite.__dict__[k] != def_suite.__dict__[k]:
           writeline(out,f'#+TESTY: {k}={repr(suite.__dict__[k])}')
       for k,v in suite.test_opts.items():
         writeline(out,f'#+TESTY: {k}={repr(v)}')         # output repr() for later eval
+
+      writeline(out,"")
 
       # Iterate over tests in suite
       for test in suite.tests_torun:
@@ -1070,7 +1073,7 @@ class OrgSuiteParser:
           for cmd in seg.shell_precommands:
             writeline(out,f'#+TESTY: !{cmd}')
           writeline(out,f'#+BEGIN_SRC sh')
-          writeline(out,seg.output_actual)               # output_actual used during regen
+          writeline(out,seg.output_actual,end='')        # output_actual used during regen
           writeline(out,f'#+END_SRC')
           writeline(out,f'')
         # end seg loop
