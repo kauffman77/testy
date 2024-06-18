@@ -1,0 +1,328 @@
+#!/usr/bin/env python3
+
+from subprocess import Popen, PIPE, STDOUT
+import subprocess
+import os
+import codecs
+
+# allow showing embedded newlines in strings
+escape_strs = str.maketrans({"\n" : r"\n"})
+
+# register translation mechanisms for bad ascii characters
+codecs.register_error('as_question_marks', lambda e: (u'?',e.start + 1))
+codecs.register_error('as_nonascii', lambda e: (u':nonascii:',e.start + 1))
+
+def add_prompts_to_output(cmd_output,cmd_input,prompt):
+  # Create a decorated version of cmd_output where each line in
+  # sequence that matches a line in cmd_input has prompt prepended to
+  # it.
+  prompt_lines = []
+  input_lines = cmd_input.splitlines()
+  inpos = 0
+  for outline in cmd_output.splitlines():
+    if inpos < len(input_lines) and outline==input_lines[inpos]:
+      outline = prompt + outline
+      inpos += 1
+    prompt_lines.append(outline)
+  return "\n".join(prompt_lines)
+
+def extract_input(cmd_inout,prompt):
+  # Return a modified version of string cmd_input_output which
+  # contains only lines that start with prompt and has prompt removed
+  # from those lines
+  prompt_len = len(prompt)
+
+  cmd_input_lines = []
+  for line in cmd_inout.splitlines():
+    if line.startswith(prompt):
+      cmd_input_lines.append(line[prompt_len:])
+  
+  return "\n".join(cmd_input_lines)
+
+  # cmd_input_lines = [
+  #   cmd[prompt_len:]
+  #   for cmd in cmd_inout.splitlines() if cmd.startswith(prompt)
+  # ]
+  
+
+
+print("starting child")
+
+subp_input = """1+1
+3+4
+9*2+3
+"""
+
+cmd = ["bc","-iq"]
+subp = Popen(cmd,
+             stdin=PIPE,
+             stdout=PIPE,
+             stderr=STDOUT,
+             bufsize=0,
+             text=True)
+             # encoding='ascii',
+             # errors='replace')
+
+print("communicating")
+(stdout,_) = subp.communicate(subp_input,timeout=5)
+print(f"retcode: {subp.returncode}")
+print(f"input:\n{subp_input}")
+print(f"output:\n{stdout}")
+
+
+cmd = ['bash','-c','printf "😃\n"']
+subp = Popen(cmd,
+             stdin=PIPE, stdout=PIPE, stderr=STDOUT,
+             bufsize=0, text=True,
+             encoding=None)
+             # encoding='ascii',
+             # # errors='as_nonascii')
+             # errors='as_question_marks')
+             # errors='backslashreplace')
+
+
+print("communicating")
+(stdout,_) = subp.communicate(None,timeout=5)
+print(f"command: {' '.join(cmd).translate(escape_strs)}")
+print(f"retcode: {subp.returncode}")
+print(f"output:\n{stdout}")
+
+################################################################################
+
+prompt=">> "
+cmd = ['bash','-v']
+cmd_inout = """\
+>> ls -1
+coproc.sh~
+examples
+install_mac_requirements.sh
+LICENSE
+NOTES.txt
+NOTES.txt~
+pesty~
+pesty-pty~
+pesty-pty-dup~
+pesty-testing
+pesty-testing~
+pesty-testing2
+pesty-testing2~
+README.org
+sample1.man~
+sample2.man~
+sample_tests.org
+testout.txt
+test-results
+testy
+testy.old
+testy.org~
+testy-regen
+testy-regen~
+workfiles
+x.sh
+x.sh~
+>> echo 'hello'
+hello
+>> pwd
+/home/kauffman/testy
+"""
+
+cmd_input = extract_input(cmd_inout,prompt)
+
+subp = Popen(cmd,
+             stdin=PIPE, stdout=PIPE, stderr=STDOUT,
+             bufsize=0, text=True,
+             encoding='ascii',
+             # errors='as_nonascii')
+             errors='as_question_marks')
+             # errors='backslashreplace')
+
+
+print("communicating")
+(stdout,_) = subp.communicate(cmd_input,timeout=5)
+cmd_output = add_prompts_to_output(stdout, cmd_input, prompt)
+
+print(f"command: {' '.join(cmd).translate(escape_strs)}")
+print(f"retcode: {subp.returncode}")
+print(f"output:\n{cmd_output}")
+
+# subp = Popen("yes",
+#              stdin=PIPE, stdout=PIPE, stderr=STDOUT,
+#              bufsize=0, text=True,
+#              encoding='ascii',
+#              # errors='as_nonascii')
+#              errors='as_question_marks')
+#              # errors='backslashreplace')
+# print("communicating")
+# try:
+#   (stdout,_) = subp.communicate(None,timeout=1)
+# except subprocess.TimeoutExpired as e:
+#   subp.kill()
+#   stdout, errs = subp.communicate()  
+
+# print(len(stdout),errs,"\n",stdout)
+
+################################################################################
+import time
+import select
+from select import POLLIN, POLLOUT, POLLHUP, POLLERR, POLLNVAL
+def communicate_with_limits(to_str,to_fd,from_fd,timeout,max_from_bytes):
+  pollset = select.poll()
+  pollset.register(to_fd,   POLLOUT)
+  pollset.register(from_fd, POLLIN)
+
+  poll_timeout_millis = 100
+  block_size = 4096
+  from_blocks = []
+  from_bytes = 0
+
+  beg_time = time.monotonic()
+  total_time = 0.0
+  to_pos = 0
+  timed_out = False
+  from_eof = False
+  
+  (loop_count,write_count,read_count) = 0,0,0
+
+  print(f"working on to_fd {to_fd} from_fd {from_fd}")
+  print(f"POLLOUT {POLLOUT} POLLIN {POLLIN} POLLHUP {POLLHUP} POLLERR {POLLERR} POLLNVAL {POLLNVAL}")
+
+  while (not from_eof and                         # other side still has data
+         total_time <= timeout and                # still within timeout
+         from_bytes <= max_from_bytes):           # still under max bytes read
+    loop_count += 1
+    fileops = pollset.poll(poll_timeout_millis)
+    print(fileops)
+    for (fd,event) in fileops:
+      if (not to_fd.closed and
+          fd==to_fd.fileno() and event&POLLOUT and  # can write to other side
+          to_pos < len(to_str)):                    # and have some left to write
+        write_count += 1
+        end_pos = min(len(to_str),to_pos+block_size)
+        to_pos += to_fd.write(to_str[to_pos:end_pos])
+        if to_pos >= len(to_str):                   # check if the 
+          pollset.unregister(to_fd)
+          to_fd.close()
+          
+      elif fd==from_fd.fileno() and event&POLLIN:
+        read_count += 1
+        block = from_fd.read(block_size)
+        if len(block)==0:
+          from_eof = True
+        else:
+          from_blocks.append(block)
+          from_bytes += len(block)
+      elif fd==from_fd.fileno() and event&POLLHUP:
+        from_eof = True
+    total_time = time.monotonic() - beg_time
+        
+  from_str = "".join(from_blocks)
+  # print(f"len(from_blocks): {len(from_blocks)}")
+  print(loop_count,write_count,read_count)
+  return (from_str,total_time > timeout,from_bytes > max_from_bytes)
+    
+def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
+  """Communicate on a to/from pipe with limits
+
+  Write to_str to the to_fd in chunks and receive data from from_fd in
+  chunks. If this takes longer than timeout (fractional seconds),
+  bail. If more than from_bytes are read, bail. Returns a tuple of
+    (from_str, timed_out T/F, maxed_out T/F)
+
+  Makes use of poll() under the hood to synchornously handle the I/O
+  and avoid blocking for too long.
+  """
+
+  to_fd = subp.stdin
+  from_fd = subp.stdout
+
+  poll_timeout_millis = 100              # timeout for poll calls
+  block_size = 4096                      # size of blocks of data to communicate
+
+  pollset = select.poll()                # set of file descriptors to track
+  pollset.register(to_fd,   POLLOUT)
+  pollset.register(from_fd, POLLIN)
+
+  from_blocks = []                       # blocks read from from_fd
+  from_bytes = 0                         # total bytes read from from_fd
+  from_eof = False                       # reached tht end of from_fd
+  total_time = 0.0                       # total time elapsed in the loop
+  to_pos = 0                             # advancing position write in to_str
+  beg_time = time.monotonic()            # start time of main loop
+  
+  (loop_count,write_count,read_count) = 0,0,0  # for debugging
+
+  print(f"working on to_fd {to_fd} from_fd {from_fd}")
+  print(f"POLLOUT {POLLOUT} POLLIN {POLLIN} POLLHUP {POLLHUP} POLLERR {POLLERR} POLLNVAL {POLLNVAL}")
+
+  while (not from_eof and                                       # other from still has data
+         (not timeout or total_time <= timeout) and             # still within timeout
+         (not max_out_bytes or from_bytes <= max_out_bytes)): # still under max bytes read
+    loop_count += 1
+    fileops = pollset.poll(poll_timeout_millis)
+    # print(fileops)
+
+    # handle 1 event per loop, slightly less efficient than multiple
+    # events but avoids possilbe 
+    for (fd,event) in fileops:                      
+
+      if (not to_fd.closed and                         # can write to other side
+          fd==to_fd.fileno() and event&POLLOUT and     # and have some left to write
+          to_pos < len(to_str)):                    
+        write_count += 1
+        end_pos = min(len(to_str),to_pos+block_size)
+        to_pos += to_fd.write(to_str[to_pos:end_pos])
+        if to_pos >= len(to_str):                      # IMPORTANT: close outward stream
+          pollset.unregister(to_fd)                    # when all data written so the 
+          to_fd.close()                                # other side knows it's done
+
+      elif fd==from_fd.fileno() and event&POLLIN:      # can read from inward stream
+        read_count += 1
+        block = from_fd.read(block_size)
+        if len(block)==0:                              # inward stream closed, terminate
+          from_eof = True                              # loop; possibly redundant
+        else:
+          from_blocks.append(block)
+          from_bytes += len(block)
+
+      elif fd==from_fd.fileno() and event&POLLHUP:     # inward stream closed, terminate
+        from_eof = True                                # loop
+    total_time = time.monotonic() - beg_time
+        
+  print(loop_count,write_count,read_count)             # debugging
+  from_str = "".join(from_blocks)                      # join the read blocks of data
+  timed_out = False
+  return (from_str,
+          timeout!=None and total_time > timeout,
+          max_out_bytes!=None and from_bytes > max_out_bytes)
+
+
+
+    
+subp = Popen(#["cat", "-"],
+             # ["bash", "-c", "sleep 0.5 && cat -"],
+             # ["bash", "-c", "sleep 1.5 && cat -"],
+             ["yes"],
+             stdin=PIPE, stdout=PIPE, stderr=STDOUT,
+             bufsize=0, text=True,
+             encoding='ascii',
+             errors='as_question_marks')
+print("communicating")
+
+# run the process
+(stdout,timed_out,maxed_out) = \
+  limited_communicate(subp,"what's up",timeout=1,max_out_bytes=None)
+
+if timed_out or maxed_out:
+  subp.kill()                                       # misbehaving, kill it
+subp.wait()                                          # should return almost immediately
+
+print(f"timed_out: {timed_out}")
+print(f"maxed_out: {maxed_out}")
+print(f"retcode:   {subp.returncode}")
+if subp.returncode<0:
+  print("Killed")
+
+print(f"len(stdout): {len(stdout)}")
+
+# print(f"stdout: {stdout}")
+

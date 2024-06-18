@@ -21,10 +21,20 @@ f = open(in_name,"w+")
 f.write(subp_input)
 f.seek(0)
 
+f = open(in_name,"w+")
+
 subp = Popen(["bc","-iq"],
+             bufsize=0,
              stdin=f,
              stdout=PIPE,
-             stderr=PIPE)
+             stderr=STDOUT)
+
+
+# subp = Popen(["bc","-iq"],
+#              bufsize
+#              stdin=f,
+#              stdout=PIPE,
+#              stderr=PIPE)
 
 
 
@@ -42,10 +52,10 @@ print("waiting on proc",subp.pid)
 subp.wait(timeout=3)
 
 stdout = subp.stdout.read().decode()
-stderr = subp.stderr.read().decode()
+# stderr = subp.stderr.read().decode()
 
-print("stdout:\n"+stdout)
-print("stderr:\n"+stderr)
+print("stdout/stderr:\n"+stdout)
+# print("stderr:\n"+stderr)
 
 f.close()
 os.remove("testin.txt")

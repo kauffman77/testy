@@ -54,27 +54,6 @@ The second session tests add/multiply.
 21
 #+END_SRC
 
-* Rerun with Valgrind
-The directive 
-: #+TESTY_RERUN:
-causes the last test run to be rerun with the new options in effect.
-
-This tests reruns the previous test but does so using Valgrind to
-check for memory problems. The option
-: #+TESTY: use_valgrind=1
-turns on use of Valgrind for a test. Any out of bounds memory
-references or uninitialized variables will generate complaints. bc is
-a well-tested program so doesn't have any of these. However, it does
-not bother to free all memory by the end of its execution, a harmless
-choice, which can cause Valgrind to complain.  The option
-: #+TESTY: valgrind_reachable=0
-is used to suppress failing due to reachable memory.
-
-#+TESTY: use_valgrind=1
-#+TESTY: valgrind_reachable=0
-
-#+TESTY_RERUN:
-
 * No -q option
 The 'program' for this test is changed to ~bc -i~; since the ~-q~
 option is omitted, the startup is not "quiet" and so the tests output
