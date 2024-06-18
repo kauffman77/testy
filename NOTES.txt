@@ -1,722 +1,20 @@
 # -*- mode: Org;-*-
+#+title: Development Notes / Tasks for Testy
+#+SEQ_TODO: TODO | DONE FORWARDED CANCELLED
 
-* TODO Python Port
-- [X] Finalize docs of current Bash version and commit
-- [X] Enumerate different Python process abstractions and pick one
-  line of attack. Some preliminary work in file:pesty-testing
-- [ ] Revisit the architecture interplay between testy-single and
-  testy-multi: the single case is quite complex due to sharing
-  infrastructure with multi in the Bash version and I'd like something
-  a little simpler
-- [X] Outline priority features of the port
-  1. Single testing
-  2. Points
-  3. testy-regen support for multi-part tests; would make regeneration a
-     lot easier; possibly build in regeneration into the utility itself
-  4. Multi-testing
-  5. Eliminate some decorator utilities which are dependencies
-     - diff : python has a difflib which may supplant the shell version
-     - stdbuf : can python adjust its stdbuf before execing? They might
-       actually have a different internal model for this
-     - timeout: if Python can handle this internally, that'd be better
-       than the current need to start up another process
-  6. Signal support within tests
-  7. Automatic Gradescope output generation: JSON results
-  8. Rerun past test with new options 
-- New features
-  - [X] Single file output
-  - [X] Multiple output formats: markdown, json, json-gradescope, html
-  Keep an eye out for utilizing multiple processes at some point down
-  the line and try to make design decisions that don't make this
-  harder
+* TODO Additional Features / Testing for Python Version
+- [ ] Test parallel execution of testyp with MPI especially with
+  Valgrind, see 5451 examples from S2023
+- [ ] TESTY_MULTI design and implementation within testyp, Revisit the
+  architecture interplay between testy-single and testy-multi: the
+  single case is quite complex due to sharing infrastructure with
+  multi in the Bash version and I'd like something a little simpler
+- [ ] Signal support within tests for testyp
+- [ ] testy-regen internal support with testyp. Should be possible to
+  support multi-part tests now and this would make regeneration a lot
+  easier
 
-** Gradescope Interactions
-Wanted to make it easier to handle gradescope output from within
-testyp BUT found that this is more complex than I thought at first if
-one wants to replicate the output style
-- output from ~make test-prob1~ is captured in the current version
-- this includes compilation and progress of output and it is already
-  formatted pretty nicely with the janky awk scripts I use
-- would not be able to capture the compilation output ever
-- troublesome to capture the progress output with the current setup as
-  would need to either couple ProgressReporter and OutputFormatter or
-  redirect stdout from within testy
-- Seems that it is not worth it to do this as can't easily replicate
-  the behavior desired and the current setup is fine as is
-- A better option might be to convert the awk / bash scripts over to
-  a python script that does the formatting / json conversion
-  - Find working directory
-  - Copy over testing files
-  - Run make test for each problem, capture output of the run
-  - Total the points and create a JSON output file
-- Possibly have an action script which carries out the above
-  activities AND a data script that specifies the data associated with
-  a project to copy
-  - search_file to find working directory
-  - files / file patterns to copy 
-  - points / make command for each problem
-  Import this data into the action script and execute it
-
-** Additional Features / Testing
-- [ ] Parallel execution with MPI especially with Valgrind, see 5451
-  examples from S2023
-- [ ] TESTY_MULTI design and implementation
-
-** Design Principle
-- The "classes" suite / test / segment are *data* and won't have
-  methods themselves. There is no inheritance between these and no
-  need to for method dispatch; will lead to names like
-  #+BEGIN_SRC python
-  suite_run_test(suite, testnum)                     # runs the test
-  #+END_SRC
-- *NIXED THIS* and moved towards thins like
-  #+BEGIN_SRC python
-  seg.run()
-  #+END_SRC
-  As it seemed more sane to house most of the option/state within the
-  segment anyway
-- there is strong coupling between suite / test / segment here which I
-  think I'm okay with; find myself wanting to split them but I don't
-  think that's good: they aren't separate entities and are useless on
-  their own. The functionality comes from the grouping of them and
-  their shared interactions
-- Largely operations will be on the suite: 
-  - Run one of its tests
-  - Format result output of a test, etc
-- *NIXED THIS* early on as it became a drag pass state between levels;
-  Segment does most of the work anyway so its methods do a lot of the
-  work 
-- Within those operations there is tight coupling
-- This might later enable one to pull out testy as and use its
-  functionality programmatically: *code to enable use of classes
-  within testy in other applications* as this will likely keep the
-  design cleaner
-- A ~__main__~ block can then be added which will deal with the
-  stand-along executable
-- ResultFormatters for output can be in a class hierarchy as they are
-  responsible for transforming a suite / test / segment into a
-  formatted output string, a mock progression looks like the following
-#+BEGIN_SRC python
-suite_run_test(suite, testnum)                     # runs the test
-formatter.format_test_result(suite, testnum)          # adds formatted results to the test
-if suite.test_result_files:
-  formatter.make_test_result_file(suite, testnum)  # creates an output file with the results
-
-...
-
-if suite.show_all or len(suite.test_list)==1:      # iterate over tests run and show results
-  for testnum in suite.test_list:                  # for failing tests
-    if not suite.tests[testnum].passed:
-      formatter.print_test_result(suite, testnum)
-
-if suite.overall_result_file:                      # output an overall file if desired
-  formatter.make_overall_result_file(suite)
-#+END_SRC
-- In the above, the formatter is responsible for transforming the
-  suite results into output of various kinds (org, json, markdown, etc)
-- The listed methods are specifically chosen to try to be general and
-  compatible
-  - format_test_result(suite, testnum) :: after running a test, fill in
-    its test.result field with a string (or something else) that
-    textually represents the results of the test
-  - make_test_result_file(suite, testnum) :: create an individual file
-    for containing the output for the given test, uses options in the
-    suite to produce the output, may decorate the individual result so
-    that it is self contained (e.g. add ~<html> ... </html>~ to html
-    output)
-  - print_test_result(suite, testnum) :: output a test result to the
-    screen; tempting to just do ~print(suite.tests[testnum].result)~
-    BUT if the formatter is actually a MutlipleFormats so uses that
-    result field as a tuple of results in different formats, this will
-    lead to trouble; likely would just print the first in that case
-    but this gives options and ensures that the formatter is the one
-    doing the output
-  - make_overall_result_file(suite) :: produce a single overall result
-    file which shows the combined results of all tests, makes use of
-    the 
-- SuiteParser classes will read different input formats (org, json,
-  etc) and convert them to the internal class representation
-- ProgressIndicator classes can represent how the progress of a
-  running a suite progresses; line-by-line, single-line dots, silence,
-  GUI?? nah...
--  
-
-
-** Notes
-- subprocess module in python is the preferred "modern" process
-  creation mechanism
-- Popen() is the main process creation mechanism; has a bufsize option
-  to dictates buffering of pipes BUT does not control other standard
-  buffering
-- Don't need to exec with Popen(), may want to examine its source code
-  to see how they go about this on Unix systems
-- Popen() allows creation of processes with 
-- Merging stdout/stderr [[https://stackoverflow.com/questions/6809590/merging-a-python-scripts-subprocess-stdout-and-stderr-while-keeping-them-disti][is easy]] via
-  : tsk = subprocess.Popen(args,stdout=PIPE,stderr=STDOUT)
-- Python provides good support for Pipe creation; no need to create
-  file-system FIFOs as this was always a work-around for the inability
-  of Bash scripts to handle Pipes well
-- If processes produce bad non-ascii chars in output, will need to be
-  cautious. Likely accept stdout as binary then call decode() manually
-  with "replace" argument to excise bad characters. Turns out that
-  this functionality is already present via the encoding/errors
-  options to ~Popen()~
-#+BEGIN_SRC python
-cmd = ['bash','-c','printf "😃\n"']
-subp = Popen(cmd,
-             stdin=PIPE,
-             stdout=PIPE,
-             stderr=STDOUT,
-             bufsize=0,
-             text=True,
-             encoding='ascii',
-             errors='backslashreplace')
-#+END_SRC
-- There are also mechanisms to expand the replacement scheme for
-  non-ascii characters which is very slick
-- Python difflib is a little janky, will need a way to produce a
-  proper side-by-side diff as this does not come pre-equipped, the 
-
-
-** Handling Infinite Loops / Excessive Output
-- Current handling of output is to shunt into a file
-- Timeouts are handed by waiting on a process and killing it after
-  some timeout
-- Can lead to massive output in a file when infinite loops occur:
-  constant output until timeout is reached
-- One possible way to avoid this is 
-  - stdout is piped so pipe is a natural limit chunk size for output
-  - parent empties the pipe into a file every so often
-  - parent has a chance to kill the pipe empty if it seems like it has
-    too much output
-- It's a little tricky because the simple case doesn't work as well
-- subprocess provides [[https://docs.python.org/3/library/subprocess.html#subprocess.Popen.communicate][Popen.communicate()]] for this purpose of
-  corresponding with the child process, takes a timeout as an argument 
-- signals are also supported
-
-** Parsing / Data Structure
-suite is dict with keyval pairs
-- tests: array of tests to run
-- options: hash of options, init with global defaults, then override
-- results: overall global results
-
-test is dict of keyval pairs
-- title: string comment
-- comments: comment for overall test
-- options: options for entire test (timeout, points)
-- parts: array of parts of each test
-- results: pass / fail / return code / etc
-
-part is a dict of keyval pairs
-- options: program, specific valgrind invocation, etc
-- transcript: expected input/output of running the program
-- comments: comments leading into the test part
-
-Note: would be easier if options for the part were specified in the
-test itself. There is ambiguity with framing like this:
-: * Two part test
-: Comment on overarching idea of the test
-:
-: ** Part 1
-: Comments for part 1
-: #+TESTY: program='bc -iq'
-: #+TESTY: echoing="input"
-: #+TESTY: points=1
-: #+BEGIN_SRC sh
-: >> 1+1
-: 2
-: >> 3+4
-: 7
-: #+END_SRC
-: 
-: ** Part 2
-: Some comments for part 2
-: #+TESTY: program='bash -v'
-: #+TESTY: echoing="input"
-: #+TESTY: points=2
-: #+BEGIN_SRC sh
-: >> echo "hello"
-: hello
-: #+END_SRC
-- The options for each part are clear: program bc for the first,
-  program bash for the second
-- The points assigned differ
-- This worked fine in the past when the tests were just executed
-  sequentially; however well do a full parse of the input file and
-  need to encode where the options are set
-- If there is distinction between the test and part levels, then it's
-  ambiguous where that options should go
-- To stay reasonably backwards compatible would need to honor the
-  previous conventions but shouldn't stay too tied to that
-- Rather, forcing placement of the options at the appropriate level is
-  probably better as in
-: * Two part test
-: #+TESTY: points=2
-: Comment on overarching idea of the test
-:
-: ** Part 1
-: Comments for part 1
-: #+TESTY: program='bc -iq'
-: #+TESTY: echoing="input"
-: #+BEGIN_SRC sh
-: >> 1+1
-: 2
-: >> 3+4
-: 7
-: #+END_SRC
-: 
-: ** Part 2
-: Some comments for part 2
-: #+TESTY: program='bash -v'
-: #+TESTY: echoing="input"
-: #+BEGIN_SRC sh
-: >> echo "hello"
-: hello
-: #+END_SRC
-- However, will want to allow simple cases like the following which
-  don't formally divide into parts
-: * Single part test
-: #+TESTY: points=2
-: Comment on overarching idea of the test
-: #+TESTY: program='bc -iq'
-: #+TESTY: echoing="input"
-: #+BEGIN_SRC sh
-: >> 1+1
-: 2
-: >> 3+4
-: 7
-: #+END_SRC
-- And possibly also allow multipart tests without explicit
-  subdivisions (e.g. ** 2nd level heading)
-- ALTERNATIVE: caste a test as a sequence of tokens instead as in
-:  [("comment","This is a comment"),  # shuffle into output
-:   ("command","program='bc -iq'"),   # eval this / set the token in environment dict
-:   ("command","timeout='10s"),       # eval this / set the token in environment dict
-:   ("transcript","...."),            # run the associated program with current options
-:   ...]  
-- This would allow easy translation to run HOWEVER ...
-- Need to answer the question of how a multi-part test result will
-  display. 
-- Seems a good idea overall to enforce
-  - Explicit notation of multiple parts with headings in the input
-    file 
-  - In output for the multi-part test, break this into a hierarchy
-    with 1st level heading for a test, 2nd-level heading for each
-    part, 3rd level heading for each attributes of tests
-  - Possibly special case for 1-part tests with attributes at 2nd
-    level 
-
-*Settling on the following* arrangement of parts
-- Parts are always present even if not textually indicated with '**'
-- Parts are a series of 
-  - comments/commands
-  - session / transcript
-- Parsing builds up the comments in place, commands in another place
-- All commands are always run before the session starts
-- Parts are always run in sequence BUT failure on an early part stops
-  the test from continuing
-- Data division becomes
-  - suite / global :: title, options, results, default test options
-  - test :: title, overall result, points
-  - segment :: title, comments, commands, session
-- For one-segment test output, may buck the nesting of segment output
-- Must be cautious about sharing state between these: could easily
-  just have a single dict which comprises values associated with the
-  entire test with segments updating them but don't really like that
-  so will likely not use it: want some isolation between each level
-- May want to have some sort of lead comment for segments which
-  describes its overall purpose, default to "Segment N" otherwise
-
-When to set options for a segment?
-1. set fields of segment during parsing / on creation; evaluate
-   commands during parsing
-2. set fields of segment when segment is run
-#1 is closer to standard BUT forces distinction between alterations of
-the data vs raw commands; not that big of a deal as anything that was
-going to be a shell out was going to require ! syntax or something
-similar anyway 
-
-- During parsing, instantiate a segment with default options obtained
-  from the Suite
-  - NOTE: this makes segments independent from one another, not quite
-    backwards compatible
-- While parsing ~#+TESTY: program='bc -iq'~ directives, have these
-  alter fields of the Segment: ~seg.__dict__["program"] = 'bc -iq'~
-- Any ! commands are accumulated separately
-- Leaves open the question of where options like points are set for
-  the whole test
-- Definitely want the feature of being able to accumulate results in a
-  segment. Will settle on the following
-  - '* name' starts a test
-  - ~#+TESTY:~ directives immediately after that will be test options
-  - Any comments or blank lines start the 0th segment and subsequent
-    options are applied to the segment
-- This is problematic as it disbars / has problems whit the following
-  format which I liked
-: * test_gauss1
-: #+TESTY: points=3
-: #+TESTY: program='cargo test --test test_prob1 test_gauss1'
-: 
-: #+BEGIN_SRC sh
-: Finished test [unoptimized + debuginfo] target(s) in _.__s
-: Running tests/test_prob1.rs 
-: 
-: running 1 test
-: test test_gauss1 ... ok
-: 
-: test result: ok. 1 passed; 0 failed;
-: 
-: #+END_SRC
-- could opt for properties for the points rather than directives which
-  associate test properties to headline, complicates parsing somewhat
-  and is not backwards compatible to the above test files BUT feels
-  good
-: * test_gauss1
-: :PROPERTIES:
-: :points: 3
-: :END:
-: #+TESTY: program='cargo test --test test_prob1 test_gauss1'
-: 
-: #+BEGIN_SRC sh
-: Finished test [unoptimized + debuginfo] target(s) in _.__s
-: Running tests/test_prob1.rs 
-: 
-: running 1 test
-: test test_gauss1 ... ok
-: 
-: test result: ok. 1 passed; 0 failed;
-: #+END_SRC
-
-
-** Reflection and Dynamic Eval
-Still struggling to see whether commands in testy should be
-1. open and eval'd in some fashion in python OR
-2. limited and used primarily to set needed fields like points /
-   program
-The latter is far more common, the former much more flexible BUT the
-fact that python has some scoping unlike Bash with its global scope
-means that directly eval'ing won't necessarily have the same power.
-
-Aim for 2: limited with some shell support
-
-Keep in mind the need to set a working directory as well. This was a
-feature that was missing in testy and was needed for testing Bakefiles
-
-There is also the issue of information transfer between suite / test /
-segment. To shoot for an OO model, would need to add certain fields or
-context during exection
-- A segment needs to know its own # and perhaps the test # as well;
-  this is to possibly create output files and/or produce test output
-  - This is less of an issue than in the Bash version as most of the
-    in/out will be done via pipes
-- Tests need to know their number to generate output and output files
-  - this can be deferred to a an output function where the test # is
-    passed in, e.g. ~formatter.result_file(suit.tests[i], i)~ or
-    something similar
-
-*** Resolution
-- Limited to key/val with eval of the value
-- Works for the majority of cases but missing some flexibility
-- Example is the ability to set the test directory based on other
-  features such as the test title
-- Also have a bit of trouble with setting the test directory
-  throughout for all segments in a test and NOT clobber the test
-  directory - this will need attention at some point
-- The last bit speaks the difficulty of supporting a full org format
-  with multiple segments but wanting a spot for whole-test data
-
-** Producing Results
-- Support for multiple output formats should be coded in
-- Possible designs are
-  1. Formatter object that operates on a suite/test/segment
-  2. Formatter object that is taken by suite/test/segment as an
-     argument and fed properties
-- These are the same thing just framed differently so it doesn't
-  matter; I tend to think of the suite/test/segment as having data in
-  it that needs to be formatted and so design 1 feels more
-  straight-forward with the formatter methods producing strings that
-  can be linked together
-
-Want to continue supporting production of output per test but
-optionally allow agglomerated results in a single file / output stream 
-- Individual test output path
-  - Suite is executed
-  - Iterate over each test
-
-
-** Buffering in Python Version
-- Encountered problems when executing tests with sub proceses due
-  to buffering issues
-- Not running anything under stdbuf which causes failures
-- Will need to include this as a feature as well, leads to a
-  dependence on stdbuf utility 
-- Investigated whether it's possible to avoid this but stdbuf is some
-  nice tricky code
-  - Uses dynamic linker tricks to load libstdbuf.so late 
-  - During loading, the library looks at environment variables which
-    then make calls to setvbuf() to adjust buffering for the run
-    process
-  - Could make use of the environment variables directly BUT this is
-    pointless: if stdbuf is not available then libstdbuf.so is not
-    available so the environment variables would likely be ignored
-- Approach will be to add stdbuf decoration options and fail if stdbuf
-  is not availble
-- DIFFERENCE FROM ORIGINAL TESTY: make default not use stdbuf, turn on
-  with a test option
-
-
-*** Resolution
-Adjusted back to making stdbuf the default; folks can adjust the
-option if they want to avoid the dependency
-
-** Miscellaneous Python port ideas
-- [X] Support syntax like the following for shell escapes:
-  : #+TESTY: !rm -f xyz.txt
-- [ ] Will want a way to set environment variables during testing;
-  likely some setenv stuff or eval()'able python code somewhere,
-  preamble or test segments
-- Less need for a test-results/raw directory as Python provides
-  reasonable temporary files for this; example
-  #+BEGIN_SRC python
-  >>> fp = tempfile.NamedTemporaryFile(mode='r',delete_on_close=True)
-  >>> fp.name
-  '/tmp/tmp_3p68se6'
-  >>> x=fp.read()
-  >>> x
-  'here is some stuff'
-  >>> fp.close()
-  #+END_SRC
-  Can do things like pass the temporary file name to Valgrind and then
-  slurp the results.
-
-  May also be able to use this facility to post-filter output though
-  having a copy of the original output is also handy
-  sometimes. subprocess is likely also good for post-filtering sans
-  actual file.
-- Run test without capturing output in files / merging stdout/stderr
-  streams to enable quick debugging 
-
-** Multi-processing
-- subprocess module provides ways to do this but they are tedious and
-  low-level
-- multiprocessing module provides a way to do this more quickly,
-  provides a high-level data for a process pool and a functional
-  interface to it
-  #+BEGIN_SRC python
-  from multiprocessing import Pool
-  
-  def f(x):
-      return x*x
-  
-  if __name__ == '__main__':
-      with Pool(5) as p:
-          for result in p.map(f, [1, 2, 3]):
-              print(result)
-  #+END_SRC
-  This should allow easy multiprocessing of the tests later on 
-** Multi-processing performance
-Results are favorable for multiprocessing, below is a limited
-benchmark on val
-#+BEGIN_SRC sh
->> cd /home/kauffman/teaching/216-S2024/projects/p2-bits-gdb-datastructs/solution-p2-216
-
-# No process pool
-val [solution-p2-216]% time ~/testy/testyp test_thermo_update_new.org
-========================================================================
-== test_thermo_update_new.org : test_thermo_update and thermo_main tests
-== Running 40 / 40 tests
-...
-RESULTS: 19.50 / 20.00 points 
-real	0m37.929s
-user	0m35.150s
-sys	0m3.180s
-
-# Proc pool but only a single proc
-val [solution-p2-216]% export USE_PROC_POOL=1
-val [solution-p2-216]% time ~/testy/testyp test_thermo_update_new.org
-========================================================================
-== test_thermo_update_new.org : test_thermo_update and thermo_main tests
-== Running 40 / 40 tests
-...
-RESULTS: 19.50 / 20.00 points 
-real	0m38.480s
-user	0m35.499s
-sys	0m3.432s
-
-# Select max processes, equal to CPUs, 8 in this case
-val [solution-p2-216]% export USE_PROC_POOL=auto
-val [solution-p2-216]% time ~/testy/testyp test_thermo_update_new.org
-========================================================================
-== test_thermo_update_new.org : test_thermo_update and thermo_main tests
-== Running 40 / 40 tests
-...
-RESULTS: 19.50 / 20.00 points 
-
-real	0m8.371s
-user	0m54.305s
-sys	0m7.787s
-#+END_SRC
-- Execution time scales reasonably but Python makes the IPC expensive
-  a seen in user / system: data must be pickled, set over, etc.
-- Still, very easy to implement and gets the time savings we are
-  interested in
-
-* TODO General Improvements
-- Refactor Mac install script to remove massive redundancy in code
-- TESTY_MULTI commands don't work unless there is a exactly one space
-  separating the tokens. This defies common convention/expectation.
-  Work out a function to split words on spaces and use it in the MULTI
-  functionality to make this more robust.
-- Re-arrange the example files into directories
-  - Currently all under file:examples/ but could organize these a bit
-    more with its own README
-- Remove the need to pass 'cat' as the filter to various
-  TESTY_MULTI commands
-- Test number boundary checking : none present so specifying an
-  out-of-bounds test fails with uninformative message (e.g. 4 tests
-  present, run #5)
-- Add multi-part test handling to ~testy-regen~
-- Truncate output to some configurable amount; for infinite loops that
-  produce lots of output this will lead to better outcomes
-- Explore use of HERE docs to simplify some of the output format
-  creation. 
-- Add documentation for TESTY_MULTI
-- Add a manual page and texinfo file
-  - Have a git branch for the man page set up and am experimenting
-    with formatting but org output formatting for man pages is a bit
-    broken 
-
-* TODO Design Ideas for Multiple Processes
-- May want to start multiple processes each running its own test
-- Improve efficiency a la ~make -j~
-- Makes sense for some codes though though must make sure tests are
-  independent - could improve this by making directories for each
-  running test
-
-** Design based on Child Processes
-- Must start child processes from parent testy
-- Could have a special mode in which testy is invoked with a --child
-  argument which puts it in child mode
-- All the child process does is pick up the test file, run the given
-  test funneling output into the expect / actual files
-- Testy itself can ~wait~ for a finishing jobs and note the
-  correspondence of child PID to test numbers
-- Track completed tests in an array and print out results of ok / FAIL
-  up to the highest completed ID; if tests finish out of order will
-  stall at a lower number but this will preserve the ordering of
-  output
-- On completing a test with the child exiting, testy can check if
-  there is another test to run and launch another child on a test
-- An initial loop to start a number of child processes equal to the
-  specified number of jobs will cause the above loop to keep that
-  number of children live
-- Need some code that would pares the results file to determine
-  overall results; essentially all that is needed is to determine if
-  the test passes or fails calculation of overall results, making sure
-  the first line of results files indicate failure should make this
-  relatively easy
-- Even in serial mode code use this device
-  - spawn a child process via --child each test to run it
-  - wait on results before launching another one
-  - would pave the way for multi-process execution and ensure
-    consistency between single and multip-process execution
-  - would make debugging harder so delay this implementation
-- Pseudocode 
-#+BEGIN_SRC text
-assoc array childpid_to_testnum[]
-      array testnum_status[]
-
-for nexttest=1 to min(maxchild, length(tests))
-  childpid = testy --child testfile.org i
-  childpid_to_testnum[childpid] = nexttest
-done
-nexttest = 1 + min(maxchild, length(tests))
-
-
-for i=1 to length(tests)
-  testnum_status[i] = "running"
-done
-
-curtest = 1
-
-for i=1 to length(tests)  
-  wait -n -p childpid
-  testid = childpid_to_testnum[childpid]
-  testnum_status[testid] = "ok/fail"
-
-  if nexttest <= length(tests)
-    childpid = testy --child testfile.org nexttest
-    childpid_to_testnum[childpid] = nexttest
-    nexttest++
-  fi
-
-  while testnum_status[curtest] != "running"
-    print "Test $curtest : $testnum_status[$curtest]\n"
-    curtest++
-  done
-done
-#+END_SRC
-- This design involves no fancy coordination, will only stall printing
-  on a very long early test, should be reasonably robust
-- Requires certain state to be transmitted between child proc and
-  parent testy, namely test result, but may be able to do this in a
-  file, pipe, through captured output, or something like that
-- Avoids any need for fancy terminal manipulations which will
-  mean it works fine in emacs shells / compiles as well
-
-* TODO Bad File Descriptors
-When programs in a TESTY_MULTI session segfault, sometimes get bad
-file descriptors during reads in testy itself which leads to errors
-printing. Not sure how this could be happening so will need to do some
-sleuthing.
-
-#+BEGIN_SRC sh
-val (master) [solution-p2-4061]% pwd
-/home/kauffman/4061-S2021/projects/p2-blather/solution-p2-4061
-
-val (master) [solution-p2-4061]% make test
-./testy test_blather.org
-============================================================
-== test_blather.org : Blather Application Tests
-== Running 20 / 20 tests
-1)  Server Start/End                : FAIL -> results in file 'test-results/blather-01-result.tmp'
-2)  Single Client Join / Depart     : FAIL -> results in file 'test-results/blather-02-result.tmp'
-3)  Single Client Join + Shutdown   : FAIL -> results in file 'test-results/blather-03-result.tmp'
-./testy: line 713: read: read error: 0: Bad file descriptor
-4)  Single Client Messages          : FAIL -> results in file 'test-results/blather-04-result.tmp'
-..
-#+END_SRC
-
-* DONE Pseudo-Terminals and Testy                                     :testy:
-Investigating use of pseudo-terminals for better control of program
-input/output, "tricking" programs into thinking they are being used
-interactively
-
-Unfortunately there is no way to create pty's from within bash, moving
-this to "pesty" python implementation
-
-Jack used them in his 'testius' implementation, python provides
-support for this in a pty module.
-
-Jack's testius also uses a variety of other interesting commands
-involving pseudoterminals which are worth learning about.
-
-There appears to be no way to create pseudoterminals in bash directly
-so if I went this route, I'd likely need to port to Python.
-
-Experimentation with pseudo-terminals also revealed the following
-which is something Jack observed that I'd forgotten he said:
-- Writing to a pty feeds to a process and displays on the screen
-- However, writing in that way goes into the same buffer that the
-  program would read
-- A parent which writes to a pty then reads is in a race with the
-  child and often just reads back exactly what was written and the
-  child never gets a chance to see it
-To that end *pipes* are better even if they necessitate echoing
-explicitly by the program
-
-
-* Completed Items
+* Completed
 ** DONE Completed General Improvements
 - Add message on how to run test with interactive input in GDB, now
   possible as input for single tests is in a file
@@ -767,7 +65,6 @@ explicitly by the program
     commands in emacs.
 - Re-checked example files in file:examples/ to guarantee that all of
   them work as expected
-
 
 ** DONE Use of Bash Co-Processes
 Investigated these briefly after seeing a reference to them. They are
@@ -1018,4 +315,735 @@ Tue 18 Aug 2020 09:50:13 AM CDT
 - Altered the syntax away from the above somewhat but the general
   scheme is still what I ended up using
 - see the banter/ directory for an example 
+
+** DONE Design Ideas for Multiple Processes
+- May want to start multiple processes each running its own test
+- Improve efficiency a la ~make -j~
+- Makes sense for some codes though though must make sure tests are
+  independent - could improve this by making directories for each
+  running test
+
+*** Design based on Child Processes
+- Must start child processes from parent testy
+- Could have a special mode in which testy is invoked with a --child
+  argument which puts it in child mode
+- All the child process does is pick up the test file, run the given
+  test funneling output into the expect / actual files
+- Testy itself can ~wait~ for a finishing jobs and note the
+  correspondence of child PID to test numbers
+- Track completed tests in an array and print out results of ok / FAIL
+  up to the highest completed ID; if tests finish out of order will
+  stall at a lower number but this will preserve the ordering of
+  output
+- On completing a test with the child exiting, testy can check if
+  there is another test to run and launch another child on a test
+- An initial loop to start a number of child processes equal to the
+  specified number of jobs will cause the above loop to keep that
+  number of children live
+- Need some code that would pares the results file to determine
+  overall results; essentially all that is needed is to determine if
+  the test passes or fails calculation of overall results, making sure
+  the first line of results files indicate failure should make this
+  relatively easy
+- Even in serial mode code use this device
+  - spawn a child process via --child each test to run it
+  - wait on results before launching another one
+  - would pave the way for multi-process execution and ensure
+    consistency between single and multip-process execution
+  - would make debugging harder so delay this implementation
+- Pseudocode 
+#+BEGIN_SRC text
+assoc array childpid_to_testnum[]
+      array testnum_status[]
+
+for nexttest=1 to min(maxchild, length(tests))
+  childpid = testy --child testfile.org i
+  childpid_to_testnum[childpid] = nexttest
+done
+nexttest = 1 + min(maxchild, length(tests))
+
+
+for i=1 to length(tests)
+  testnum_status[i] = "running"
+done
+
+curtest = 1
+
+for i=1 to length(tests)  
+  wait -n -p childpid
+  testid = childpid_to_testnum[childpid]
+  testnum_status[testid] = "ok/fail"
+
+  if nexttest <= length(tests)
+    childpid = testy --child testfile.org nexttest
+    childpid_to_testnum[childpid] = nexttest
+    nexttest++
+  fi
+
+  while testnum_status[curtest] != "running"
+    print "Test $curtest : $testnum_status[$curtest]\n"
+    curtest++
+  done
+done
+#+END_SRC
+- This design involves no fancy coordination, will only stall printing
+  on a very long early test, should be reasonably robust
+- Requires certain state to be transmitted between child proc and
+  parent testy, namely test result, but may be able to do this in a
+  file, pipe, through captured output, or something like that
+- Avoids any need for fancy terminal manipulations which will
+  mean it works fine in emacs shells / compiles as well
+
+*** Resolution
+Multiprocessing within python was straight-forward and efficient
+enough. No longer needed unless someone is totally keen on
+implementing a bash version
+** CANCELLED Bad File Descriptors
+When programs in a TESTY_MULTI session segfault, sometimes get bad
+file descriptors during reads in testy itself which leads to errors
+printing. Not sure how this could be happening so will need to do some
+sleuthing.
+
+#+BEGIN_SRC sh
+val (master) [solution-p2-4061]% pwd
+/home/kauffman/4061-S2021/projects/p2-blather/solution-p2-4061
+
+val (master) [solution-p2-4061]% make test
+./testy test_blather.org
+============================================================
+== test_blather.org : Blather Application Tests
+== Running 20 / 20 tests
+1)  Server Start/End                : FAIL -> results in file 'test-results/blather-01-result.tmp'
+2)  Single Client Join / Depart     : FAIL -> results in file 'test-results/blather-02-result.tmp'
+3)  Single Client Join + Shutdown   : FAIL -> results in file 'test-results/blather-03-result.tmp'
+./testy: line 713: read: read error: 0: Bad file descriptor
+4)  Single Client Messages          : FAIL -> results in file 'test-results/blather-04-result.tmp'
+..
+#+END_SRC
+
+*** Resolution
+Moving development to Python where this is likely not to be an issue
+as pipes are used exclusively.
+
+** CANCELLED Bash version General Improvements
+Most of these items are canceled due to the move to python
+
+- Refactor Mac install script to remove massive redundancy in code
+- TESTY_MULTI commands don't work unless there is a exactly one space
+  separating the tokens. This defies common convention/expectation.
+  Work out a function to split words on spaces and use it in the MULTI
+  functionality to make this more robust.
+- Re-arrange the example files into directories
+  - Currently all under file:examples/ but could organize these a bit
+    more with its own README
+- Remove the need to pass 'cat' as the filter to various
+  TESTY_MULTI commands
+- Test number boundary checking : none present so specifying an
+  out-of-bounds test fails with uninformative message (e.g. 4 tests
+  present, run #5)
+- Add multi-part test handling to ~testy-regen~
+- Truncate output to some configurable amount; for infinite loops that
+  produce lots of output this will lead to better outcomes
+- Explore use of HERE docs to simplify some of the output format
+  creation. 
+- Add documentation for TESTY_MULTI
+- Add a manual page and texinfo file
+  - Have a git branch for the man page set up and am experimenting
+    with formatting but org output formatting for man pages is a bit
+    broken 
+
+** DONE Pseudo-Terminals and Testy                                    :testy:
+Investigating use of pseudo-terminals for better control of program
+input/output, "tricking" programs into thinking they are being used
+interactively
+
+Unfortunately there is no way to create pty's from within bash, moving
+this to "pesty" python implementation
+
+Jack used them in his 'testius' implementation, python provides
+support for this in a pty module.
+
+Jack's testius also uses a variety of other interesting commands
+involving pseudoterminals which are worth learning about.
+
+There appears to be no way to create pseudoterminals in bash directly
+so if I went this route, I'd likely need to port to Python.
+
+Experimentation with pseudo-terminals also revealed the following
+which is something Jack observed that I'd forgotten he said:
+- Writing to a pty feeds to a process and displays on the screen
+- However, writing in that way goes into the same buffer that the
+  program would read
+- A parent which writes to a pty then reads is in a race with the
+  child and often just reads back exactly what was written and the
+  child never gets a chance to see it
+To that end *pipes* are better even if they necessitate echoing
+explicitly by the program
+
+
+** DONE Python Port
+- [X] Finalize docs of current Bash version and commit
+- [X] Enumerate different Python process abstractions and pick one
+  line of attack. Some preliminary work in file:pesty-testing
+- [X] Outline priority features of the port
+  1. Single testing - DONE
+  2. Points - DONE
+  3. testy-regen support for multi-part tests; would make regeneration a
+     lot easier; possibly build in regeneration into the utility
+     itself - FORWARDED
+  4. Multi-testing - FORWARDED
+  5. Eliminate some decorator utilities which are dependencies
+     - diff : python has a difflib which may supplant the shell
+       version;
+       - DONE: implemented internal diffing which fits needs well
+     - stdbuf : can python adjust its stdbuf before execing? They might
+       actually have a different internal model for this
+       - DONE: couldn't get around use of stdbuf within python but no
+         matter 
+     - timeout: if Python can handle this internally, that'd be better
+       than the current need to start up another process
+       - DONE: limited_communicate() does this for both time and
+         output which greatly helps with handling of infinite loops in
+         student code
+  6. Signal support within tests - added to list
+  7. Automatic Gradescope output generation: JSON results; CANCELLED
+     see notes [[Gradescope Interactions]]
+  8. Rerun past test with new options; CANCELLED, low priority, not
+     used in most recent tests
+- New features
+  - [X] Single file output
+  - [X] Multiple output formats: markdown, json, json-gradescope, html
+  Keep an eye out for utilizing multiple processes at some point down
+  the line and try to make design decisions that don't make this
+  harder
+
+*** Design Principle
+- The "classes" suite / test / segment are *data* and won't have
+  methods themselves. There is no inheritance between these and no
+  need to for method dispatch; will lead to names like
+  #+BEGIN_SRC python
+  suite_run_test(suite, testnum)                     # runs the test
+  #+END_SRC
+- *NIXED THIS* and moved towards thins like
+  #+BEGIN_SRC python
+  seg.run()
+  #+END_SRC
+  As it seemed more sane to house most of the option/state within the
+  segment anyway
+- there is strong coupling between suite / test / segment here which I
+  think I'm okay with; find myself wanting to split them but I don't
+  think that's good: they aren't separate entities and are useless on
+  their own. The functionality comes from the grouping of them and
+  their shared interactions
+- Largely operations will be on the suite: 
+  - Run one of its tests
+  - Format result output of a test, etc
+- *NIXED THIS* early on as it became a drag pass state between levels;
+  Segment does most of the work anyway so its methods do a lot of the
+  work 
+- Within those operations there is tight coupling
+- This might later enable one to pull out testy as and use its
+  functionality programmatically: *code to enable use of classes
+  within testy in other applications* as this will likely keep the
+  design cleaner
+- A ~__main__~ block can then be added which will deal with the
+  stand-along executable
+- ResultFormatters for output can be in a class hierarchy as they are
+  responsible for transforming a suite / test / segment into a
+  formatted output string, a mock progression looks like the following
+#+BEGIN_SRC python
+suite_run_test(suite, testnum)                     # runs the test
+formatter.format_test_result(suite, testnum)          # adds formatted results to the test
+if suite.test_result_files:
+  formatter.make_test_result_file(suite, testnum)  # creates an output file with the results
+
+...
+
+if suite.show_all or len(suite.test_list)==1:      # iterate over tests run and show results
+  for testnum in suite.test_list:                  # for failing tests
+    if not suite.tests[testnum].passed:
+      formatter.print_test_result(suite, testnum)
+
+if suite.overall_result_file:                      # output an overall file if desired
+  formatter.make_overall_result_file(suite)
+#+END_SRC
+- In the above, the formatter is responsible for transforming the
+  suite results into output of various kinds (org, json, markdown, etc)
+- The listed methods are specifically chosen to try to be general and
+  compatible
+  - format_test_result(suite, testnum) :: after running a test, fill in
+    its test.result field with a string (or something else) that
+    textually represents the results of the test
+  - make_test_result_file(suite, testnum) :: create an individual file
+    for containing the output for the given test, uses options in the
+    suite to produce the output, may decorate the individual result so
+    that it is self contained (e.g. add ~<html> ... </html>~ to html
+    output)
+  - print_test_result(suite, testnum) :: output a test result to the
+    screen; tempting to just do ~print(suite.tests[testnum].result)~
+    BUT if the formatter is actually a MutlipleFormats so uses that
+    result field as a tuple of results in different formats, this will
+    lead to trouble; likely would just print the first in that case
+    but this gives options and ensures that the formatter is the one
+    doing the output
+  - make_overall_result_file(suite) :: produce a single overall result
+    file which shows the combined results of all tests, makes use of
+    the 
+- SuiteParser classes will read different input formats (org, json,
+  etc) and convert them to the internal class representation
+- ProgressIndicator classes can represent how the progress of a
+  running a suite progresses; line-by-line, single-line dots, silence,
+  GUI?? nah...
+-  
+
+
+*** Gradescope Interactions
+Wanted to make it easier to handle gradescope output from within
+testyp BUT found that this is more complex than I thought at first if
+one wants to replicate the output style
+- output from ~make test-prob1~ is captured in the current version
+- this includes compilation and progress of output and it is already
+  formatted pretty nicely with the janky awk scripts I use
+- would not be able to capture the compilation output ever
+- troublesome to capture the progress output with the current setup as
+  would need to either couple ProgressReporter and OutputFormatter or
+  redirect stdout from within testy
+- Seems that it is not worth it to do this as can't easily replicate
+  the behavior desired and the current setup is fine as is
+- A better option might be to convert the awk / bash scripts over to
+  a python script that does the formatting / json conversion
+  - Find working directory
+  - Copy over testing files
+  - Run make test for each problem, capture output of the run
+  - Total the points and create a JSON output file
+- Possibly have an action script which carries out the above
+  activities AND a data script that specifies the data associated with
+  a project to copy
+  - search_file to find working directory
+  - files / file patterns to copy 
+  - points / make command for each problem
+  Import this data into the action script and execute it
+
+*** Planning Notes
+- subprocess module in python is the preferred "modern" process
+  creation mechanism
+- Popen() is the main process creation mechanism; has a bufsize option
+  to dictates buffering of pipes BUT does not control other standard
+  buffering
+- Don't need to exec with Popen(), may want to examine its source code
+  to see how they go about this on Unix systems
+- Popen() allows creation of processes with 
+- Merging stdout/stderr [[https://stackoverflow.com/questions/6809590/merging-a-python-scripts-subprocess-stdout-and-stderr-while-keeping-them-disti][is easy]] via
+  : tsk = subprocess.Popen(args,stdout=PIPE,stderr=STDOUT)
+- Python provides good support for Pipe creation; no need to create
+  file-system FIFOs as this was always a work-around for the inability
+  of Bash scripts to handle Pipes well
+- If processes produce bad non-ascii chars in output, will need to be
+  cautious. Likely accept stdout as binary then call decode() manually
+  with "replace" argument to excise bad characters. Turns out that
+  this functionality is already present via the encoding/errors
+  options to ~Popen()~
+#+BEGIN_SRC python
+cmd = ['bash','-c','printf "😃\n"']
+subp = Popen(cmd,
+             stdin=PIPE,
+             stdout=PIPE,
+             stderr=STDOUT,
+             bufsize=0,
+             text=True,
+             encoding='ascii',
+             errors='backslashreplace')
+#+END_SRC
+- There are also mechanisms to expand the replacement scheme for
+  non-ascii characters which is very slick
+- Python difflib is a little janky, will need a way to produce a
+  proper side-by-side diff as this does not come pre-equipped, the 
+
+
+*** Handling Infinite Loops / Excessive Output
+- Current handling of output is to shunt into a file
+- Timeouts are handed by waiting on a process and killing it after
+  some timeout
+- Can lead to massive output in a file when infinite loops occur:
+  constant output until timeout is reached
+- One possible way to avoid this is 
+  - stdout is piped so pipe is a natural limit chunk size for output
+  - parent empties the pipe into a file every so often
+  - parent has a chance to kill the pipe empty if it seems like it has
+    too much output
+- It's a little tricky because the simple case doesn't work as well
+- subprocess provides [[https://docs.python.org/3/library/subprocess.html#subprocess.Popen.communicate][Popen.communicate()]] for this purpose of
+  corresponding with the child process, takes a timeout as an argument 
+- signals are also supported
+
+*** Parsing / Data Structure
+suite is dict with keyval pairs
+- tests: array of tests to run
+- options: hash of options, init with global defaults, then override
+- results: overall global results
+
+test is dict of keyval pairs
+- title: string comment
+- comments: comment for overall test
+- options: options for entire test (timeout, points)
+- parts: array of parts of each test
+- results: pass / fail / return code / etc
+
+part is a dict of keyval pairs
+- options: program, specific valgrind invocation, etc
+- transcript: expected input/output of running the program
+- comments: comments leading into the test part
+
+Note: would be easier if options for the part were specified in the
+test itself. There is ambiguity with framing like this:
+: * Two part test
+: Comment on overarching idea of the test
+:
+: ** Part 1
+: Comments for part 1
+: #+TESTY: program='bc -iq'
+: #+TESTY: echoing="input"
+: #+TESTY: points=1
+: #+BEGIN_SRC sh
+: >> 1+1
+: 2
+: >> 3+4
+: 7
+: #+END_SRC
+: 
+: ** Part 2
+: Some comments for part 2
+: #+TESTY: program='bash -v'
+: #+TESTY: echoing="input"
+: #+TESTY: points=2
+: #+BEGIN_SRC sh
+: >> echo "hello"
+: hello
+: #+END_SRC
+- The options for each part are clear: program bc for the first,
+  program bash for the second
+- The points assigned differ
+- This worked fine in the past when the tests were just executed
+  sequentially; however well do a full parse of the input file and
+  need to encode where the options are set
+- If there is distinction between the test and part levels, then it's
+  ambiguous where that options should go
+- To stay reasonably backwards compatible would need to honor the
+  previous conventions but shouldn't stay too tied to that
+- Rather, forcing placement of the options at the appropriate level is
+  probably better as in
+: * Two part test
+: #+TESTY: points=2
+: Comment on overarching idea of the test
+:
+: ** Part 1
+: Comments for part 1
+: #+TESTY: program='bc -iq'
+: #+TESTY: echoing="input"
+: #+BEGIN_SRC sh
+: >> 1+1
+: 2
+: >> 3+4
+: 7
+: #+END_SRC
+: 
+: ** Part 2
+: Some comments for part 2
+: #+TESTY: program='bash -v'
+: #+TESTY: echoing="input"
+: #+BEGIN_SRC sh
+: >> echo "hello"
+: hello
+: #+END_SRC
+- However, will want to allow simple cases like the following which
+  don't formally divide into parts
+: * Single part test
+: #+TESTY: points=2
+: Comment on overarching idea of the test
+: #+TESTY: program='bc -iq'
+: #+TESTY: echoing="input"
+: #+BEGIN_SRC sh
+: >> 1+1
+: 2
+: >> 3+4
+: 7
+: #+END_SRC
+- And possibly also allow multipart tests without explicit
+  subdivisions (e.g. ** 2nd level heading)
+- ALTERNATIVE: caste a test as a sequence of tokens instead as in
+:  [("comment","This is a comment"),  # shuffle into output
+:   ("command","program='bc -iq'"),   # eval this / set the token in environment dict
+:   ("command","timeout='10s"),       # eval this / set the token in environment dict
+:   ("transcript","...."),            # run the associated program with current options
+:   ...]  
+- This would allow easy translation to run HOWEVER ...
+- Need to answer the question of how a multi-part test result will
+  display. 
+- Seems a good idea overall to enforce
+  - Explicit notation of multiple parts with headings in the input
+    file 
+  - In output for the multi-part test, break this into a hierarchy
+    with 1st level heading for a test, 2nd-level heading for each
+    part, 3rd level heading for each attributes of tests
+  - Possibly special case for 1-part tests with attributes at 2nd
+    level 
+
+*Settling on the following* arrangement of parts
+- Parts are always present even if not textually indicated with '**'
+- Parts are a series of 
+  - comments/commands
+  - session / transcript
+- Parsing builds up the comments in place, commands in another place
+- All commands are always run before the session starts
+- Parts are always run in sequence BUT failure on an early part stops
+  the test from continuing
+- Data division becomes
+  - suite / global :: title, options, results, default test options
+  - test :: title, overall result, points
+  - segment :: title, comments, commands, session
+- For one-segment test output, may buck the nesting of segment output
+- Must be cautious about sharing state between these: could easily
+  just have a single dict which comprises values associated with the
+  entire test with segments updating them but don't really like that
+  so will likely not use it: want some isolation between each level
+- May want to have some sort of lead comment for segments which
+  describes its overall purpose, default to "Segment N" otherwise
+
+When to set options for a segment?
+1. set fields of segment during parsing / on creation; evaluate
+   commands during parsing
+2. set fields of segment when segment is run
+#1 is closer to standard BUT forces distinction between alterations of
+the data vs raw commands; not that big of a deal as anything that was
+going to be a shell out was going to require ! syntax or something
+similar anyway 
+
+- During parsing, instantiate a segment with default options obtained
+  from the Suite
+  - NOTE: this makes segments independent from one another, not quite
+    backwards compatible
+- While parsing ~#+TESTY: program='bc -iq'~ directives, have these
+  alter fields of the Segment: ~seg.__dict__["program"] = 'bc -iq'~
+- Any ! commands are accumulated separately
+- Leaves open the question of where options like points are set for
+  the whole test
+- Definitely want the feature of being able to accumulate results in a
+  segment. Will settle on the following
+  - '* name' starts a test
+  - ~#+TESTY:~ directives immediately after that will be test options
+  - Any comments or blank lines start the 0th segment and subsequent
+    options are applied to the segment
+- This is problematic as it disbars / has problems whit the following
+  format which I liked
+: * test_gauss1
+: #+TESTY: points=3
+: #+TESTY: program='cargo test --test test_prob1 test_gauss1'
+: 
+: #+BEGIN_SRC sh
+: Finished test [unoptimized + debuginfo] target(s) in _.__s
+: Running tests/test_prob1.rs 
+: 
+: running 1 test
+: test test_gauss1 ... ok
+: 
+: test result: ok. 1 passed; 0 failed;
+: 
+: #+END_SRC
+- could opt for properties for the points rather than directives which
+  associate test properties to headline, complicates parsing somewhat
+  and is not backwards compatible to the above test files BUT feels
+  good
+: * test_gauss1
+: :PROPERTIES:
+: :points: 3
+: :END:
+: #+TESTY: program='cargo test --test test_prob1 test_gauss1'
+: 
+: #+BEGIN_SRC sh
+: Finished test [unoptimized + debuginfo] target(s) in _.__s
+: Running tests/test_prob1.rs 
+: 
+: running 1 test
+: test test_gauss1 ... ok
+: 
+: test result: ok. 1 passed; 0 failed;
+: #+END_SRC
+
+
+*** Reflection and Dynamic Eval
+Still struggling to see whether commands in testy should be
+1. open and eval'd in some fashion in python OR
+2. limited and used primarily to set needed fields like points /
+   program
+The latter is far more common, the former much more flexible BUT the
+fact that python has some scoping unlike Bash with its global scope
+means that directly eval'ing won't necessarily have the same power.
+
+Aim for 2: limited with some shell support
+
+Keep in mind the need to set a working directory as well. This was a
+feature that was missing in testy and was needed for testing Bakefiles
+
+There is also the issue of information transfer between suite / test /
+segment. To shoot for an OO model, would need to add certain fields or
+context during exection
+- A segment needs to know its own # and perhaps the test # as well;
+  this is to possibly create output files and/or produce test output
+  - This is less of an issue than in the Bash version as most of the
+    in/out will be done via pipes
+- Tests need to know their number to generate output and output files
+  - this can be deferred to a an output function where the test # is
+    passed in, e.g. ~formatter.result_file(suit.tests[i], i)~ or
+    something similar
+
+**** Resolution
+- Limited to key/val with eval of the value
+- Works for the majority of cases but missing some flexibility
+- Example is the ability to set the test directory based on other
+  features such as the test title
+- Also have a bit of trouble with setting the test directory
+  throughout for all segments in a test and NOT clobber the test
+  directory - this will need attention at some point
+- The last bit speaks the difficulty of supporting a full org format
+  with multiple segments but wanting a spot for whole-test data
+
+*** Producing Results
+- Support for multiple output formats should be coded in
+- Possible designs are
+  1. Formatter object that operates on a suite/test/segment
+  2. Formatter object that is taken by suite/test/segment as an
+     argument and fed properties
+- These are the same thing just framed differently so it doesn't
+  matter; I tend to think of the suite/test/segment as having data in
+  it that needs to be formatted and so design 1 feels more
+  straight-forward with the formatter methods producing strings that
+  can be linked together
+
+Want to continue supporting production of output per test but
+optionally allow agglomerated results in a single file / output stream 
+- Individual test output path
+  - Suite is executed
+  - Iterate over each test
+
+
+*** Buffering in Python Version
+- Encountered problems when executing tests with sub proceses due
+  to buffering issues
+- Not running anything under stdbuf which causes failures
+- Will need to include this as a feature as well, leads to a
+  dependence on stdbuf utility 
+- Investigated whether it's possible to avoid this but stdbuf is some
+  nice tricky code
+  - Uses dynamic linker tricks to load libstdbuf.so late 
+  - During loading, the library looks at environment variables which
+    then make calls to setvbuf() to adjust buffering for the run
+    process
+  - Could make use of the environment variables directly BUT this is
+    pointless: if stdbuf is not available then libstdbuf.so is not
+    available so the environment variables would likely be ignored
+- Approach will be to add stdbuf decoration options and fail if stdbuf
+  is not availble
+- DIFFERENCE FROM ORIGINAL TESTY: make default not use stdbuf, turn on
+  with a test option
+
+
+**** Resolution
+Adjusted back to making stdbuf the default; folks can adjust the
+option if they want to avoid the dependency
+
+*** Miscellaneous Python port ideas
+- [X] Support syntax like the following for shell escapes:
+  : #+TESTY: !rm -f xyz.txt
+- [X] Will want a way to set environment variables during testing;
+  likely some setenv stuff or eval()'able python code somewhere,
+  preamble or test segments
+  - DONE: Checking certain environment variables to affect tests;
+    interplay between environment variable and command line args is
+    a little tricky to handle and will need care going forward
+- Less need for a test-results/raw directory as Python provides
+  reasonable temporary files for this; example
+  #+BEGIN_SRC python
+  >>> fp = tempfile.NamedTemporaryFile(mode='r',delete_on_close=True)
+  >>> fp.name
+  '/tmp/tmp_3p68se6'
+  >>> x=fp.read()
+  >>> x
+  'here is some stuff'
+  >>> fp.close()
+  #+END_SRC
+  Can do things like pass the temporary file name to Valgrind and then
+  slurp the results.
+
+  May also be able to use this facility to post-filter output though
+  having a copy of the original output is also handy
+  sometimes. subprocess is likely also good for post-filtering sans
+  actual file.
+- Run test without capturing output in files / merging stdout/stderr
+  streams to enable quick debugging 
+
+*** Multi-processing
+- subprocess module provides ways to do this but they are tedious and
+  low-level
+- multiprocessing module provides a way to do this more quickly,
+  provides a high-level data for a process pool and a functional
+  interface to it
+  #+BEGIN_SRC python
+  from multiprocessing import Pool
+  
+  def f(x):
+      return x*x
+  
+  if __name__ == '__main__':
+      with Pool(5) as p:
+          for result in p.map(f, [1, 2, 3]):
+              print(result)
+  #+END_SRC
+  This should allow easy multiprocessing of the tests later on 
+
+*** Multi-processing performance
+Results are favorable for multiprocessing, below is a limited
+benchmark on val
+#+BEGIN_SRC sh
+>> cd /home/kauffman/teaching/216-S2024/projects/p2-bits-gdb-datastructs/solution-p2-216
+
+# No process pool
+val [solution-p2-216]% time ~/testy/testyp test_thermo_update_new.org
+========================================================================
+== test_thermo_update_new.org : test_thermo_update and thermo_main tests
+== Running 40 / 40 tests
+...
+RESULTS: 19.50 / 20.00 points 
+real	0m37.929s
+user	0m35.150s
+sys	0m3.180s
+
+# Proc pool but only a single proc
+val [solution-p2-216]% export USE_PROC_POOL=1
+val [solution-p2-216]% time ~/testy/testyp test_thermo_update_new.org
+========================================================================
+== test_thermo_update_new.org : test_thermo_update and thermo_main tests
+== Running 40 / 40 tests
+...
+RESULTS: 19.50 / 20.00 points 
+real	0m38.480s
+user	0m35.499s
+sys	0m3.432s
+
+# Select max processes, equal to CPUs, 8 in this case
+val [solution-p2-216]% export USE_PROC_POOL=auto
+val [solution-p2-216]% time ~/testy/testyp test_thermo_update_new.org
+========================================================================
+== test_thermo_update_new.org : test_thermo_update and thermo_main tests
+== Running 40 / 40 tests
+...
+RESULTS: 19.50 / 20.00 points 
+
+real	0m8.371s
+user	0m54.305s
+sys	0m7.787s
+#+END_SRC
+- Execution time scales reasonably but Python makes the IPC expensive
+  a seen in user / system: data must be pickled, set over, etc.
+- Still, very easy to implement and gets the time savings we are
+  interested in
 
