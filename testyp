@@ -275,7 +275,7 @@ class Segment:
     """Initialize a default empty test Segment"""
 
     # these fields are obtained from parsing / initializing the segment
-    self.title = "Segment"             # title for tests
+    self.title = None                  # title for segments
     self.linenum = None                # line number on which segment starts
     self.comments = ""                 # comments accumulated in the session
     self.shell_precommands = []        # list of shell commands to be run prior to running the session
@@ -867,6 +867,14 @@ class SuiteParser:
     of filename and returns a Suite read from it.
     """
 
+  def regen_file(self, fname, suite):
+    """Output suite to file as expected test results
+
+    Write the results present in suite to fname such that they actual
+    output is treated as the expected output and tests can be rerun to
+    pass.
+    """
+
   # other shared methods built from parse_file can go here such as
   # parsing_string which can simply convert the given string to a
   # StringIO and then call parse_file
@@ -971,7 +979,7 @@ class OrgSuiteParser:
 
     segment = Segment()
     propagate_fields(segment,opts)
-    segment.linenum = filepos.linenum+1                # first line o fsegment is next
+    segment.linenum = filepos.linenum+1                  # first line of segment is next
 
     seg_regexs = r"(^#\+(?:BEGIN_SRC|BEGIN_QUOTE).*\n)"  # split content into premable/session;
     seg_regex = re.compile(seg_regexs,                   # retain the SRC/QUOTE as it is
@@ -1002,10 +1010,81 @@ class OrgSuiteParser:
 
     segment.session = session
     filepos.linenum += session.count("\n")               # update based on #lines in session
-
     return segment
 
+  def regen_file(self, fname, suite):
+    """Regenerate org test file based on results in suite
+
+    Creates a new test file with all sessions based on the
+    output_actual of the given suite. Allows a solution program
+    to produce expected results.
+    """
+    def_suite = Suite()                                  # defaults structs to determine
+    def_test = Test()                                    # deviations from defaults
+    def_seg  = Segment()
+
+    suite_fields = {'use_points','points_scale'}         # fields to honor and place in regenerated test
+    test_fields = {'points','test_directory','make_result_file',
+                   'prefix', 'results_dir','save_rawfiles','raw_dir'
+                   }.difference(suite.test_opts.keys())
+    seg_fields = {'program','prompt','echoing',
+                  'use_valgrind','valgrind_reachable','valgrind_opts',
+                  'use_stdbuf','skip_diff','skip_retcode',
+                  'force_ascii_output','timeout','max_out_bytes',
+                  'post_filter','test_directory',
+                  'diff_ignore_whitespace','diff_ignore_blanklines',
+                  'diff_sym_equal'
+                  }.difference(suite.test_opts.keys())
+
+    with open(fname,'w') as out:
+      if suite.title:
+        writeline(out,f'#+TITLE: {suite.title}')
+      if suite.comments:
+        writeline(out,suite.comments)
+      for k in suite_fields:
+        if suite.__dict__[k] != def_suite.__dict__[k]:
+          writeline(out,f'#+TESTY: {k}={repr(suite.__dict__[k])}')
+      for k,v in suite.test_opts.items():
+        writeline(out,f'#+TESTY: {k}={repr(v)}')         # output repr() for later eval
+
+      # Iterate over tests in suite
+      for test in suite.tests_torun:
+        title = test.title or 'Test'
+        writeline(out,f'* {title}')
+        if test.comments:
+          writeline(out,test.comments)
+        for k in test_fields:
+          if test.__dict__[k] != def_test.__dict__[k]:
+            writeline(out,f'#+TESTY: {k}={repr(test.__dict__[k])}')
+
+        # Iterate over segments in test
+        for seg in test.segments:
+          if len(test.segments) > 1 or seg.title:
+            title = seg.title or 'Segment'
+            writeline(out,f'** {title}')
+          if seg.comments:
+            writeline(out,seg.comments)
+          for k in seg_fields:
+            if seg.__dict__[k] != def_seg.__dict__[k]:
+              writeline(out,f'#+TESTY: {k}={repr(seg.__dict__[k])}')
+          for cmd in seg.shell_precommands:
+            writeline(out,f'#+TESTY: !{cmd}')
+          writeline(out,f'#+BEGIN_SRC sh')
+          writeline(out,seg.output_actual)               # output_actual used during regen
+          writeline(out,f'#+END_SRC')
+          writeline(out,f'')
+        # end seg loop
+      # end test loop
+    # end with file
+          
+            
+            
+
+      
+
 ################################################################################
+
+
 ### Progress reporting
 
 class ProgressReporter:
@@ -1394,6 +1473,8 @@ def main(cmd_args):
                          help="Select progress style reporting")
   argparser.add_argument("-s","--short",dest="progress",action="store_const",const="short",
                          help="Report progress in short form (. for pass, F for fail)")
+  argparser.add_argument("-r","--regen",action="store",default=None,
+                         help="Regenerate the given test file using actual results, store in given file ")
   argparser.add_argument("testfile",metavar="testfile",
                          help="File containing tests (default org format)")
   argparser.add_argument("testnums",metavar="testnum",nargs='*',type=int,
@@ -1419,8 +1500,10 @@ def main(cmd_args):
     progress_reporter = PROGRESS_TYPES[args.progress](suite)
     result_formatter = OrgResultFormatter(suite)
     log.debug(f"Running suite")
-    # suite.run(progress_reporter, result_formatter)
     suite.run(progress_reporter, result_formatter)
+    if args.regen:
+      print(f'Regenerating test suite in file {args.regen}')
+      suite_parser.regen_file(args.regen,suite)
   except ParseError as e:
     print(str(e))
     sys.exit(1)
