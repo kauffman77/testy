@@ -459,8 +459,8 @@ class Segment:
 
     (align,score) = global_alignment(aseq,bseq,blank_func=blank_func)
 
-    seq_equal = 0==sum([x in {"insert","delete","replace"}   # presence of any of these means
-                        for (_,_,x,_) in align])             # sequences are not equal
+    seq_equal = not any([x in {"insert","delete","replace"}  # presence of any of these means
+                         for (_,_,x,_) in align])            # sequences are not equal
     self.diff_passed = seq_equal
 
     self.sbs_diff = sbs_diff(align, alines, blines,          # compute side-by-side diff string
