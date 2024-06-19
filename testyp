@@ -98,7 +98,7 @@ class Suite:
     self.test_opts = {}                # key/val options affecting tests and sessions set in the preamble
     self.title = None                  # title of the suite from the #+title: directive, None will use the file name
     self.description = ""              # description in preamble that aren't part of any test
-    self.description_full = ""         # includes comments and blank lines
+    self.preamble = ""                 # includes all premble text for regeneration
     self.use_points = False            # True if points should be used
     self.points_possible = 0           # total possible points if points are in use, set during parsing
     self.points_scale = 1.0            # Set to a float scaling factor points should be scaled (e.t. 0.5 to halve everything)
@@ -230,7 +230,7 @@ class Test:
     self.segments = []                 # list of segments that comprise the
     self.test_directory = None         # directory to use for this test or None if run in the working directory
     self.description = ""              # description of test absent # comments
-    self.description_full = ""         # includes # comments and blank lines
+    self.preamble = ""                 # includes # comments, #+TESTY: directives, blank lines
     self.make_result_file = True       # True produces individual test result files
     self.prefix = "test"               # file prefix for result output files if any are created
     self.results_dir = "test-results"  # base directory for test results files
@@ -286,7 +286,7 @@ class Segment:
     self.title = None                  # title for segments
     self.linenum = None                # line number on which segment starts
     self.description = ""              # description of segment absent # comments
-    self.description_full = ""         # includes # comments and blank lines
+    self.preamble = ""                 # includes # comments, #+TESTY: directives, blank lines
     self.shell_precommands = []        # list of shell commands to be run prior to running the session
     self.program = "bash -v"           # program to run for the session, may be #+BEGIN_QUOTE which outputs a file
     self.prompt  = ">>"                # prompt string used by the program being run
@@ -929,7 +929,8 @@ class OrgSuiteParser:
   def parse_suite_preamble(self, preamble, filepos):
     """Preamble parsing preceding the first test of org file tests"""
     suite = Suite()
-    with StringIO() as desc, StringIO() as desc_full: 
+    suite.preamble = preamble
+    with StringIO() as desc:
       for line in preamble.splitlines():
         filepos.linenum += 1                    # track line number for error reporting
         (first,rest) = ("",line)
@@ -949,12 +950,8 @@ class OrgSuiteParser:
             suite.test_opts[key] = val
             log.debug(f"[{key}={val}] test/segment option set in file preamble")
         elif len(line)>0 and line[0]!="#":      # non org-comments added to description
-          writeline(desc,line)                  # and full description
-          writeline(desc_full,line)
-        else:                                   # add everything else to only full-description
-          writeline(desc_full,line)             # including org-style # comments
+          writeline(desc,line)
       suite.description = desc.getvalue().strip()
-      suite.description_full = desc_full.getvalue().strip()
       suite.honor_envvars()                     # override premable opts with environment vars
       return suite
 
@@ -997,7 +994,8 @@ class OrgSuiteParser:
     (preamble,token1,session) = \
       re.split(seg_regex, content)                       # used to alter the session program
 
-    with StringIO() as desc, StringIO() as desc_full:    # handle the preamble, comments and
+    segment.preamble = preamble
+    with StringIO() as desc:                             # handle the preamble, comments and
       for line in preamble.splitlines():                 # prior to the first test
         filepos.linenum += 1
         (first,rest) = ("",line)
@@ -1010,13 +1008,9 @@ class OrgSuiteParser:
           (key,val) = get_keyval(rest,locals())          # raises exception if badly formatted
           segment.__dict__[key] = val
           log.debug(f"[{key}={val}] segment option set in segment preamble")
-        elif len(line)>0 and line[0]!="#":      # non org-comments added to description
-          writeline(desc,line)                  # and full description
-          writeline(desc_full,line)
-        else:                                   # add everything else to only full-description
-          writeline(desc_full,line)             # including org-style # comments
+        elif len(line)>0 and line[0]!="#":               # non org-comments added to description
+          writeline(desc,line)
       segment.description = desc.getvalue().strip()      # eliminate beg/end blanks comments
-      segment.description_full = desc_full.getvalue().strip()
 
     filepos.linenum += 1                                 # accounts for beginning token
     if not token1.upper().startswith("#+BEGIN_SRC"):     # not a program-based session
@@ -1033,59 +1027,17 @@ class OrgSuiteParser:
     output_actual of the given suite. Allows a solution program
     to produce expected results.
     """
-    def_suite = Suite()                                  # defaults structs to determine
-    def_test = Test(suite.test_opts)                     # deviations from defaults
-    # propagate_fields(def_test, suite.test_opts)
-    def_seg  = Segment(suite.test_opts)
-    # propagate_fields(def_seg, suite.test_opts)
-
-    suite_fields = {'use_points','points_scale'}         # fields to honor and place in regenerated test
-    test_fields = {'points','test_directory','make_result_file',
-                   'prefix', 'results_dir','save_rawfiles','raw_dir'}
-    seg_fields = {'program','prompt','echoing',
-                  'use_valgrind','valgrind_reachable','valgrind_opts',
-                  'use_stdbuf','skip_diff','skip_retcode',
-                  'force_ascii_output','timeout','max_out_bytes',
-                  'post_filter','test_directory',
-                  'diff_ignore_whitespace','diff_ignore_blanklines',
-                  'diff_sym_equal'}
-
     with open(fname,'w') as out:
-      if suite.title:
-        writeline(out,f'#+TITLE: {suite.title}')
-      if suite.description_full:
-        writeline(out,suite.description_full)
-        writeline(out,"")
-      for k in suite_fields:
-        if suite.__dict__[k] != def_suite.__dict__[k]:
-          writeline(out,f'#+TESTY: {k}={repr(suite.__dict__[k])}')
-      for k,v in suite.test_opts.items():
-        writeline(out,f'#+TESTY: {k}={repr(v)}')         # output repr() for later eval
-
-      writeline(out,"")
-
-      # Iterate over tests in suite
-      for test in suite.tests_torun:
+      writeline(out,suite.preamble,end='')
+      for test in suite.tests_torun:                     # iterate over tests in suite
         title = test.title or 'Test'
         writeline(out,f'* {title}')
-        if test.description_full:
-          writeline(out,test.description_full)
-        for k in test_fields:
-          if test.__dict__[k] != def_test.__dict__[k]:
-            writeline(out,f'#+TESTY: {k}={repr(test.__dict__[k])}')
-
-        # Iterate over segments in test
-        for seg in test.segments:
+        writeline(out,test.preamble,end='')
+        for seg in test.segments:                        # iterate over segments in test
           if len(test.segments) > 1 or seg.title:
             title = seg.title or 'Segment'
             writeline(out,f'** {title}')
-          if seg.description_full:
-            writeline(out,seg.description_full)
-          for k in seg_fields:
-            if seg.__dict__[k] != def_seg.__dict__[k]:
-              writeline(out,f'#+TESTY: {k}={repr(seg.__dict__[k])}')
-          for cmd in seg.shell_precommands:
-            writeline(out,f'#+TESTY: !{cmd}')
+          writeline(out,seg.preamble,end='')
           writeline(out,f'#+BEGIN_SRC sh')
           writeline(out,seg.output_actual,end='')        # output_actual used during regen
           writeline(out,f'#+END_SRC')
