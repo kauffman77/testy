@@ -3,7 +3,7 @@
 
 ### Imports
 import sys                                # argv etc
-import io                                 # StringIO
+from io import StringIO                   # StringIO
 import os.path                            # joining output file paths
 import re                                 # regexes
 import argparse                           # command args
@@ -97,7 +97,8 @@ class Suite:
     self.tests_torun = []              # tests in the suite to run, set after parsing
     self.test_opts = {}                # key/val options affecting tests and sessions set in the preamble
     self.title = None                  # title of the suite from the #+title: directive, None will use the file name
-    self.comments = ""                 # comments in the preamble that aren't part of any test
+    self.description = ""              # description in preamble that aren't part of any test
+    self.description_full = ""         # includes comments and blank lines
     self.use_points = False            # True if points should be used
     self.points_possible = 0           # total possible points if points are in use, set during parsing
     self.points_scale = 1.0            # Set to a float scaling factor points should be scaled (e.t. 0.5 to halve everything)
@@ -228,7 +229,8 @@ class Test:
     self.points = 1.0                  # number of points assigned, float possible
     self.segments = []                 # list of segments that comprise the
     self.test_directory = None         # directory to use for this test or None if run in the working directory
-    self.comments = ""                 # comments for the test
+    self.description = ""              # description of test absent # comments
+    self.description_full = ""         # includes # comments and blank lines
     self.make_result_file = True       # True produces individual test result files
     self.prefix = "test"               # file prefix for result output files if any are created
     self.results_dir = "test-results"  # base directory for test results files
@@ -283,7 +285,8 @@ class Segment:
     # these fields are obtained from parsing / initializing the segment
     self.title = None                  # title for segments
     self.linenum = None                # line number on which segment starts
-    self.comments = ""                 # comments accumulated in the session
+    self.description = ""              # description of segment absent # comments
+    self.description_full = ""         # includes # comments and blank lines
     self.shell_precommands = []        # list of shell commands to be run prior to running the session
     self.program = "bash -v"           # program to run for the session, may be #+BEGIN_QUOTE which outputs a file
     self.prompt  = ">>"                # prompt string used by the program being run
@@ -402,7 +405,7 @@ class Segment:
 
     input_lines = self.input_str.splitlines()
     inpos = 0
-    with io.StringIO() as prompt_lines:
+    with StringIO() as prompt_lines:
       for outline in self.output_actual.splitlines():
         if inpos < len(input_lines) and outline==input_lines[inpos]:
           outline = f"{self.prompt} {outline}"
@@ -413,7 +416,7 @@ class Segment:
   def set_input_str(self):
     """Creates input_str by extracting prompt lines from session"""
     prompt_len = len(self.prompt)
-    with io.StringIO() as instr:
+    with StringIO() as instr:
       for line in self.session.splitlines():
         if line.startswith(self.prompt):
           writeline(instr, line[prompt_len:].lstrip())
@@ -423,7 +426,7 @@ class Segment:
 
   def set_output_expect(self):
     """Sets the expected output based on the session"""
-    with io.StringIO() as out:
+    with StringIO() as out:
       for line in self.session.splitlines():
         if not line.startswith("#+TESTY_EOF"):  # exclude lines that signal end of input
           writeline(out,line)
@@ -523,7 +526,7 @@ class Segment:
     if not self.use_valgrind:
       return
     val_prefix = f"=={self.pid}=="
-    with io.StringIO() as out_lines, io.StringIO() as val_lines:
+    with StringIO() as out_lines, StringIO() as val_lines:
       for line in self.output_actual.splitlines():
         if line.startswith(val_prefix):
           writeline(val_lines,line)
@@ -744,7 +747,7 @@ def sbs_diff(align,alines,blines,
   """Create a side-by-side diff string from an alignment"""
   awidth = max(len(x) for x in alines)
   bwidth = max(len(x) for x in blines)
-  with io.StringIO() as diff:
+  with StringIO() as diff:
     if titles != (None,None):
       writeline(diff,f'{titles[0]:{awidth}}   {titles[1]:{bwidth}}')
     for (ai,bj,tag,_) in align:
@@ -769,7 +772,7 @@ def lbl_diff(align,alines,blines, titles=("OLD","NEW")):
   """
   (atit,btit) = (titles[0],titles[1])
   twidth = max(len(atit),len(btit))
-  with io.StringIO() as diff:
+  with StringIO() as diff:
     for (ai,bj,tag,_) in align:                  # ignore equal, ins/del blank as these
       if tag=="delete":                          # are not the source of failures
         writeline(diff,f"{atit:<{twidth}} {ai+1:>3d}) {alines[ai]}")
@@ -926,7 +929,7 @@ class OrgSuiteParser:
   def parse_suite_preamble(self, preamble, filepos):
     """Preamble parsing preceding the first test of org file tests"""
     suite = Suite()
-    with io.StringIO() as comments:             # comment lines accumulated in the preamble
+    with StringIO() as desc, StringIO() as desc_full: 
       for line in preamble.splitlines():
         filepos.linenum += 1                    # track line number for error reporting
         (first,rest) = ("",line)
@@ -945,9 +948,13 @@ class OrgSuiteParser:
           else:
             suite.test_opts[key] = val
             log.debug(f"[{key}={val}] test/segment option set in file preamble")
-        elif len(line)==0 or line[0]!="#":      # org-comments are ignored
-          writeline(comments,line)              # not a directive or key val, append to comments
-      suite.comments = comments.getvalue().strip()
+        elif len(line)>0 and line[0]!="#":      # non org-comments added to description
+          writeline(desc,line)                  # and full description
+          writeline(desc_full,line)
+        else:                                   # add everything else to only full-description
+          writeline(desc_full,line)             # including org-style # comments
+      suite.description = desc.getvalue().strip()
+      suite.description_full = desc_full.getvalue().strip()
       suite.honor_envvars()                     # override premable opts with environment vars
       return suite
 
@@ -990,7 +997,7 @@ class OrgSuiteParser:
     (preamble,token1,session) = \
       re.split(seg_regex, content)                       # used to alter the session program
 
-    with io.StringIO() as comments:                      # handle the preamble, comments and
+    with StringIO() as desc, StringIO() as desc_full:    # handle the preamble, comments and
       for line in preamble.splitlines():                 # prior to the first test
         filepos.linenum += 1
         (first,rest) = ("",line)
@@ -1003,9 +1010,13 @@ class OrgSuiteParser:
           (key,val) = get_keyval(rest,locals())          # raises exception if badly formatted
           segment.__dict__[key] = val
           log.debug(f"[{key}={val}] segment option set in segment preamble")
-        else:
-          writeline(comments,line)
-      segment.comments = comments.getvalue().strip()     # eliminate beg/end blanks comments
+        elif len(line)>0 and line[0]!="#":      # non org-comments added to description
+          writeline(desc,line)                  # and full description
+          writeline(desc_full,line)
+        else:                                   # add everything else to only full-description
+          writeline(desc_full,line)             # including org-style # comments
+      segment.description = desc.getvalue().strip()      # eliminate beg/end blanks comments
+      segment.description_full = desc_full.getvalue().strip()
 
     filepos.linenum += 1                                 # accounts for beginning token
     if not token1.upper().startswith("#+BEGIN_SRC"):     # not a program-based session
@@ -1042,8 +1053,8 @@ class OrgSuiteParser:
     with open(fname,'w') as out:
       if suite.title:
         writeline(out,f'#+TITLE: {suite.title}')
-      if suite.comments:
-        writeline(out,suite.comments)
+      if suite.description_full:
+        writeline(out,suite.description_full)
         writeline(out,"")
       for k in suite_fields:
         if suite.__dict__[k] != def_suite.__dict__[k]:
@@ -1057,8 +1068,8 @@ class OrgSuiteParser:
       for test in suite.tests_torun:
         title = test.title or 'Test'
         writeline(out,f'* {title}')
-        if test.comments:
-          writeline(out,test.comments)
+        if test.description_full:
+          writeline(out,test.description_full)
         for k in test_fields:
           if test.__dict__[k] != def_test.__dict__[k]:
             writeline(out,f'#+TESTY: {k}={repr(test.__dict__[k])}')
@@ -1068,8 +1079,8 @@ class OrgSuiteParser:
           if len(test.segments) > 1 or seg.title:
             title = seg.title or 'Segment'
             writeline(out,f'** {title}')
-          if seg.comments:
-            writeline(out,seg.comments)
+          if seg.description_full:
+            writeline(out,seg.description_full)
           for k in seg_fields:
             if seg.__dict__[k] != def_seg.__dict__[k]:
               writeline(out,f'#+TESTY: {k}={repr(seg.__dict__[k])}')
@@ -1251,16 +1262,19 @@ class OrgResultFormatter(ResultFormatter):
     if len(test.segments) != 1:
       raise Exception(f"test {test.testnum} has {len(test.segments)}, can't format it")
 
-    res = io.StringIO()
+    res = StringIO()
     okfail = "ok" if test.passed else "FAIL"
     seg = test.segments[0]
     writeline(res, f'* (TEST {test.testnum}) {test.title} : {okfail}')
     writeline(res, f'** COMMENTS')
-    if test.comments:
-      writeline(res, f'{test.comments}')
-    writeline(res, f'{seg.comments}')
+    if test.description:
+      writeline(res, f'{test.description}\n')
+    writeline(res, f'{seg.description}\n')
 
     writeline(res, f'** PROGRAM: {seg.program}')
+    if seg.test_directory:
+      writeline(res, f'Test Directory: {seg.test_directory}')
+      writeline(res, f'Change to this directory to see test data\n')
     writeline(res, f'To run this individual test in GDB use the command:')
     writeline(res, f'  gdb --args {seg.program}')
     writeline(res, f'but any input to the program must be typed within the debugger')
@@ -1318,11 +1332,11 @@ class OrgResultFormatter(ResultFormatter):
   def multiple_seg_test_result(self,test):
     """Add results to multiple-segment test; segment results are nested"""
     failseg = None
-    res = io.StringIO()
+    res = StringIO()
     okfail = "ok" if test.passed else "FAIL"
     writeline(res, f'* (TEST {test.testnum}) {test.title} : {okfail}')
     writeline(res, f'** COMMENTS')
-    writeline(res, f'{test.comments}')
+    writeline(res, f'{test.description}')
     writeline(res, f'')
 
     for (segi,seg) in enumerate(test.segments):
@@ -1400,14 +1414,13 @@ class OrgResultFormatter(ResultFormatter):
 
   def add_suite_result(self,suite):
     """Add overall result in Org format to suite"""
-    res = io.StringIO()
-    writeline(res, f'#+TITLE: {suite.title} Results')
-    writeline(res, f'{suite.comments}')
-    writeline(res, f'')
-    for test in suite.tests_torun:
-      writeline(res, test.result)
-    suite.result = res.getvalue()
-    res.close()
+    with StringIO() as res:
+      writeline(res, f'#+TITLE: {suite.title} Results')
+      writeline(res, f'{suite.description}')
+      writeline(res, f'')
+      for test in suite.tests_torun:
+        writeline(res, test.result)
+      suite.result = res.getvalue()
 
   def make_suite_result_file(self,suite):
     """Create a Org result file for the entire suite"""
