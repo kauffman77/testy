@@ -2,17 +2,20 @@
 #+title: Development Notes / Tasks for Testy
 #+SEQ_TODO: TODO | DONE FORWARDED CANCELLED
 
-* TODO Additional Features / Testing for Python Version
-- [ ] Test parallel execution of testyp with MPI especially with
-  Valgrind, see 5451 examples from S2023
-- [ ] TESTY_MULTI design and implementation within testyp, Revisit the
-  architecture interplay between testy-single and testy-multi: the
-  single case is quite complex due to sharing infrastructure with
-  multi in the Bash version and I'd like something a little simpler
-- [ ] Signal support within tests for testyp
-- [ ] testy-regen internal support with testyp. Should be possible to
-  support multi-part tests now and this would make regeneration a lot
-  easier
+* Additional Features / Testing for Python Version
+** TODO Python MPI Program Compatibility
+Test python version on mpi programs MPI especially with
+Valgrind, see 5451 examples from S2023
+
+** TODO Python TESTY_MULTI Support
+Design and implementation within testyp for testing multiple
+programs. Revisit the architecture interplay between testy-single
+and testy-multi: the single case is quite complex due to sharing
+infrastructure with multi in the Bash version and I'd like something
+a little simpler
+
+** TODO Python Signal support within tests for testyp
+May wish to send signals but add as needed
 
 * Comparing Length of Bash vs Python version
 Line comparison at v0.7
@@ -50,7 +53,7 @@ val (master) [testy]% cat testyp | grep -v '^ *$\|^ *#' | awk '/^ *"""/{S=1} !S{
   version
 
 * Completed
-** DONE Completed General Improvements
+** DONE Completed General Improvements for Bash testy
 - Add message on how to run test with interactive input in GDB, now
   possible as input for single tests is in a file
 - Fix valgrind naming bug introduced after merge of single/multi test
@@ -433,7 +436,7 @@ done
 Multiprocessing within python was straight-forward and efficient
 enough. No longer needed unless someone is totally keen on
 implementing a bash version
-** CANCELLED Bad File Descriptors
+** CANCELLED Bash Bad File Descriptors
 When programs in a TESTY_MULTI session segfault, sometimes get bad
 file descriptors during reads in testy itself which leads to errors
 printing. Not sure how this could be happening so will need to do some
@@ -1081,4 +1084,13 @@ sys	0m7.787s
   a seen in user / system: data must be pickled, set over, etc.
 - Still, very easy to implement and gets the time savings we are
   interested in
+
+** DONE Test Regeneration in testyp
+testy-regen internal support with testyp. Should be possible to
+support multi-part tests now and this would make regeneration a lot
+easier
+
+*** Resolution Wed Jun 19 10:33:56 AM EDT 2024 
+Completed and after recognizing that preambles should be saved, was
+very clean and easy overall
 
