@@ -59,11 +59,11 @@ SIGNAL_DESCRIPTIONS = {
    8 : "<SIGFPE> : arithmetic error, usually INTEGER DIVISION BY 0",
    9 : "<SIGKILL> : killed by explicit request, usually initiated by user possibly due to timeouts / excessive output",
   10 : "<SIGUSR1> : user-defined signal",
-  11 : "<SIGSEGV> : SEGMENTATION FAULT, memory problem such as out-bounds access",
+  11 : "<SIGSEGV> : SEGMENTATION FAULT, memory problem such as out-of-bounds access",
   12 : "<SIGUSR2> : user-defined signal",
   13 : "<SIGPIPE> : communication through a pipe that was cut off",
   14 : "<SIGALRM> : alarm expired in program",
-  15 : "<SIGTERM> : termination explicitly requested, usually inititad by user",
+  15 : "<SIGTERM> : termination explicitly requested, usually initiated by user",
 }
 """Dict of signal numbers to descriptions"""
 
@@ -218,7 +218,7 @@ class Suite:
 class Test:
   """Encapsulates a single test which may have multiple segments"""
 
-  def __init__(self):
+  def __init__(self,options={}):
     """Initialize a default empty Test"""
     # these fields are set during parsing / initialization
     self.title = None                  # title of the test
@@ -241,6 +241,12 @@ class Test:
     # these fields are set during formatting
     self.result = None                 # formatted result for test, usually a string but may be anythingthe formatter finds usesful
     self.result_filename = None        # file where result for the test is stored, None if no file has been created
+
+    # propagate fields from options to object
+    for key,val in options.items():
+      if key in self.__dict__:
+        self.__dict__[key] = val
+
 
   def run(self):
     """Run this test to see if it it passes"""
@@ -271,7 +277,7 @@ class Segment:
   in the test along with its output.
   """
 
-  def __init__(self):
+  def __init__(self,options=None):
     """Initialize a default empty test Segment"""
 
     # these fields are obtained from parsing / initializing the segment
@@ -315,6 +321,11 @@ class Segment:
     self.maxed_out = None              # True if segment produced more output than max_output_bytes
     self.passed = None                 # True for pass, False for fail, None for not run yet
 
+    # propagate fields from options to object
+    for key,val in options.items():
+      if key in self.__dict__:
+        self.__dict__[key] = val
+
   def run(self):
     """Run an individual segment"""
     # Aiming to avoid any directory creation, file creation, etc.
@@ -353,6 +364,10 @@ class Segment:
     subp.wait()                                 # should return almost immediately
 
     self.retcode = subp.returncode
+    if self.retcode<0:                          # if signalled, append a message to output
+      signum = -self.retcode                    # indicating as much
+      sigdesc = SIGNAL_DESCRIPTIONS.get(signum,"")
+      stdout = f'{stdout}\nSignal {signum} {sigdesc}'
     self.timed_out = timed_out
     self.maxed_out = maxed_out
     self.output_original = stdout
@@ -748,7 +763,7 @@ def sbs_diff(align,alines,blines,
 
 
 def lbl_diff(align,alines,blines, titles=("OLD","NEW")):
-  """Create a line-by-line diff showing only non-matching lines from alingment
+  """Create a line-by-line diff showing only non-matching lines from alignment
 
   The comparison is literally line-by-line rather than block-by-block as is the case 
   """
@@ -765,6 +780,8 @@ def lbl_diff(align,alines,blines, titles=("OLD","NEW")):
       elif tag=="replace":
         writeline(diff,f"{atit:<{twidth}} {ai+1:>3d}) {alines[ai]}")
         writeline(diff,f"{btit:<{twidth}} {bj+1:>3d}) {blines[bj]}")
+      if tag in {'delete','insert','replace'}:
+        writeline(diff,'')
     return diff.getvalue()
 
 
@@ -784,19 +801,7 @@ def get_keyval(string,localenv):
     val = eval(val,localenv)
   except Exception as e:
     raise ParseError(f"[{string}] is not valid syntax for right-hand side") from e
-  # if val[0] in """\"\'""":      # check for leading quotes in val
-  #   if val[-1] != val[0]:       # ensure the quoting is complete, error otherwise
-  #     raise ParseError(f"key=value string [{string}] has an unterminated quote")
-  #   val = val[1:-1]             # quoted properly so peel quotes off of value
   return (key,val)
-
-def propagate_fields(obj, options):
-  """If any field of obj has a key in options, set that field to the
-  associated value in options
-  """
-  for key,val in options.items():
-    if key in obj.__dict__:
-      obj.__dict__[key] = val
 
 def slurp(filename):
   """Read an entire file into memory"""
@@ -949,16 +954,14 @@ class OrgSuiteParser:
 
   def parse_test(self,test_title,content,opts,filepos):
     """Parse a single test from org test file"""
-    test = Test()
+    test = Test(opts)
     test.title = test_title[2:-1]                            # remove "* " and newline
     filepos.linenum += 1
     test.linenum = filepos.linenum
     test.filename = filepos.filename
-
-    propagate_fields(test,opts)
+    # propagate_fields(test,opts)
 
     # TODO Handle :PROPERTIES: drawer here
-
     seg_regex = re.compile(r"^#\+(?:END_SRC|END_QUOTE).*\n", # split on ending tokens for
                            re.MULTILINE | re.IGNORECASE)     # segments; note that a line
     seg_contents = re.split(seg_regex, content)              # is excised from resulting list
@@ -977,8 +980,8 @@ class OrgSuiteParser:
     """Parse a single segment from org test file"""
     # TODO: Handle TESTY_RERUN directive somehow...
 
-    segment = Segment()
-    propagate_fields(segment,opts)
+    segment = Segment(opts)
+    # propagate_fields(segment,opts)
     segment.linenum = filepos.linenum+1                  # first line of segment is next
 
     seg_regexs = r"(^#\+(?:BEGIN_SRC|BEGIN_QUOTE).*\n)"  # split content into premable/session;
@@ -1020,10 +1023,10 @@ class OrgSuiteParser:
     to produce expected results.
     """
     def_suite = Suite()                                  # defaults structs to determine
-    def_test = Test()                                    # deviations from defaults
-    propagate_fields(def_test, suite.test_opts)
-    def_seg  = Segment()
-    propagate_fields(def_seg, suite.test_opts)
+    def_test = Test(suite.test_opts)                     # deviations from defaults
+    # propagate_fields(def_test, suite.test_opts)
+    def_seg  = Segment(suite.test_opts)
+    # propagate_fields(def_seg, suite.test_opts)
 
     suite_fields = {'use_points','points_scale'}         # fields to honor and place in regenerated test
     test_fields = {'points','test_directory','make_result_file',
@@ -1079,15 +1082,8 @@ class OrgSuiteParser:
         # end seg loop
       # end test loop
     # end with file
-          
-            
-            
-
-      
 
 ################################################################################
-
-
 ### Progress reporting
 
 class ProgressReporter:
@@ -1304,7 +1300,7 @@ class OrgResultFormatter(ResultFormatter):
       writeline(res, f'which may be pasted onto a command line to run it.')
       writeline(res, f'')
       writeline(res, f'#+BEGIN_SRC text')
-      writeline(res, f'{seg.output_valgrind}')
+      writeline(res, f'{seg.output_valgrind}',end='')
       writeline(res, f'#+END_SRC')
       writeline(res, f'')
 
@@ -1365,7 +1361,7 @@ class OrgResultFormatter(ResultFormatter):
         writeline(res, f'which may be pasted onto a command line to run it.')
         writeline(res, f'')
         writeline(res, f'#+BEGIN_SRC text')
-        writeline(res, f'{seg.output_valgrind}')
+        writeline(res, f'{seg.output_valgrind}',end='')
         writeline(res, f'#+END_SRC')
         writeline(res, f'')
       if not seg.passed:          # segments beyond first failure
@@ -1475,8 +1471,9 @@ def main(cmd_args):
                          choices=list(PROGRESS_TYPES.keys()),
                          help="Select progress style reporting")
   argparser.add_argument("-s","--short",dest="progress",action="store_const",const="short",
-                         help="Report progress in short form (. for pass, F for fail)")
+                         help="Report progress in short form: . for pass, F for fail")
   argparser.add_argument("-r","--regen",action="store",default=None,
+                         metavar="<testfile>",
                          help="Regenerate the given test file using actual results, store in given file ")
   argparser.add_argument("testfile",metavar="testfile",
                          help="File containing tests (default org format)")
