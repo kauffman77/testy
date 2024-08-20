@@ -351,8 +351,8 @@ class Segment:
     subp = Popen(self.full_program,             # start a subprocess to run the tested program
                  stdin=PIPE, stdout=PIPE,       # communicate with pipes
                  stderr=STDOUT,                 # merge stderr with stdout
-                 bufsize=0, text=True,          # limit buffering : is this a good idea?
-                 # shell=True,
+                 bufsize=0,                     # limit buffering : is this a good idea?
+                 # text=True,                   # text=True not available in python 3.6
                  encoding=out_encoding,         # optionally transform output
                  errors=out_errors)             # and suppress / catch errors
     self.pid = subp.pid
