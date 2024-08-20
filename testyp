@@ -776,9 +776,9 @@ def lbl_diff(align,alines,blines, titles=("OLD","NEW")):
     for (ai,bj,tag,_) in align:                  # ignore equal, ins/del blank as these
       if tag=="delete":                          # are not the source of failures
         writeline(diff,f"{atit:<{twidth}} {ai+1:>3d}) {alines[ai]}")
-        writeline(diff,f"{btit:<{twidth}} {"--":>3}) ")
+        writeline(diff,f"{btit:<{twidth}} {'--':>3}) ")
       elif tag=="insert":
-        writeline(diff,f"{atit:<{twidth}} {"--":>3}) ")
+        writeline(diff,f"{atit:<{twidth}} {'--':>3}) ")
         writeline(diff,f"{btit:<{twidth}} {bj+1:>3d}) {blines[bj]}")
       elif tag=="replace":
         writeline(diff,f"{atit:<{twidth}} {ai+1:>3d}) {alines[ai]}")
