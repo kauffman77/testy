@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Release: Tue Aug 20 09:41:06 AM EDT 2024
+# Release: Thu Sep  5 03:28:04 PM EDT 2024
 """Testy: run test cases on command line programs"""
 
 ### Imports
@@ -70,6 +70,7 @@ SIGNAL_DESCRIPTIONS = {
 
 ENVVARS_HONORED = {
   "show",
+  "showfail",
   "single_show_fail",
   "overall_result_file",
   "results_dir",
@@ -103,7 +104,8 @@ class Suite:
     self.use_points = False            # True if points should be used
     self.points_possible = 0           # total possible points if points are in use, set during parsing
     self.points_scale = 1.0            # Set to a float scaling factor points should be scaled (e.t. 0.5 to halve everything)
-    self.show = False                  # True means print all results on from all tests on the command line; defaults to true for single tests
+    self.show = False                  # True means print all results on from all tests on the command line
+    self.showfail = False              # True means print all failing results on the command line
     self.single_show_fail = True       # True means print test results when a single test is run and fails
     self.filename = None               # filename from which the suite came from or None if not from a file
     self.overall_result_file = False   # True produce an overall result file
@@ -317,6 +319,7 @@ class Segment:
     self.output_original = None        # original program output prior to applying post_filter, None if no post filter is used
     self.output_valgrind = None        # output from Valgrind when in use
     self.sbs_diff = None               # side-by-side diff
+    self.sbs_diff_key = None           # string showing meaning of symbols in side-by-side diff
     self.lbl_diff = None               # line-by-line diff
     self.diff_passed = None            # True if the diff passed, false otherwise
     self.retcode = None                # exit/return code of process that was run
@@ -1480,8 +1483,16 @@ def main(cmd_args):
 
   if suite.show:                                       # Should this be part of progress reporter?
     print()
-    print("---- Showing Testing Results -----")
+    print("---- Showing All Test Results -----")
     print(suite.result)
+  elif suite.showfail:
+    failed_tests = [t for t in suite.tests_torun if t.passed == False]
+    if failed_tests:
+      print()
+      print("---- Showing Failed Test Results -----")
+      for test in failed_tests:
+        print(test.result)
+        print()
   elif suite.single_show_fail and len(suite.tests_torun)==1:
     test = suite.tests_torun[0]
     if not test.passed:
