@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Release: Thu Sep  5 03:28:04 PM EDT 2024
+# Release: Sat Sep  7 11:30:28 AM EDT 2024
 """Testy: run test cases on command line programs"""
 
 ### Imports
@@ -749,8 +749,11 @@ def sbs_diff(align,alines,blines,
              sym_delete='<',sym_insert='>',
              sym_delblank='(', sym_insblank=')'):
   """Create a side-by-side diff string from an alignment"""
-  awidth = max(len(x) for x in alines)
-  bwidth = max(len(x) for x in blines)
+  awidth = max((len(x) for x in alines), default=0)
+  bwidth = max((len(x) for x in blines), default=0)
+  if titles != (None,None):
+    awidth = max(awidth,len(titles[0]))
+    bwidth = max(bwidth,len(titles[1]))
   with StringIO() as diff:
     if titles != (None,None):
       writeline(diff,f'{titles[0]:{awidth}}   {titles[1]:{bwidth}}')
@@ -1298,6 +1301,8 @@ class OrgResultFormatter(ResultFormatter):
     for (segi,seg) in enumerate(test.segments):
       okfail = "ok" if seg.passed else "FAIL"
       writeline(res, f'** Test Segment {segi+1} : {okfail}')
+      if seg.description:
+        writeline(res, seg.description)
       writeline(res, f'')
       writeline(res, f'*** PROGRAM: {seg.program}')
       writeline(res, f'To run this individual test in GDB use the command:')
