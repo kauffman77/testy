@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Release: Sat Sep  7 11:30:28 AM EDT 2024
+# Release: Sat Sep  7 12:33:10 PM EDT 2024
 """Testy: run test cases on command line programs"""
 
 ### Imports
@@ -1030,9 +1030,9 @@ class OrgSuiteParser:
   def regen_file(self, fname, suite):
     """Regenerate org test file based on results in suite
 
-    Creates a new test file with all sessions based on the
-    output_actual of the given suite. Allows a solution program
-    to produce expected results.
+    Creates a new test file with all segments based on the
+    output_actual of the given suite. Allows a solution program to
+    produce expected results.
     """
     with open(fname,'w') as out:
       writeline(out,suite.preamble,end='')
@@ -1211,7 +1211,8 @@ class ResultFormatter:
         break
 
 class OrgResultFormatter(ResultFormatter):
-  """Create Org output.Suite result is just a concatenation for all results."""
+  """Create Org output.  Suite result is just a concatenation for all
+  results."""
 
   def __init__(self,suite):
     """Initialize any state needed based on the suite"""
@@ -1393,12 +1394,227 @@ class OrgResultFormatter(ResultFormatter):
       f.write(suite.result)
   
 ################################################################################
+
+
+def md_write_heading(stringio,level,heading):
+  """Write an underlined heading in markdown format. The length of the
+  underlining is dictated by level with 1 and 2 being underlined with
+  = and - respectively followed by a linebreak and lower levels having
+  an appropriate number of # characters prefixed."""
+
+  if level <= 0:
+    raise Exception(f'Level {level} headlines not supported')
+  elif level > 2:
+    writeline(stringio, f'{"#"*level} {heading}')
+  else:
+    underline = "="             # level 1 underline
+    if level > 1:
+      underline = '-'           # level 2 underline
+    writeline(stringio, heading)
+    writeline(stringio, underline*len(heading))
+    if level==1:
+      writeline(stringio, '')
+  
+class MarkdownResultFormatter(ResultFormatter):
+  """Create Markdown output.  Suite result is just a concatenation for
+  all results. This version favors 'underlined' headlines to make them
+  stand out more when shown in terminal output.
+  """
+
+  def __init__(self,suite):
+    """Initialize any state needed based on the suite"""
+
+  def single_seg_test_result(self,test):
+    """Add results to a single-segment test; segment results are not nested"""
+    if len(test.segments) != 1:
+      raise Exception(f"test {test.testnum} has {len(test.segments)}, can't format it")
+
+    res = StringIO()
+    okfail = "ok" if test.passed else "FAIL"
+    seg = test.segments[0]
+
+    md_write_heading(res,1,f'(TEST {test.testnum}) {test.title} : {okfail}')
+    md_write_heading(res,2,f'COMMENTS')
+    if test.description:
+      writeline(res, f'{test.description}\n')
+    writeline(res, f'{seg.description}\n')
+
+    md_write_heading(res,2,f'PROGRAM: {seg.program}')
+    if seg.test_directory:
+      writeline(res, f'Test Directory: {seg.test_directory}')
+      writeline(res, f'Change to this directory to see test data\n')
+    writeline(res, f'To run this individual test in GDB use the command:')
+    writeline(res, f'  gdb --args {seg.program}')
+    writeline(res, f'but any input to the program must be typed within the debugger')
+    writeline(res, '')
+
+    md_write_heading(res,2,f'FAILURE MESSAGES')
+    for msg in seg.messages:
+      writeline(res, f'- {msg}')
+    if not seg.messages:
+      writeline(res, f'None')
+    writeline(res, f'')
+
+    md_write_heading(res,2,f'SIDE-BY-SIDE DIFF of Expected vs Actual')
+    writeline(res, f'{seg.sbs_diff_key}')
+    writeline(res, f'')
+    writeline(res, f'```sdiff')
+    writeline(res, f'{seg.sbs_diff}')
+    writeline(res, f'```')
+    writeline(res, f'')
+
+    md_write_heading(res,2,f'LINE-BY-LINE DIFF of Expected vs Actual')
+    if not seg.lbl_diff:
+      writeline(res, f'No differences found')
+    else:
+      writeline(res, f'```')
+      writeline(res, f'{seg.lbl_diff}',end="")
+      writeline(res, f'```')
+    writeline(res, f'')
+    
+    if not seg.use_valgrind:
+      md_write_heading(res,2,f'VALGRIND Not in Use')
+    else:
+      fullprog = " ".join(seg.full_program)
+      md_write_heading(res,2,f'VALGRIND REPORT')
+      writeline(res, f'The program is run on under valgrind as')
+      writeline(res, f'  {fullprog}')
+      writeline(res, f'which may be pasted onto a command line to run it.')
+      writeline(res, f'')
+      writeline(res, f'```')
+      writeline(res, f'{seg.output_valgrind}',end='')
+      writeline(res, f'```')
+      writeline(res, f'')
+
+    md_write_heading(res,2,f'SUMMARY')
+    if test.passed:
+      writeline(res, f'Test Passed')
+    else:
+      writeline(res, f'Test FAILED for the following reasons')
+      for msg in seg.messages:
+        writeline(res, f'- {msg}')
+
+    test.result = res.getvalue()
+    res.close()
+
+  def multiple_seg_test_result(self,test):
+    """Add results to multiple-segment test; segment results are nested"""
+    failseg = None
+    res = StringIO()
+    okfail = "ok" if test.passed else "FAIL"
+    md_write_heading(res,1,f'(TEST {test.testnum}) {test.title} : {okfail}')
+    md_write_heading(res,2,f'COMMENTS')
+    writeline(res, f'{test.description}')
+    writeline(res, f'')
+
+    for (segi,seg) in enumerate(test.segments):
+      okfail = "ok" if seg.passed else "FAIL"
+      md_write_heading(res,2,f'Test Segment {segi+1} : {okfail}')
+      if seg.description:
+        writeline(res, seg.description)
+      writeline(res, f'')
+      md_write_heading(res,3,f'PROGRAM: {seg.program}')
+      writeline(res, f'To run this individual test in GDB use the command:')
+      writeline(res, f'gdb --args {seg.program}')
+      writeline(res, f'but any input to the program must be typed within the debugger')
+      writeline(res, f'')
+
+      md_write_heading(res,3,f'FAILURE MESSAGES')
+      for msg in seg.messages:
+        writeline(res, f'- {msg}')
+      if not seg.messages:
+        writeline(res, f'None')
+      writeline(res, f'')
+
+      md_write_heading(res,3,f'SIDE-BY-SIDE DIFF of Expected vs Actual')
+      writeline(res, f'{seg.sbs_diff_key}')
+      writeline(res, f'')
+      writeline(res, f'```sdiff')
+      writeline(res, f'{seg.sbs_diff}')
+      writeline(res, f'```')
+      writeline(res, f'')
+      # TODO: get line-by-line differences
+
+      if not seg.use_valgrind:
+        md_write_heading(res,3,f'VALGRIND Not in Use')
+      else:
+        fullprog = " ".join(seg.full_program)
+        md_write_heading(res,3,f'VALGRIND REPORT')
+        writeline(res, f'The program is run on under valgrind as')
+        writeline(res, f'{fullprog}')
+        writeline(res, f'which may be pasted onto a command line to run it.')
+        writeline(res, f'')
+        writeline(res, f'```')
+        writeline(res, f'{seg.output_valgrind}',end='')
+        writeline(res, f'```')
+      writeline(res, f'')
+
+      if not seg.passed:          # segments beyond first failure
+        failseg = seg
+        break                     # will not have been run
+    # END loop over segments
+
+    md_write_heading(res,3,f'SUMMARY')
+    if test.passed:
+      writeline(res, f'Test Passed')
+    else:
+      writeline(res, f'Test FAILED for the following reasons')
+      for msg in failseg.messages:
+        writeline(res, f'- {msg}')
+
+    test.result = res.getvalue()
+    res.close()
+
+  def add_test_result(self,test):
+    """Create Org formatted output for this test"""
+    if len(test.segments)==1:
+      self.single_seg_test_result(test)
+    else:
+      self.multiple_seg_test_result(test)
+  
+  def make_test_result_file(self,test):
+    """Create an Org result file for this individual test if indicated by its fields"""
+    # TODO: Add creation of raw files if requsted
+    if not test.make_result_file:
+      return
+    subprocess.run(['mkdir','-p',test.results_dir],check=True)  # ensure results diretory is present
+    fname = f'{test.prefix}-{test.testnum:02d}-result.md'
+    test.result_filename = os.path.join(test.results_dir, fname)
+    with open(test.result_filename,'w') as f:
+      f.write(test.result)
+
+  def add_suite_result(self,suite):
+    """Add overall result in Org format to suite"""
+    with StringIO() as res:
+      md_write_heading(res,1,f'{suite.title} Results')
+      writeline(res, f'{suite.description}')
+      writeline(res, f'')
+      for test in suite.tests_torun:
+        writeline(res, test.result)
+      suite.result = res.getvalue()
+
+  def make_suite_result_file(self,suite):
+    """Create a Org result file for the entire suite"""
+    if not suite.overall_result_file:
+      return
+    basename = os.path.splitext(suite.filename)[0]  # remove extension
+    suite.result_filename = f'{basename}-results.md'
+    with open(suite.result_filename,'w') as f:
+      f.write(suite.result)
+  
+################################################################################
 ### Junk that can be ignored
 
 ################################################################################
 ### Main() setup
 PARSER_TYPES = {
   "org" : OrgSuiteParser()
+}
+"""mapping of file types to parsers"""
+
+OUTPUT_TYPES = {
+  "org" : (lambda suite : OrgResultFormater(suite)),
+  "md"  : (lambda suite : MarkdownResultFormatter(suite)),
 }
 """mapping of file types to parsers"""
 
@@ -1441,6 +1657,9 @@ def main(cmd_args):
   argparser.add_argument("-t","--input_type",default="org",action="store",
                          choices=list(PARSER_TYPES.keys()),
                          help="Specify the test input file type")
+  argparser.add_argument("-o","--output_type",default="org",action="store",
+                         choices=list(OUTPUT_TYPES.keys()),
+                         help="Specify the test results output file type")
   argparser.add_argument("-p","--progress",action="store",default="line",
                          choices=list(PROGRESS_TYPES.keys()),
                          help="Select progress style reporting")
@@ -1472,7 +1691,7 @@ def main(cmd_args):
     log.debug(f"Selected following tests: {testnums_torun}")
     suite.tests_torun = [suite.tests[i] for i in testnums_torun]
     progress_reporter = PROGRESS_TYPES[args.progress](suite)
-    result_formatter = OrgResultFormatter(suite)
+    result_formatter = OUTPUT_TYPES[args.output_type](suite)
     log.debug(f"Running suite")
     suite.run(progress_reporter, result_formatter)
     if args.regen:
