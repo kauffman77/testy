@@ -1689,6 +1689,10 @@ def main(cmd_args):
     suite = suite_parser.parse_file(args.testfile)
     testnums_torun = args.testnums or list(range(1,len(suite.tests)+1))
     log.debug(f"Selected following tests: {testnums_torun}")
+    for i in testnums_torun:
+      if i <= 0 or i > len(suite.tests):
+        msg = f"'{args.testfile}' has {len(suite.tests)} tests, {i} is out of bounds"
+        raise ParseError(msg)
     suite.tests_torun = [suite.tests[i] for i in testnums_torun]
     progress_reporter = PROGRESS_TYPES[args.progress](suite)
     result_formatter = OUTPUT_TYPES[args.output_type](suite)
