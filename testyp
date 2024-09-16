@@ -110,6 +110,7 @@ class Suite:
     self.filename = None               # filename from which the suite came from or None if not from a file
     self.overall_result_file = False   # True produce an overall result file
     self.parallel = False              # Set to int to use multiple procs or True/auto for max procs
+    self.regen = False                 # whether or not the suite is being regenerated
 
     # these fields are set during/after the suite evaluation
     self.passed_tests = 0              # total tests passed
@@ -118,6 +119,13 @@ class Suite:
     # these fields are set during formatting
     self.result = None                 # formatted result for test, usually a string but may be anythingthe formatter finds usesful
     self.result_filename = None        # file where result for the test is stored, None if no file has been created
+
+  def setup_regen(self):
+    """Toggle the regen field of thie suite and its tests to True so
+    that regenerated test results can be produced"""
+    self.regen = True
+    for t in self.tests.values():
+      t.regen = True
 
   def run(self, progress_reporter, result_formatter):
     """Run tests in this suite that are requested.
@@ -239,6 +247,7 @@ class Test:
     self.results_dir = "test-results"  # base directory for test results files
     self.save_rawfiles = False         # whether to retain any raw input/output files in the raw/ directory
     self.raw_dir = "raw"               # location of raw output files such as Valgrind logs, relative to results_dir (e.g. test-results/raw)
+    self.regen = False                 # whether or not the test result is being regenerated; True means run all segmenets
 
     # these fields are set during/after the test evaluation
     self.passed = None                 # True for pass, False for fail, None for not run yet
@@ -266,9 +275,10 @@ class Test:
     for (segi,seg) in enumerate(self.segments):
       log.debug(f"starting segment {segi}: {seg.title}")
       seg.run()
-      if not seg.passed:               # terminate test if segment fails
+      if not seg.passed:               # test segement failed
         self.passed = False            # mark test as failed
-        break
+        if not self.regen:             # not regenerated so quit the test; during regen all segments are run
+          break
     if self.test_directory:
       log.debug(f"returning to workdir: {workdir}")
       os.chdir(workdir)
@@ -928,6 +938,9 @@ class OrgSuiteParser:
         suite.points_possible += test.points
         suite.tests[testnum] = test
     except ParseError as e:
+      msg = f"{filepos.filename}:{filepos.linenum}: {str(e)}"
+      raise ParseError(msg) from e                       # decorate parsing errors position
+    except ValueError as e:
       msg = f"{filepos.filename}:{filepos.linenum}: {str(e)}"
       raise ParseError(msg) from e                       # decorate parsing errors position
     suite.filename = filename
@@ -1613,7 +1626,7 @@ PARSER_TYPES = {
 """mapping of file types to parsers"""
 
 OUTPUT_TYPES = {
-  "org" : (lambda suite : OrgResultFormater(suite)),
+  "org" : (lambda suite : OrgResultFormatter(suite)),
   "md"  : (lambda suite : MarkdownResultFormatter(suite)),
 }
 """mapping of file types to parsers"""
@@ -1687,6 +1700,8 @@ def main(cmd_args):
   try:
     log.debug(f"Parsing file {args.testfile}")
     suite = suite_parser.parse_file(args.testfile)
+    if args.regen:
+      suite.setup_regen()
     testnums_torun = args.testnums or list(range(1,len(suite.tests)+1))
     log.debug(f"Selected following tests: {testnums_torun}")
     for i in testnums_torun:
