@@ -602,6 +602,10 @@ def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
   zero_read_count = 0                    # number of times a read() of zero length occurs
   zero_read_limit = 5                    # reaching this number of 0 read counts terminates the input loop
 
+  to_bytes = None
+  if to_str:
+    to_bytes = bytes(to_str,'utf-8')
+
   (loop_count,write_count,read_count) = 0,0,0  # for debugging
   log.debug(f"communicate loop start: to_fd {to_fd.fileno()} from_fd {from_fd.fileno()} POLLIN {POLLIN} POLLOUT {POLLOUT} POLLERR {POLLERR} POLLHUP {POLLHUP}")
 
@@ -619,11 +623,11 @@ def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
     for (fd,event) in fileops:
       if (not to_fd.closed and                         # can write to other side
           fd==to_fd.fileno() and event&POLLOUT):
-        if to_pos < len(to_str):                       # have some left to write, do so
+        if to_bytes and to_pos < len(to_bytes):        # have some left to write, do so
           log.debug(f"to_fd {fd} ready; writing to it")
           write_count += 1
-          end_pos = min(len(to_str),to_pos+block_size)
-          to_pos += to_fd.write(to_str[to_pos:end_pos])
+          end_pos = min(len(to_bytes),to_pos+block_size)
+          to_pos += to_fd.write(to_bytes[to_pos:end_pos])
         else:                                          # IMPORTANT: close outward stream
           log.debug(f"to_fd {fd} ready but end of output; closing it")
           pollset.unregister(to_fd)                    # when all data written so the
