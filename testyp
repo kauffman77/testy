@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Release: Sat Sep  7 12:33:10 PM EDT 2024
+# Release: Mon Sep 16 01:56:46 PM EDT 2024
 """Testy: run test cases on command line programs"""
 
 ### Imports
@@ -13,7 +13,7 @@ import shutil                             # which, file copying, etc.
 import time                               # time.monotonic()
 import codecs                             # characeter coding translattions
 import select                             # poll
-from select import POLLIN,POLLOUT,POLLHUP #,POLLERR,POLLNVAL
+from select import POLLIN,POLLOUT,POLLHUP,POLLERR,POLLNVAL
 import subprocess                         # run() shell commands
 from subprocess import Popen,PIPE,STDOUT  # subprocess communication
 from difflib import SequenceMatcher       # diffing actual/expect output
@@ -356,22 +356,18 @@ class Segment:
     if self.passed is False:                    # already failed in setup
       return
 
-    out_encoding = None
-    out_errors = None
-    if self.force_ascii_output:                 # possibly transform output to ascii
-      out_encoding = 'ascii'
-      out_errors = 'as_question_marks'
-
+    # NOTE: Don't use any of Python's convenience functions to covert
+    # the stdin/out from raw bytes to strings; this leads to a
+    # buffered TextIOWrapper being used instead of plain read() calls
+    # and that can mess up the limited_communicate() function causing
+    # stalls on infinite loops or subtly missing I/O.
     subp = Popen(self.full_program,             # start a subprocess to run the tested program
                  stdin=PIPE, stdout=PIPE,       # communicate with pipes
                  stderr=STDOUT,                 # merge stderr with stdout
-                 bufsize=0,                     # limit buffering : is this a good idea?
-                 # text=True,                   # text=True not available in python 3.6
-                 encoding=out_encoding,         # optionally transform output
-                 errors=out_errors)             # and suppress / catch errors
+                 bufsize=0)                     # limit buffering to gain full control in poll()
     self.pid = subp.pid
     log.debug(f"started program PID {self.pid}: [{' '.join(self.full_program)}]")
-    (stdout,timed_out,maxed_out) = \
+    (stdout_bytes,timed_out,maxed_out) = \
       limited_communicate(subp,self.input_str,  # limit time/bytes for completion
                           timeout=self.timeout,
                           max_out_bytes=self.max_out_bytes)
@@ -381,14 +377,23 @@ class Segment:
     subp.wait()                                 # should return almost immediately
 
     self.retcode = subp.returncode
+    if self.force_ascii_output:                 # possibly transform output to ascii
+      out_encoding = 'ascii'
+      out_errors = 'as_question_marks'
+    else:
+      out_encoding = 'utf-8'
+      out_errors = 'as_question_marks'
+    stdout_str = stdout_bytes.decode(encoding=out_encoding, errors=out_errors);
+
     if self.retcode<0:                          # if signalled, append a message to output
       signum = -self.retcode                    # indicating as much
       sigdesc = SIGNAL_DESCRIPTIONS.get(signum,"")
-      stdout = f'{stdout}\nSignal {signum} {sigdesc}'
+      stdout_str = f'{stdout_str}\nSignal {signum} {sigdesc}'
     self.timed_out = timed_out
     self.maxed_out = maxed_out
-    self.output_original = stdout
-    self.output_actual = stdout
+
+    self.output_original = stdout_str
+    self.output_actual = stdout_str
     self.post_run_setup()                       # finalize remaining fields
     if self.test_directory:
       log.debug(f"returning to workdir: {workdir}")
@@ -580,6 +585,7 @@ def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
   """
   to_fd = subp.stdin
   from_fd = subp.stdout
+  log.debug(f"to_fd: {to_fd} from_fd: {from_fd}")
 
   poll_timeout_millis = 100              # timeout for poll calls
   block_size = 4096                      # size of blocks of data to communicate
@@ -588,55 +594,68 @@ def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
   pollset.register(to_fd,   POLLOUT)
   pollset.register(from_fd, POLLIN)
 
-  from_blocks = []                       # blocks read from from_fd
-  from_bytes = 0                         # total bytes read from from_fd
+  from_bytes = bytearray()               # blocks read from from_fd
   from_eof = False                       # reached tht end of from_fd
   total_time = 0.0                       # total time elapsed in the loop
   to_pos = 0                             # advancing position write in to_str
   beg_time = time.monotonic()            # start time of main loop
+  zero_read_count = 0                    # number of times a read() of zero length occurs
+  zero_read_limit = 5                    # reaching this number of 0 read counts terminates the input loop
 
   (loop_count,write_count,read_count) = 0,0,0  # for debugging
-  log.debug(f"communicate loop start")
-  while (not from_eof and                                       # other from still has data
-         (not timeout or total_time <= timeout) and             # still within timeout
-         (not max_out_bytes or from_bytes <= max_out_bytes)): # still under max bytes read
+  log.debug(f"communicate loop start: to_fd {to_fd.fileno()} from_fd {from_fd.fileno()} POLLIN {POLLIN} POLLOUT {POLLOUT} POLLERR {POLLERR} POLLHUP {POLLHUP}")
+
+  while (not from_eof and                                          # other from still has data
+         (not timeout or total_time <= timeout) and                # still within timeout
+         (not max_out_bytes or len(from_bytes) <= max_out_bytes)): # still under max bytes read
     loop_count += 1
     fileops = pollset.poll(poll_timeout_millis)
-    # print(fileops)
+    log.debug(f"fileops: {fileops}")
 
     # handle 1 event per loop, slightly less efficient than multiple
-    # events but avoids possilbe
+    # events BUT handling the POLLIN even first and then re-polling
+    # allows for easier checking of error conditions and ensures easy
+    # handling of the POLLIN even before POLLHUP
     for (fd,event) in fileops:
       if (not to_fd.closed and                         # can write to other side
-          fd==to_fd.fileno() and event&POLLOUT and     # and have some left to write
-          to_pos < len(to_str)):
-        write_count += 1
-        end_pos = min(len(to_str),to_pos+block_size)
-        to_pos += to_fd.write(to_str[to_pos:end_pos])
-        if to_pos >= len(to_str):                      # IMPORTANT: close outward stream
+          fd==to_fd.fileno() and event&POLLOUT):
+        if to_pos < len(to_str):                       # have some left to write, do so
+          log.debug(f"to_fd {fd} ready; writing to it")
+          write_count += 1
+          end_pos = min(len(to_str),to_pos+block_size)
+          to_pos += to_fd.write(to_str[to_pos:end_pos])
+        else:                                          # IMPORTANT: close outward stream
+          log.debug(f"to_fd {fd} ready but end of output; closing it")
           pollset.unregister(to_fd)                    # when all data written so the
           to_fd.close()                                # other side knows it's done
 
       elif fd==from_fd.fileno() and event&POLLIN:      # can read from inward stream
         read_count += 1
         block = from_fd.read(block_size)
-        if len(block)==0:                              # inward stream closed, terminate
-          from_eof = True                              # loop; possibly redundant
-        else:
-          from_blocks.append(block)
-          from_bytes += len(block)
+        from_bytes.extend(block)
+        log.debug(f"from_fd {fd} input ready, read {len(block)} bytes from it")
+        if len(block)>0:                               # non-zero read length; reset count of 
+          zero_read_limit = 0                          # zer-read length. A 0-read length
+        else:                                          # MAY indicate inward stream closed
+          zero_read_count += 1                         # Some UNIX platforms use POLLIN with a 0
+          if zero_read_count >= zero_read_limit:       # read length to indicate EOF rather than
+            from_eof = True                            # POLLHUP; count a few 0-len reads to check
+            log.debug(f"from_fd {fd} 0-read count limit reached, closing")
 
-      elif fd==from_fd.fileno() and event&POLLHUP:     # inward stream closed, terminate
-        from_eof = True                                # loop
+      elif fd==from_fd.fileno() and event&POLLHUP:     # inward stream definitely closed, terminate
+        from_eof = True                                # I/O loop
+        log.debug(f"from_fd {fd} POLLHUP found, closing")
+
+      else:
+        log.debug(f"Uknown event: fd {fd} even {event}")
     total_time = time.monotonic() - beg_time
 
   log.debug(f"communicate loop done")
   log.debug(f"loop_count: {loop_count} write_count: {write_count} read_count: {read_count}")
-  log.debug(f"total_time: {total_time:.4f} from_bytes: {from_bytes}")
-  from_str = "".join(from_blocks)                      # join the read blocks of data
-  return (from_str,
+  log.debug(f"total_time: {total_time:.4f} len(from_bytes): {len(from_bytes)}")
+  return (from_bytes,
           timeout is not None and total_time > timeout,
-          max_out_bytes is not None and from_bytes > max_out_bytes)
+          max_out_bytes is not None and len(from_bytes) > max_out_bytes)
 
 
 def global_alignment(seqA, seqB,
