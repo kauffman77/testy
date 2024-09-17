@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Release: Mon Sep 16 01:56:46 PM EDT 2024
+# Release: Tue Sep 17 04:43:58 PM EDT 2024
 """Testy: run test cases on command line programs"""
 
 ### Imports
@@ -318,6 +318,7 @@ class Segment:
     self.test_directory = None         # directory to use for this test or None if run in the working directory
     self.diff_ignore_whitespace = True # Whitespace on a line is treated as single spaces when diffing
     self.diff_ignore_blanklines = True # Blank lines do not affect diff results
+    self.diff_ignore_trailing_ws = True # Any trailing whitespace is stripped / ignored when doing diffs
     self.diff_sym_equal = "."          # Symbol to use in side-by-side diff for equal lines
 
     # these fields are set after the segment is run
@@ -487,10 +488,13 @@ class Segment:
     aseq = alines
     bseq = blines
     if self.diff_ignore_whitespace:                          # all whitespace treated as 1 whitespace
-      aseq = [re.subn(r"\s+"," ",x)[0] for x in alines]      # modify sequence elements to compare to 
-      bseq = [re.subn(r"\s+"," ",x)[0] for x in blines]      # facilitate matching
-    blank_func = lambda x: False
+      aseq = [re.subn(r"\s+"," ",x)[0] for x in aseq]        # modify sequence elements to compare to 
+      bseq = [re.subn(r"\s+"," ",x)[0] for x in bseq]        # facilitate matching
+    if self.diff_ignore_trailing_ws:
+      aseq = [x.rstrip() for x in aseq]                      # strip all trailing whitespace to
+      bseq = [x.rstrip() for x in bseq]                      # facilitate matching
 
+    blank_func = lambda x: False
     if self.diff_ignore_blanklines:                          # mark blank lines as blank which
       blank_func = lambda x: x==""                           # will allow for 0-cost gaps on them
 
