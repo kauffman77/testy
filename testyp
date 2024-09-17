@@ -1363,6 +1363,15 @@ class OrgResultFormatter(ResultFormatter):
       writeline(res, f'')
       # TODO: get line-by-line differences
 
+      writeline(res, f'*** LINE-BY-LINE DIFF of Expected vs Actual')
+      if not seg.lbl_diff:
+        writeline(res, f'No differences found')
+      else:
+        writeline(res, f'#+BEGIN_SRC text')
+        writeline(res, f'{seg.lbl_diff}',end="")
+        writeline(res, f'#+END_SRC')
+      writeline(res, f'')
+
       if not seg.use_valgrind:
         writeline(res,f'*** VALGRIND Not in Use')
       else:
@@ -1569,7 +1578,15 @@ class MarkdownResultFormatter(ResultFormatter):
       writeline(res, f'{seg.sbs_diff}')
       writeline(res, f'```')
       writeline(res, f'')
-      # TODO: get line-by-line differences
+
+      md_write_heading(res,3,f'LINE-BY-LINE DIFF of Expected vs Actual')
+      if not seg.lbl_diff:
+        writeline(res, f'No differences found')
+      else:
+        writeline(res, f'```')
+        writeline(res, f'{seg.lbl_diff}',end="")
+        writeline(res, f'```')
+      writeline(res, f'')
 
       if not seg.use_valgrind:
         md_write_heading(res,3,f'VALGRIND Not in Use')
