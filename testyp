@@ -375,7 +375,32 @@ class Segment:
     if timed_out or maxed_out:
       log.debug(f"timed out: {timed_out} / maxed_out: {maxed_out}, killing {self.pid}")
       subp.kill()                               # misbehaving, kill it
-    subp.wait()                                 # should return almost immediately
+
+    log.debug(f"waiting on child process {self.pid}")
+    subp.wait()                                 # should return almost immediately BUT subprocess module isn't so kind (see TODO below)
+    log.debug(f"wait complete for child process {self.pid}")
+
+    # TODO: subp.wait() is broken as it will hang for cases that need
+    # to be handled here.  The comments state as much:
+    # 
+    # Note This will deadlock when using stdout=PIPE or stderr=PIPE
+    # and the child process generates enough output to a pipe such
+    # that it blocks waiting for the OS pipe buffer to accept more
+    # data. Use Popen.communicate() when using pipes to avoid that.
+    #
+    # This has already happened once where student code in an infinite
+    # loop was correctly handled in limited_communicate() but the call
+    # to subp.wait() deadlocks due to the poorly written code in the
+    # subprocess module.
+    # 
+    # Since Popen() barely provides anything at this point (NOT using
+    # subp.communicate() due to its limitations), rewrite this section
+    # of the code to use direct os calls from the os module rather
+    # than going through Popen().
+    #
+    # Alternatively it would be a kindness to the python community to
+    # submit some patches that add a limited number of bytes option in
+    # subp.communicate() and then use that but that'd be a longer goal.
 
     self.retcode = subp.returncode
     if self.force_ascii_output:                 # possibly transform output to ascii
