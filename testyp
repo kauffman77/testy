@@ -18,7 +18,6 @@ import subprocess                         # run() shell commands
 from subprocess import Popen,PIPE,STDOUT  # subprocess communication
 from difflib import SequenceMatcher       # diffing actual/expect output
 import logging as log                     # for loggers / debug messages
-import logging
 import multiprocessing as multiproc
 
 ################################################################################
@@ -27,11 +26,11 @@ import multiprocessing as multiproc
 LOGFORMAT = "==%(levelname)s== [%(filename)s:%(lineno)d %(funcName)s] %(message)s"
 """Format for debug messages"""
 
+# Register translation mechanisms for bad ASCII characters in test
+# output. These are passed as the 'errors' argument to Popen() when
+# ASCII encoding is in use for output.
 codecs.register_error('as_question_marks', lambda e: ('?',e.start + 1))
 codecs.register_error('as_nonascii', lambda e: (':nonascii:',e.start + 1))
-""""Register translation mechanisms for bad ASCII characters in test
-output. These are passed as the 'errors' argument to Popen() when
-ASCII encoding is in use for output."""
 
 # default valgrind program
 VALGRIND_ERROR_CODE = 13
@@ -48,7 +47,7 @@ VALGRIND_PROG = [
 
 STDBUF_PROG = ["stdbuf","-i","0","-o","0","-e","0"]
 """stdbuf invocation broken down by options"""
-  
+
 
 SIGNAL_DESCRIPTIONS = {
    1 : "<SIGHUP> : controlling terminal has closed",
@@ -152,7 +151,7 @@ class Suite:
     result_formatter.add_suite_result(self)
     result_formatter.make_suite_result_file(self)
     progress_reporter.report_suite_done(self)
-    
+
 
   def get_proc_pool(self):
     """Create a pool of processes for multiple test processing
@@ -170,7 +169,7 @@ class Suite:
       pool_size = os.cpu_count()
     log.debug(f"parallel is {self.parallel}, setting pool_size to {pool_size}")
     return multiproc.Pool(pool_size)
-    
+
   def run_parallel(self, progress_reporter, result_formatter):
     """Run tests in parallel using multiple proceses
 
@@ -196,7 +195,7 @@ class Suite:
       for test in pool.imap(run_test, args, 1):     # imap for lazy returns
         self.tests[test.testnum] = test             # copy test over
         self.tests_torun.append(test)               # rebuild torun list
-        progress_reporter.report_test_done(test)             
+        progress_reporter.report_test_done(test)
         if test.passed:
           self.passed_tests  += 1
           self.points_earned += test.points
@@ -217,8 +216,8 @@ class Suite:
       var = var.lower()
       if var in env:
         val = env[var]
-        try:
-          val = eval(val)                    # try converting to internal python
+        try:                                 # try converting to internal python
+          val = eval(val)
         except Exception:
           pass                               # if it fails, leave as a string
         log.debug(f"{var}={val} option set from environment")
@@ -230,7 +229,7 @@ class Suite:
 class Test:
   """Encapsulates a single test which may have multiple segments"""
 
-  def __init__(self,options={}):
+  def __init__(self,options=None):
     """Initialize a default empty Test"""
     # these fields are set during parsing / initialization
     self.title = None                  # title of the test
@@ -257,9 +256,10 @@ class Test:
     self.result_filename = None        # file where result for the test is stored, None if no file has been created
 
     # propagate fields from options to object
-    for key,val in options.items():
-      if key in self.__dict__:
-        self.__dict__[key] = val
+    if options:
+      for key,val in options.items():
+        if key in self.__dict__:
+          self.__dict__[key] = val
 
 
   def run(self):
@@ -382,7 +382,7 @@ class Segment:
 
     # TODO: subp.wait() is broken as it will hang for cases that need
     # to be handled here.  The comments state as much:
-    # 
+    #
     # Note This will deadlock when using stdout=PIPE or stderr=PIPE
     # and the child process generates enough output to a pipe such
     # that it blocks waiting for the OS pipe buffer to accept more
@@ -392,7 +392,7 @@ class Segment:
     # loop was correctly handled in limited_communicate() but the call
     # to subp.wait() deadlocks due to the poorly written code in the
     # subprocess module.
-    # 
+    #
     # Since Popen() barely provides anything at this point (NOT using
     # subp.communicate() due to its limitations), rewrite this section
     # of the code to use direct os calls from the os module rather
@@ -409,10 +409,10 @@ class Segment:
     else:
       out_encoding = 'utf-8'
       out_errors = 'as_question_marks'
-    stdout_str = stdout_bytes.decode(encoding=out_encoding, errors=out_errors);
+    stdout_str = stdout_bytes.decode(encoding=out_encoding, errors=out_errors)
 
-    if self.retcode<0:                          # if signalled, append a message to output
-      signum = -self.retcode                    # indicating as much
+    if self.retcode<0:                          # if signalled, append a message to output indicating as much
+      signum = -self.retcode
       sigdesc = SIGNAL_DESCRIPTIONS.get(signum,"")
       stdout_str = f'{stdout_str}\nSignal {signum} {sigdesc}'
     self.timed_out = timed_out
@@ -424,7 +424,6 @@ class Segment:
     if self.test_directory:
       log.debug(f"returning to workdir: {workdir}")
       os.chdir(workdir)
-      
     return
 
   def prerun_setup(self):
@@ -497,13 +496,13 @@ class Segment:
 
   def go_to_testdir(self):
     """Change into the testing directory"""
-    
+
   def run_shell_precommands(self):
     """Execute specified shell commands prior to segment"""
     for cmd in self.shell_precommands:
       log.debug(f"running shell command [{cmd}]")
-      result = subprocess.run(cmd, shell=True)  # shell is important to support pipes, etc.
-    
+      subprocess.run(cmd, shell=True, check=True)            # shell=True important to support pipes, etc.
+
   ### Post-run functions
   def diff_output(self):
     """Calculate the diff of the output"""
@@ -513,7 +512,7 @@ class Segment:
     aseq = alines
     bseq = blines
     if self.diff_ignore_whitespace:                          # all whitespace treated as 1 whitespace
-      aseq = [re.subn(r"\s+"," ",x)[0] for x in aseq]        # modify sequence elements to compare to 
+      aseq = [re.subn(r"\s+"," ",x)[0] for x in aseq]        # modify sequence elements to compare to
       bseq = [re.subn(r"\s+"," ",x)[0] for x in bseq]        # facilitate matching
     if self.diff_ignore_trailing_ws:
       aseq = [x.rstrip() for x in aseq]                      # strip all trailing whitespace to
@@ -596,7 +595,7 @@ class Segment:
     self.output_actual = result.stdout
 
   ## End Segment class
-    
+
 
 
 ################################################################################
@@ -667,7 +666,7 @@ def limited_communicate(subp,to_str=None,timeout=None,max_out_bytes=None):
         block = from_fd.read(block_size)
         from_bytes.extend(block)
         log.debug(f"from_fd {fd} input ready, read {len(block)} bytes from it")
-        if len(block)>0:                               # non-zero read length; reset count of 
+        if len(block)>0:                               # non-zero read length; reset count of
           zero_read_limit = 0                          # zer-read length. A 0-read length
         else:                                          # MAY indicate inward stream closed
           zero_read_count += 1                         # Some UNIX platforms use POLLIN with a 0
@@ -724,7 +723,7 @@ def global_alignment(seqA, seqB,
   from RQR to QR or R the comparisons get more accurate at comparing
   lines at the cost of increasing the comutation time. For standard
   diff-like behavior, RQR with the other default parameters is pretty
-  close. 
+  close.
 
   score_min and score_max scale the scoring of matches
   (equal/replace). The ratio()-based function used are normalied to
@@ -771,7 +770,7 @@ def global_alignment(seqA, seqB,
       scoremat[0][j] = (scoremat[0][j-1][0],(0,j-1,"insblank",0))
     else:
       scoremat[0][j] = (scoremat[0][j-1][0]+gap_cost,(0,j-1,"insert",0))
-  
+
   # MAIN SCORING ALGORITHM
   for i in range(1, m+1):
     seqmatcher = SequenceMatcher(None,"",seqA[i-1])  # seqmatcher optimized for stable seq2, vary seq1 more frequentyly
@@ -779,18 +778,18 @@ def global_alignment(seqA, seqB,
       if seqA[i-1]==seqB[j-1]:                       # equal elems score a 1.0
         (tag,raw_score) = ("equal",1.0)
       else:                                          # unequal elems score in range -0.2 to 1.0
-        seqmatcher.set_seq1(seqB[j-1])               # use seqmatcher for comparison 
+        seqmatcher.set_seq1(seqB[j-1])               # use seqmatcher for comparison
         (tag,raw_score) = ("replace",match_score(seqmatcher))
       mscore = raw_score*score_scale + score_min                             # scale the score in range
-      scores = [(scoremat[i-1][j-1][0] + mscore,(i-1,j-1,tag,mscore)),       # match seq1/2 elem  
-                (scoremat[i-1][j][0] + gap_cost,(i-1,j,"delete",gap_cost)),  # delete seq1 elem   
-                (scoremat[i][j-1][0] + gap_cost,(i,j-1,"insert",gap_cost))]  # insert seq2 elem   
+      scores = [(scoremat[i-1][j-1][0] + mscore,(i-1,j-1,tag,mscore)),       # match seq1/2 elem
+                (scoremat[i-1][j][0] + gap_cost,(i-1,j,"delete",gap_cost)),  # delete seq1 elem
+                (scoremat[i][j-1][0] + gap_cost,(i,j-1,"insert",gap_cost))]  # insert seq2 elem
       if ablank[i-1]:
         scores.append((scoremat[i-1][j][0],(i-1,j,"delblank",0)))
       if bblank[j-1]:
         scores.append((scoremat[i][j-1][0],(i,j-1,"insblank",0)))
       scoremat[i][j] = max(scores)
-  
+
   # TRACEBACK COMPUTATION
   align_score = scoremat[-1][-1][0]              # overall score of the global alignmnet
   align = []                                     # traceback alignment, elements (seq1,seq2,tag,cost)
@@ -837,7 +836,7 @@ def sbs_diff(align,alines,blines,
 def lbl_diff(align,alines,blines, titles=("OLD","NEW")):
   """Create a line-by-line diff showing only non-matching lines from alignment
 
-  The comparison is literally line-by-line rather than block-by-block as is the case 
+  The comparison is literally line-by-line rather than block-by-block as is the case
   """
   (atit,btit) = (titles[0],titles[1])
   twidth = max(len(atit),len(btit))
@@ -977,7 +976,7 @@ class OrgSuiteParser:
     preamble = tc_list[0]                                # everything before first '* title'
     test_titles_contents = \
       [(t,c) for (t,c)                                   # title/content together for iteration
-       in zip(tc_list[1:tc_len:2], tc_list[2:tc_len:2]) 
+       in zip(tc_list[1:tc_len:2], tc_list[2:tc_len:2])
        if not t.startswith('* COMMENT')]                 # filter commented tests
     filepos = FilePos(filename)                          # track global file position
     try:                                                 # try block for parsing errors
@@ -1168,7 +1167,7 @@ class LineProgressReporter(ProgressReporter):
       else:
         result_string = f"FAIL -> see {test.result_filename}"
     print(f"{test.testnum:{self.testnum_width}}) {test.title:{self.test_title_width}} : {result_string}")
-    
+
   def report_suite_done(self,suite):
     """Prints out number of tests passed / points earned."""
     # TODO: Add SHOW output here
@@ -1197,11 +1196,11 @@ class ShortProgressReporter(ProgressReporter):
     """Print header information of the suite after parsing"""
     print(f"Running {len(suite.tests_torun)} / {len(suite.tests)} tests")
     print("|",end="")
-    for i in range(5,min(40,self.total_tests)+1,5):  
+    for i in range(5,min(40,self.total_tests)+1,5):
       print(f"{i:5d}",end="")                          # print a numeric guide for tests
     print(f"{'':{self.total_tests%5}}|")
     print("|",end="",flush=True)
-    
+
   def report_test_done(self,test):
     """Print . for pass and F for fail"""
     if test.passed:
@@ -1210,11 +1209,11 @@ class ShortProgressReporter(ProgressReporter):
       print("F",end="",flush=True)                     # F for fails
     self.tests_run += 1
     if self.tests_run == self.total_tests:             # end the with vertical bar
-      print("|")                                       
+      print("|")
     elif self.tests_run%40 == 0:                       # every 40 carry to another line
-      print("|")                                       
+      print("|")
       print("|",flush=True)
-    
+
   def report_suite_done(self,suite):
     """Print number of tests passed / points earned and failing test files"""
     if suite.use_points:
@@ -1234,8 +1233,8 @@ class ShortProgressReporter(ProgressReporter):
         if test.result_filename:
           result_string = f"FAIL -> see {test.result_filename}"
         print(f"{test.testnum:{testnum_width}}) {test.title:{test_title_width}} : {result_string}")
-  # END class ShortProgressReporter 
-    
+  # END class ShortProgressReporter
+
 ################################################################################
 ### Result Formatting
 class ResultFormatter:
@@ -1245,13 +1244,13 @@ class ResultFormatter:
     """Initialize any state needed based on the suite"""
 
   def add_test_result(self,test):
-    """Add result field to the test after running it""" 
+    """Add result field to the test after running it"""
 
   def make_test_result_file(self,test):
     """Create a result file for this individual test if indicated by its fields"""
 
   def add_suite_result(self,suite):
-    """Add result field to the suite after running it""" 
+    """Add result field to the suite after running it"""
 
   def make_suite_result_file(self,test):
     """Create a result file for the entire suite"""
@@ -1328,7 +1327,7 @@ class OrgResultFormatter(ResultFormatter):
       writeline(res, f'{seg.lbl_diff}',end="")
       writeline(res, f'#+END_SRC')
     writeline(res, f'')
-    
+
     if not seg.use_valgrind:
       writeline(res, f'** VALGRIND Not in Use')
     else:
@@ -1436,7 +1435,7 @@ class OrgResultFormatter(ResultFormatter):
       self.single_seg_test_result(test)
     else:
       self.multiple_seg_test_result(test)
-  
+
   def make_test_result_file(self,test):
     """Create an Org result file for this individual test if indicated by its fields"""
     # TODO: Add creation of raw files if requsted
@@ -1466,7 +1465,7 @@ class OrgResultFormatter(ResultFormatter):
     suite.result_filename = f'{basename}-results.org'
     with open(suite.result_filename,'w') as f:
       f.write(suite.result)
-  
+
 ################################################################################
 
 
@@ -1488,7 +1487,7 @@ def md_write_heading(stringio,level,heading):
     writeline(stringio, underline*len(heading))
     if level==1:
       writeline(stringio, '')
-  
+
 class MarkdownResultFormatter(ResultFormatter):
   """Create Markdown output.  Suite result is just a concatenation for
   all results. This version favors 'underlined' headlines to make them
@@ -1545,7 +1544,7 @@ class MarkdownResultFormatter(ResultFormatter):
       writeline(res, f'{seg.lbl_diff}',end="")
       writeline(res, f'```')
     writeline(res, f'')
-    
+
     if not seg.use_valgrind:
       md_write_heading(res,2,f'VALGRIND Not in Use')
     else:
@@ -1653,7 +1652,7 @@ class MarkdownResultFormatter(ResultFormatter):
       self.single_seg_test_result(test)
     else:
       self.multiple_seg_test_result(test)
-  
+
   def make_test_result_file(self,test):
     """Create an Org result file for this individual test if indicated by its fields"""
     # TODO: Add creation of raw files if requsted
@@ -1683,7 +1682,7 @@ class MarkdownResultFormatter(ResultFormatter):
     suite.result_filename = f'{basename}-results.md'
     with open(suite.result_filename,'w') as f:
       f.write(suite.result)
-  
+
 ################################################################################
 ### Junk that can be ignored
 
@@ -1727,7 +1726,7 @@ wrong. Below is an example from the examples/ directory:
 def main(cmd_args):
   """main entry point for command line runs of """
   # cmd_args explicit makes it easier to do debugging sessions in
-  # python interactive loop; must remove script name from the args 
+  # python interactive loop; must remove script name from the args
 
 
   # set up arg parsing, don't line-wrap descriptions
@@ -1757,7 +1756,7 @@ def main(cmd_args):
 
   args = argparser.parse_args(cmd_args)
   if args.debug or "TESTYDEBUG" in os.environ:
-    log.basicConfig(format=LOGFORMAT,level=logging.DEBUG,encoding='utf-8')
+    log.basicConfig(format=LOGFORMAT,level=log.DEBUG,encoding='utf-8')
     log.debug("Debugging messages enabled")
 
   log.debug(f"'{args.input_type}' input_type selected")
