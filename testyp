@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Release: Tue Sep 17 04:43:58 PM EDT 2024
+# Release: Tue Sep 24 02:35:49 PM EDT 2024
 """Testy: run test cases on command line programs"""
 
 ### Imports
@@ -817,19 +817,19 @@ def sbs_diff(align,alines,blines,
     bwidth = max(bwidth,len(titles[1]))
   with StringIO() as diff:
     if titles != (None,None):
-      writeline(diff,f'{titles[0]:{awidth}}   {titles[1]:{bwidth}}')
+      writeline(diff,f'{titles[0]:{awidth}}   {titles[1]}')
     for (ai,bj,tag,_) in align:
       if tag=="delete":
-        writeline(diff,f"{alines[ai]:{awidth}} {sym_delete} {'':{bwidth}}")
+        writeline(diff,f"{alines[ai]:{awidth}} {sym_delete} {''}")
       elif tag=="delblank":
-        writeline(diff,f"{alines[ai]:{awidth}} {sym_delblank} {'':{bwidth}}")
+        writeline(diff,f"{alines[ai]:{awidth}} {sym_delblank} {''}")
       elif tag=="insert":
-        writeline(diff,f"{'':{awidth}} {sym_insert} {blines[bj]:{bwidth}}")
+        writeline(diff,f"{'':{awidth}} {sym_insert} {blines[bj]}")
       elif tag=="insblank":
-        writeline(diff,f"{'':{awidth}} {sym_insblank} {blines[bj]:{bwidth}}")
+        writeline(diff,f"{'':{awidth}} {sym_insblank} {blines[bj]}")
       else:
         sym = sym_equal if tag=="equal" else sym_replace
-        writeline(diff,f"{alines[ai]:{awidth}} {sym} {blines[bj]:{bwidth}}")
+        writeline(diff,f"{alines[ai]:{awidth}} {sym} {blines[bj]}")
     return diff.getvalue()
 
 
