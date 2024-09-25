@@ -1,1 +1,2 @@
-This the master branch for mainline work and release.
+Work on a fix for the infinite output causing a hang when waiting for
+child process in test to die.
