@@ -19,6 +19,7 @@ from select import POLLIN,POLLOUT,POLLHUP,POLLERR,POLLNVAL
 from difflib import SequenceMatcher       # diffing actual/expect output
 import logging as log                     # for loggers / debug messages
 import multiprocessing as multiproc
+import subprocess
 
 ################################################################################
 ### Module level initialization
