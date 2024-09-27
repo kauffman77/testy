@@ -108,7 +108,7 @@ class Suite:
     self.single_show_fail = True       # True means print test results when a single test is run and fails
     self.filename = None               # filename from which the suite came from or None if not from a file
     self.overall_result_file = False   # True produce an overall result file
-    self.parallel = False              # Set to int to use multiple procs or True/auto for max procs
+    self.parallel = True               # Set to int to use multiple procs or True/auto for max procs
     self.regen = False                 # whether or not the suite is being regenerated
 
     # these fields are set during/after the suite evaluation
@@ -358,14 +358,29 @@ class Segment:
     if self.passed is False:                    # already failed in setup
       return
 
+    # os.environ["MAKEFLAGS"]=""
+    # log.debug(f"preparing to fork; enviornment: {os.environ}")
+    # for k,v in os.environ.items():
+    #   print(f"{k} : {v}")
+
     sys.stdout.flush()                          # flush pending output prior to fork()
     sys.stderr.flush()                          # to prevent duplicate output in parent/child
     (to_child_r,to_child_w) = os.pipe()         # for communication between parent and child
     (fr_child_r,fr_child_w) = os.pipe()
+    # os.set_inheritable(to_child_r, True)
+    # os.set_inheritable(to_child_w, True)
+    # os.set_inheritable(fr_child_r, True)
+    # os.set_inheritable(fr_child_w, True)
+
+    log.debug(f"to_child_r: {to_child_r} {os.get_inheritable(to_child_r)} to_child_w: {to_child_w} {os.get_inheritable(to_child_w)}")
+    log.debug(f"fr_child_r: {fr_child_r} {os.get_inheritable(fr_child_r)} fr_child_w: {fr_child_w} {os.get_inheritable(fr_child_w)}")
+
     self.pid = os.fork()                        # create child process
 
     # CHILD PROCESS
     if self.pid == 0:
+      os.close(to_child_w)
+      os.close(fr_child_r)
       os.dup2(to_child_r, sys.stdin.fileno())   # redirect stdin to pipe
       os.dup2(fr_child_w, sys.stdout.fileno())  # redirect stdout and stderr to pipe
       os.dup2(fr_child_w, sys.stderr.fileno())  # then execute a child process
@@ -374,6 +389,7 @@ class Segment:
 
     # PARENT PROCESS
     os.close(fr_child_w)
+    os.close(to_child_r)
     log.debug(f"started program PID {self.pid}: [{' '.join(self.full_program)}]")
 
     (stdout_bytes,timed_out,maxed_out) = \
