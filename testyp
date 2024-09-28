@@ -381,7 +381,8 @@ class Segment:
     if self.pid == 0:
       os.close(to_child_w)
       os.close(fr_child_r)
-      os.dup2(to_child_r, sys.stdin.fileno())   # redirect stdin to pipe
+      # os.dup2(to_child_r, sys.stdin.fileno())   # redirect stdin to pipe
+      os.dup2(to_child_r, 0)   # redirect stdin to pipe
       os.dup2(fr_child_w, sys.stdout.fileno())  # redirect stdout and stderr to pipe
       os.dup2(fr_child_w, sys.stderr.fileno())  # then execute a child process
       os.execvp(self.full_program[0],self.full_program)
