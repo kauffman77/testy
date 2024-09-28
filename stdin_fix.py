@@ -36,14 +36,13 @@ def runchild(x):
   os.write(to_child_w,bytes('seq 5','utf-8'))
   print("parent closing")
   os.close(to_child_w)
-  print("parent reading")     # getting a hang here on reading 
+  print("parent reading")     # getting a hang here on reading
   stdout_bytes = os.read(fr_child_r,8192)
   print("parent waiting")
   os.waitpid(pid,0)           # or getting a hang here on waiting
   stdout_str = stdout_bytes.decode(encoding='utf-8', errors='strict')
   print(f"Length of output: {len(stdout_str)}")
   print(f"Output:\n{(stdout_str)}")
-      
   return len(stdout_str)
 
 print("########## PART 1 ###############")

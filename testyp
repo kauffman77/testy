@@ -108,7 +108,7 @@ class Suite:
     self.single_show_fail = True       # True means print test results when a single test is run and fails
     self.filename = None               # filename from which the suite came from or None if not from a file
     self.overall_result_file = False   # True produce an overall result file
-    self.parallel = True               # Set to int to use multiple procs or True/auto for max procs
+    self.parallel = False              # Set to int to use multiple procs or True/auto for max procs
     self.regen = False                 # whether or not the suite is being regenerated
 
     # these fields are set during/after the suite evaluation
@@ -358,19 +358,10 @@ class Segment:
     if self.passed is False:                    # already failed in setup
       return
 
-    # os.environ["MAKEFLAGS"]=""
-    # log.debug(f"preparing to fork; enviornment: {os.environ}")
-    # for k,v in os.environ.items():
-    #   print(f"{k} : {v}")
-
     sys.stdout.flush()                          # flush pending output prior to fork()
     sys.stderr.flush()                          # to prevent duplicate output in parent/child
     (to_child_r,to_child_w) = os.pipe()         # for communication between parent and child
     (fr_child_r,fr_child_w) = os.pipe()
-    # os.set_inheritable(to_child_r, True)
-    # os.set_inheritable(to_child_w, True)
-    # os.set_inheritable(fr_child_r, True)
-    # os.set_inheritable(fr_child_w, True)
 
     log.debug(f"to_child_r: {to_child_r} {os.get_inheritable(to_child_r)} to_child_w: {to_child_w} {os.get_inheritable(to_child_w)}")
     log.debug(f"fr_child_r: {fr_child_r} {os.get_inheritable(fr_child_r)} fr_child_w: {fr_child_w} {os.get_inheritable(fr_child_w)}")
@@ -381,10 +372,16 @@ class Segment:
     if self.pid == 0:
       os.close(to_child_w)
       os.close(fr_child_r)
-      # os.dup2(to_child_r, sys.stdin.fileno())   # redirect stdin to pipe
-      os.dup2(to_child_r, 0)   # redirect stdin to pipe
-      os.dup2(fr_child_w, sys.stdout.fileno())  # redirect stdout and stderr to pipe
-      os.dup2(fr_child_w, sys.stderr.fileno())  # then execute a child process
+      # NOTE: intentionally using constants 0,1,2 below. Previously
+      # had calls like sys.stdin.fileno() BUT Python multiprocessing
+      # messes with these may yield and they may be something other
+      # than 0,1,2 that the child process will expect. This can lead
+      # to weird child process behavior such as inability to send
+      # input to the child. Thus, the constants 0,1,2 for stdin,
+      # stdout, stderr file descriptor entries.
+      os.dup2(to_child_r, 0)                    # redirect stdin, stdout, stderr to pipes
+      os.dup2(fr_child_w, 1)                    # then execute a child process
+      os.dup2(fr_child_w, 2)
       os.execvp(self.full_program[0],self.full_program)
       # child process does not return
 
@@ -400,15 +397,6 @@ class Segment:
                           timeout=self.timeout,
                           max_out_bytes=self.max_out_bytes)
 
-    if timed_out or maxed_out:
-      log.debug(f"timed out: {timed_out} / maxed_out: {maxed_out}, killing {self.pid}")
-      os.kill(self.pid, signal.SIGKILL)         # misbehaving, kill it
-
-    log.debug(f"waiting on child process {self.pid}")
-    (pid,waitstatus) = os.waitpid(self.pid, 0)  # should return almost immediately
-    log.debug(f"wait complete for child process {self.pid}, returned ({pid},{waitstatus})")
-
-    self.retcode = os.waitstatus_to_exitcode(waitstatus)
     if self.force_ascii_output:                 # possibly transform output to ascii
       out_encoding = 'ascii'
       out_errors = 'as_question_marks'
@@ -417,13 +405,22 @@ class Segment:
       out_errors = 'as_question_marks'
     stdout_str = stdout_bytes.decode(encoding=out_encoding, errors=out_errors)
 
+    if timed_out or maxed_out:                  # check for error conditions
+      log.debug(f"timed out: {timed_out} / maxed_out: {maxed_out}, killing {self.pid}")
+      os.kill(self.pid, signal.SIGKILL)         # misbehaving, kill it
+
+    log.debug(f"waiting on child process {self.pid}")
+    (pid,waitstatus) = os.waitpid(self.pid, 0)  # should return almost immediately
+    log.debug(f"wait complete for child process {self.pid}, returned ({pid},{waitstatus})")
+    self.retcode = os.waitstatus_to_exitcode(waitstatus)
+
     if self.retcode<0:                          # if signalled, append a message to output indicating as much
       signum = -self.retcode
       sigdesc = SIGNAL_DESCRIPTIONS.get(signum,"")
       stdout_str = f'{stdout_str}\nSignal {signum} {sigdesc}'
-    self.timed_out = timed_out
-    self.maxed_out = maxed_out
 
+    self.timed_out = timed_out                  # store info on ending status of process
+    self.maxed_out = maxed_out
     self.output_original = stdout_str
     self.output_actual = stdout_str
     self.post_run_setup()                       # finalize remaining fields
@@ -614,9 +611,8 @@ class Segment:
                             check=True,                # exception if filter fails
                             capture_output=True)       # save the output in the process
     self.output_actual = result.stdout
-
-  ## End Segment class
-
+################################################################################
+## End Segment class
 
 
 ################################################################################
