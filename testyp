@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Release: Sun Sep 29 11:31:04 AM EDT 2024
+# Release: Wed Oct  2 12:30:18 PM EDT 2024
 """Testy: run test cases on command line programs"""
 
 ### Imports
@@ -412,7 +412,12 @@ class Segment:
     log.debug(f"waiting on child process {self.pid}")
     (pid,waitstatus) = os.waitpid(self.pid, 0)  # should return almost immediately
     log.debug(f"wait complete for child process {self.pid}, returned ({pid},{waitstatus})")
-    self.retcode = os.waitstatus_to_exitcode(waitstatus)
+
+    # NOTE: using local version of this function as older versions of
+    # python do not have it; replace with equivalent os module
+    # function at a later date
+    self.retcode = testy_waitstatus_to_exitcode(waitstatus)
+    # self.retcode = os.waitstatus_to_exitcode(waitstatus)
 
     if self.retcode<0:                          # if signalled, append a message to output indicating as much
       signum = -self.retcode
@@ -936,9 +941,29 @@ def run_test(arg):
   result_formatter.make_test_rawfiles(test)
   return test                                                # return completed test
 
+def testy_waitstatus_to_exitcode(ws):
+  """Converts a wait status to the exit code of a program or negative
+  number if the program was signalled.
+
+  This is a compatibility function for Python ver<3.9 when this
+  function was added to the os module as
+  os.waitstatus_to_exitcode(w). The below implementation follows the C
+  code in cpython/Modules/posixmodule.c to produce similar effects."""
+
+  if os.WIFEXITED(ws):
+    return os.WEXITSTATUS(ws)
+  elif os.WIFSIGNALED(ws):
+    return -os.WTERMSIG(ws)
+  elif os.WIFSTOPPED(ws):
+    raise ValueError(f"process stopped by delivery of signal {os.WSTOPSIG(ws)}")
+  else:
+    raise ValueError(f"invalid wait status: {ws}")
+  
+
 ################################################################################
 ### Parsing classes and hierarchy
 class ParseError(Exception):
+
   """Exception to throw when a parsing error occurred"""
 
 class FilePos:
