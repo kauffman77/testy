@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Release: Wed Oct  2 12:30:18 PM EDT 2024
+# Release: Mon Nov  4 09:59:13 AM EST 2024
 """Testy: run test cases on command line programs"""
 
 ### Imports
@@ -609,13 +609,19 @@ class Segment:
     """Run output_actual through a specified filter to modify it"""
     if not self.post_filter:
       return
-    result = subprocess.run(self.post_filter,          # subprocess for filter program
-                            input=self.output_actual,  # input is program output
-                            text=True,                 # text only
-                            shell=True,                # run in a shell: no shell lex
-                            check=True,                # exception if filter fails
-                            capture_output=True)       # save the output in the process
-    self.output_actual = result.stdout
+
+    # older versions of python do not support the text/capture_output
+    # parameters to subprocess.run() so work-arounds are used
+    instr = bytes(self.output_actual,'utf-8')           # apparently must feed intput as bytes...
+    result = subprocess.run(self.post_filter,           # subprocess for filter program
+                            input=instr,                # input is program output
+                            stdout=subprocess.PIPE,     # capture output via a pipe
+                            stderr=subprocess.STDOUT,   # merge stderr and stdout
+                            shell=True,                 # run in a shell: no shell lex
+                            # capture_output=True,        # ADDED: python 3.6 (save the output in the process)
+                            # text=True,                  # ADDED: python 3.6 (text only)
+                            check=True)                 # exception if filter fails
+    self.output_actual = result.stdout.decode('utf-8')  # return a normal string
 ################################################################################
 ## End Segment class
 
