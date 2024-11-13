@@ -1077,6 +1077,30 @@ class OrgSuiteParser:
       return suite
 
 
+  def parse_test_preamble(self, test, preamble, filepos):
+    """Preamble parsing preceding the first segement of org file test"""
+    test.preamble = preamble
+    with StringIO() as desc:
+      for line in preamble.splitlines():
+        filepos.linenum += 1                    # track line number for error reporting
+        (first,rest) = ("",line)
+        if " " in line:
+          (first, rest) = line.split(" ",1)     # extract the first token on the line
+          first = first.upper()                 # upper case for case insensitive matching
+
+        if first == "#+TESTY:":                 # option directive like [#+TESTY: program='bc -iq']
+          (key,val) = get_keyval(rest,locals()) # raises an exception if badly formatted
+          if key in test.__dict__:
+            test.__dict__[key] = val            # python objects are dicts, exploit this to assign the value
+            log.debug(f"[{key}={val}] test option set in test preamble ({filepos.filename}:{filepos.linenum})")
+          else:                                 # don't propogate test options down to segments
+            msg = f"{filepos.filename}:{filepos.linenum}: Invalid test option {key}={val}"
+            raise ParseError(msg)
+        elif len(line)>0 and line[0]!="#":      # non org-comments added to description
+          writeline(desc,line)
+      test.description = desc.getvalue().strip()
+      return
+
   def parse_test(self,test_title,content,opts,filepos):
     """Parse a single test from org test file"""
     test = Test(opts)
@@ -1087,6 +1111,14 @@ class OrgSuiteParser:
     # propagate_fields(test,opts)
 
     # TODO Handle :PROPERTIES: drawer here
+
+    segstart_regex = re.compile(r"^\*\* ",re.MULTILINE)
+    segstart = re.search(segstart_regex,content)
+    if segstart:
+      preamble = content[:segstart.start(0)]                 # extract the preamble and parse it
+      self.parse_test_preamble(test,preamble, filepos)       #
+      content = content[segstart.start(0):-1]                # remove preamble from test body content
+
     seg_regex = re.compile(r"^#\+(?:END_SRC|END_QUOTE).*\n", # split on ending tokens for
                            re.MULTILINE | re.IGNORECASE)     # segments; note that a line
     seg_contents = re.split(seg_regex, content)              # is excised from resulting list
