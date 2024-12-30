@@ -3,6 +3,11 @@
 #+SEQ_TODO: TODO | DONE FORWARDED CANCELLED
 
 * Additional Features / Testing for Python Version
+** TODO End of file with #+END_SRC
+Seems that if the file ends with ~#+END_SRC~ this become part of the
+expected test output. Easily solved via a newline at the end of files
+but this should not be necessary.
+
 ** TODO Python Rigorously Excise Valgrind Messages
 - Feedback from TAs indicates that students who forget to print
   newlines in their output end up with Valgrind messages in the same

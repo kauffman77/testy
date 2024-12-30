@@ -534,7 +534,7 @@ class Segment:
 
     seq_equal = not any([x in {"insert","delete","replace"}  # presence of any of these means
                          for (_,_,x,_) in align])            # sequences are not equal
-    self.diff_passed = seq_equal
+    self.diff_passed = seq_equal or self.skip_diff           # skip_diff causes this to always pass
 
 
     diff_limit = None
@@ -1394,6 +1394,8 @@ class OrgResultFormatter(ResultFormatter):
     writeline(res, f'')
 
     writeline(res, f'** SIDE-BY-SIDE DIFF of Expected vs Actual')
+    if seg.skip_diff:
+      writeline(res, f'NOTE: skip_diff is True so differences are ignored')
     writeline(res, f'{seg.sbs_diff_key}')
     writeline(res, f'')
     writeline(res, f'#+BEGIN_SRC sdiff')
@@ -1465,6 +1467,8 @@ class OrgResultFormatter(ResultFormatter):
       writeline(res, f'')
 
       writeline(res, f'*** SIDE-BY-SIDE DIFF of Expected vs Actual')
+      if seg.skip_diff:
+        writeline(res, f'NOTE: skip_diff is True so differences are ignored')
       writeline(res, f'{seg.sbs_diff_key}')
       writeline(res, f'')
       writeline(res, f'#+BEGIN_SRC sdiff')
@@ -1611,6 +1615,8 @@ class MarkdownResultFormatter(ResultFormatter):
     writeline(res, f'')
 
     md_write_heading(res,2,f'SIDE-BY-SIDE DIFF of Expected vs Actual')
+    if seg.skip_diff:
+      writeline(res, f'NOTE: skip_diff is True so differences are ignored')
     writeline(res, f'{seg.sbs_diff_key}')
     writeline(res, f'')
     writeline(res, f'```sdiff')
@@ -1682,6 +1688,8 @@ class MarkdownResultFormatter(ResultFormatter):
       writeline(res, f'')
 
       md_write_heading(res,3,f'SIDE-BY-SIDE DIFF of Expected vs Actual')
+      if seg.skip_diff:
+        writeline(res, f'NOTE: skip_diff is True so differences are ignored')
       writeline(res, f'{seg.sbs_diff_key}')
       writeline(res, f'')
       writeline(res, f'```sdiff')
