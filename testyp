@@ -310,7 +310,8 @@ class Segment:
     self.valgrind_opts = ""            # additional options to pass to valgrind such as suppression
     self.use_stdbuf = True             # whether to run program under stdbuf program to eliminate I/O buffering
     self.skip_diff = False             # True if diffing the expect/actual should be skipped
-    self.skip_retcode = False          # True if a non-zero exit code should be accepted (e.g. not trigger a failure)
+    self.skip_exitcode = False         # True if the expected exit code should be checked (e.g. not trigger a failure)
+    self.exitcode_expect = 0           # expected exit code from program
     self.force_ascii_output = True     # translate non-ascii characters in test results to ascii
     self.timeout = 5                   # timeout in (fractional) second to be used before segment is killed
     self.max_out_bytes = 2**20         # maximum size of output from tested program, kill if this is exceeded
@@ -334,7 +335,7 @@ class Segment:
     self.sbs_diff_key = None           # string showing meaning of symbols in side-by-side diff
     self.lbl_diff = None               # line-by-line diff
     self.diff_passed = None            # True if the diff passed, false otherwise
-    self.retcode = None                # exit/return code of process that was run
+    self.exitcode = None               # exit code of process that was run
     self.messages = []                 # list of string messages indicating failures encountered
     self.timed_out = None              # True if segment timed out during run
     self.maxed_out = None              # True if segment produced more output than max_output_bytes
@@ -416,11 +417,11 @@ class Segment:
     # NOTE: using local version of this function as older versions of
     # python do not have it; replace with equivalent os module
     # function at a later date
-    self.retcode = testy_waitstatus_to_exitcode(waitstatus)
+    self.exitcode = testy_waitstatus_to_exitcode(waitstatus)
     # self.retcode = os.waitstatus_to_exitcode(waitstatus)
 
-    if self.retcode<0:                          # if signalled, append a message to output indicating as much
-      signum = -self.retcode
+    if self.exitcode<0:                         # if signalled, append a message to output indicating as much
+      signum = -self.exitcode
       sigdesc = SIGNAL_DESCRIPTIONS.get(signum,"")
       stdout_str = f'{stdout_str}\nSignal {signum} {sigdesc}'
 
@@ -562,7 +563,7 @@ class Segment:
   def check_passed(self):
     """Determines if the segment passed according to fields set during testing"""
     self.passed = True
-    if self.retcode==VALGRIND_ERROR_CODE:
+    if self.exitcode==VALGRIND_ERROR_CODE:
       self.passed = False
       self.messages.append("Valgrind Errors: Check Valgrind section for details")
     if self.use_valgrind and self.valgrind_reachable:
@@ -579,14 +580,14 @@ class Segment:
       self.passed = False
       limit = f"{self.max_out_bytes / 2**20} megabyte(s)"
       self.messages.append(f"Max Output Exceeded: execution produced more than {limit} of output. Check for Infinite loops")
-    if self.retcode < 0:
+    if self.exitcode < 0:
       self.passed = False
-      signum = -self.retcode
+      signum = -self.exitcode
       sigdesc = SIGNAL_DESCRIPTIONS.get(signum,"")
       self.messages.append(f"Received signal {signum} {sigdesc}")
-    elif self.retcode != 0 and self.skip_retcode is not False:
+    elif self.skip_exitcode is False and self.exitcode != self.exitcode_expect:
       self.passed = False
-      self.messages.append(f"Program returned non-zero retcode {self.retcode}; 0 is expected")
+      self.messages.append(f"Program had exit code {self.exitcode} when {self.exitcode_expect} is expected")
     if not self.diff_passed:
       self.passed = False
       self.messages.append("Output Differenes: Expected/Actual do not match, check Diff Sections for details")
