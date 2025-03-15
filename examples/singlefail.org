@@ -1,0 +1,95 @@
+#+TITLE: Tests of the bc program
+#+TESTY: PREFIX="bc" 
+#+TESTY: PROGRAM="bc -iq" 
+#+TESTY: ECHOING="input"
+
+
+* A
+The global options in this test are overridden from using the bc
+program to use bash instead which is used to pipe input into bc and
+redirect output to files which are shown.
+
+#+TESTY: program="bash -v" 
+#+TESTY: prompt="bash>" 
+
+#+BEGIN_SRC sh
+bash> echo hello
+hello
+bash> echo '1+1' | bc -q
+2
+bash> echo '1+1' | bc -q > test-results/xxx.tmp
+bash> cat test-results/xxx.tmp
+2
+bash> printf "1+1\nquit\n" > test-results/input.tmp
+bash> bc -iq < test-results/input.tmp
+1+1
+2
+quit
+#+END_SRC
+
+# here is an A comment 
+
+* B
+The global options in this test are overridden from using the bc
+program to use bash instead which is used to pipe input into bc and
+redirect output to files which are shown.
+
+#+TESTY: program="bash -v" 
+#+TESTY: prompt="bash>" 
+
+#+BEGIN_SRC sh
+bash> echo hello
+hello
+bash> echo '1+1' | bc -q
+2
+bash> echo '1+1' | bc -q > test-results/xxx.tmp
+bash> cat test-results/xxx.tmp
+2
+bash> printf "1+1\nquit\n" > test-results/input.tmp
+bash> bc -iq < test-results/input.tmp
+1+1
+2
+quit
+#+END_SRC
+
+# here is a B comment 
+
+* C
+The global options in this test are overridden from using the bc
+program to use bash instead which is used to pipe input into bc and
+redirect output to files which are shown.
+
+#+TESTY: program="bash -v" 
+#+TESTY: prompt="bash>" 
+
+#+BEGIN_SRC sh
+bash> echo hello
+hello
+bash> echo '1+1' | bc -q
+2
+bash> echo '1+1' | bc -q > test-results/xxx.tmp
+bash> cat test-results/xxx.tmp
+2
+bash> printf "1+1\nquit\n" > test-results/input.tmp
+bash> bc -iq < test-results/input.tmp
+1+1
+2
+quit
+#+END_SRC
+
+# here is a C comment 
+
+* D
+** Create a file
+Creates a file
+#+BEGIN_QUOTE somefile.txt
+Some text to display
+#+END_QUOTE
+
+** Shows file contents
+Here is the file
+
+#+BEGIN_SRC sh
+>> cat somefile.txt
+Some text to display
+#+END_SRC

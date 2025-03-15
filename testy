@@ -1144,9 +1144,12 @@ class OrgSuiteParser:
 
     seg_regexs = r"(^#\+(?:BEGIN_SRC|BEGIN_QUOTE).*\n)"  # split content into premable/session;
     seg_regex = re.compile(seg_regexs,                   # retain the SRC/QUOTE as it is
-                           re.MULTILINE|re.IGNORECASE)   # retain the SRC/QUOTE as it is
-    (preamble,token1,session) = \
-      re.split(seg_regex, content)                       # used to alter the session program
+                           re.MULTILINE|re.IGNORECASE)
+    
+    if re.search(seg_regex, content) == None:    
+      (preamble,token1,session) = (content,"","")        # handle cases where text trails session
+    else:                                                # preamble followed by session token and body
+      (preamble,token1,session) = re.split(seg_regex, content)  
 
     segment.preamble = preamble
     with StringIO() as desc:                             # handle the preamble, comments and
@@ -1875,9 +1878,9 @@ def main(cmd_args):
     if args.regen:
       print(f'Regenerating test suite in file {args.regen}')
       suite_parser.regen_file(args.regen,suite)
-  except ParseError as e:
-    print(str(e))
-    sys.exit(1)
+  # except ParseError as e:
+  #   print(str(e))
+  #   sys.exit(1)
   except KeyboardInterrupt:
     print()
     print("testy received a keyboard interrupt; Exiting")
