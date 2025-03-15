@@ -1,7 +1,4 @@
-#+TITLE: Tests of the bc program
-#+TESTY: PREFIX="bc" 
-#+TESTY: PROGRAM="bc -iq" 
-#+TESTY: ECHOING="input"
+#+TITLE: Trailing Comments and Quote Files
 
 
 * A
@@ -27,7 +24,7 @@ bash> bc -iq < test-results/input.tmp
 quit
 #+END_SRC
 
-# here is an A comment 
+here is an A comment 
 
 * B
 The global options in this test are overridden from using the bc
@@ -52,7 +49,7 @@ bash> bc -iq < test-results/input.tmp
 quit
 #+END_SRC
 
-# here is a B comment 
+here is a B comment 
 
 * C
 The global options in this test are overridden from using the bc
@@ -77,12 +74,12 @@ bash> bc -iq < test-results/input.tmp
 quit
 #+END_SRC
 
-# here is a C comment 
+here is a C comment 
 
 * D
 ** Create a file
 Creates a file
-#+BEGIN_QUOTE somefile.txt
+#+BEGIN_QUOTE test-results/somefile.txt
 Some text to display
 #+END_QUOTE
 
@@ -90,6 +87,16 @@ Some text to display
 Here is the file
 
 #+BEGIN_SRC sh
->> cat somefile.txt
+>> cat test-results/somefile.txt
 Some text to display
+#+END_SRC
+
+* E
+
+#+BEGIN_SRC sh
+>> echo hello world
+hello world
+>> printf "more lines\nof text\n"
+more lines
+of text
 #+END_SRC

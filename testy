@@ -301,7 +301,7 @@ class Segment:
     self.description = ""              # description of segment absent # comments
     self.preamble = ""                 # includes # comments, #+TESTY: directives, blank lines
     self.shell_precommands = []        # list of shell commands to be run prior to running the session
-    self.program = "bash -v"           # program to run for the session, may be #+BEGIN_QUOTE which outputs a file
+    self.program = "bash -v"           # program to run for the session; special behavior for QUOTE and COMMENT
     self.prompt  = ">>"                # prompt string used by the program being run
     self.echoing = "input"             # style of echoing done by the program, "input" echoes input, "both" for prompt+input echoing
     self.session = ""                  # string with lines of the session of input/output to be used
@@ -357,8 +357,22 @@ class Segment:
       os.chdir(self.test_directory)
     self.prerun_setup()                         # set up pending fields for the run
     if self.passed is False:                    # already failed in setup
+      log.debug(f"failed test during prerun_setup()")
       return
 
+    if self.program == "COMMENT":               # special case: commented segment
+      log.debug(f"automatic pass for commented segment")
+      self.passed = True                        # always passes immediately
+      return
+    elif self.program.startswith("QUOTE"):      # special case of quoted file as
+      quote_file = self.program.split()[1]      #   #+BEGIN_QUOTE filename.txt
+      log.debug(f"creating quoted file '{quote_file}'")
+      with open(quote_file,"w") as out:         # creates the file and populates its
+        out.write(self.session)                 # contents; always passes
+      self.passed = True
+      return
+
+    # GENERAL CASE of a program that should be run and output checked
     sys.stdout.flush()                          # flush pending output prior to fork()
     sys.stderr.flush()                          # to prevent duplicate output in parent/child
     (to_child_r,to_child_w) = os.pipe()         # for communication between parent and child
@@ -1147,7 +1161,7 @@ class OrgSuiteParser:
                            re.MULTILINE|re.IGNORECASE)
     
     if re.search(seg_regex, content) == None:    
-      (preamble,token1,session) = (content,"","")        # handle cases where text trails session
+      (preamble,token1,session) = (content,"COMMENT","") # handle cases where text trails session
     else:                                                # preamble followed by session token and body
       (preamble,token1,session) = re.split(seg_regex, content)  
 
@@ -1169,9 +1183,14 @@ class OrgSuiteParser:
           writeline(desc,line)
       segment.description = desc.getvalue().strip()      # eliminate beg/end blanks comments
 
-    filepos.linenum += 1                                 # accounts for beginning token
-    if not token1.upper().startswith("#+BEGIN_SRC"):     # not a program-based session
-      segment.program = token1                           # overwrite program
+    if token1 == "COMMENT":
+      segment.program = "COMMENT"
+    elif token1.upper().startswith("#+BEGIN_QUOTE"):       # is a quote-based session to create
+      quote_file = token1.split()[1]                     # a file with given contents
+      segment.program = f"QUOTE {quote_file}"            # overwrite program with that data
+      filepos.linenum += 1                               # accounts for #+BEGIN_QUOTE
+    else:
+      filepos.linenum += 1                               # accounts for #+BEGIN_SRC
 
     segment.session = session
     filepos.linenum += session.count("\n")               # update based on #lines in session
@@ -1458,10 +1477,18 @@ class OrgResultFormatter(ResultFormatter):
         writeline(res, seg.description)
       writeline(res, f'')
       writeline(res, f'*** PROGRAM: {seg.program}')
-      writeline(res, f'To run this individual test in GDB use the command:')
-      writeline(res, f'gdb --args {seg.program}')
-      writeline(res, f'but any input to the program must be typed within the debugger')
-      writeline(res, f'')
+      if seg.program == "COMMENT":                       # commented segment
+        writeline(res,f'This segment has no runnable program and is present')
+        writeline(res,f'only as a comment. It will always pass.')
+      elif seg.program.startswith("QUOTE"):              # QUOTE segment to create a file
+        quote_file = seg.program.split()[1]
+        writeline(res,f'This segment create the file `{quote_file}`')
+        writeline(res,f'It will always pass.')
+      else:                                              # normal segment that runs a program
+        writeline(res, f'To run this individual test in GDB use the command:')
+        writeline(res, f'gdb --args {seg.program}')
+        writeline(res, f'but any input to the program must be typed within the debugger')
+        writeline(res, f'')
 
       writeline(res, f'*** FAILURE MESSAGES')
       for msg in seg.messages:

@@ -14,24 +14,6 @@ would be better to show the short output at the top
 Example: Segmentation Fault should show in the first line of output
 rather than be plopped midway through
 
-** TODO Parsing Bug
-The following format breaks the parsing of org files; the trailing
-comment creates some problems with the given error message
-
-: * scale_from_ports1
-: #+TESTY: program='./test_scale_update scale_from_ports1'
-: 
-: #+BEGIN_SRC sh
-: hello
-: #+END_SRC
-: 
-: # here is some more text
-
-#+BEGIN_SRC sh
->> ./testy -o md test_scale_update.org 
-test_scale_update.org:13: not enough values to unpack (expected 3, got 1)
-#+END_SRC
-
 ** TODO Python Rigorously Excise Valgrind Messages
 - Feedback from TAs indicates that students who forget to print
   newlines in their output end up with Valgrind messages in the same
@@ -47,11 +29,6 @@ test_scale_update.org:13: not enough values to unpack (expected 3, got 1)
   used to direct it into a file and then bring it back in; if it is
   possible set up a pipe for this that'd be preferable as it'd be much
   faster and avoid the headache of temporary files
-
-** TODO End of file with #+END_SRC
-Seems that if the file ends with ~#+END_SRC~ this become part of the
-expected test output. Easily solved via a newline at the end of files
-but this should not be necessary.
 
 ** TODO Python MPI Program Compatibility
 Test python version on mpi programs MPI especially with
@@ -1143,4 +1120,34 @@ easier
 *** Resolution Wed Jun 19 10:33:56 AM EDT 2024 
 Completed and after recognizing that preambles should be saved, was
 very clean and easy overall
+
+** DONE End of file with #+END_SRC
+Seems that if the file ends with ~#+END_SRC~ this become part of the
+expected test output. Easily solved via a newline at the end of files
+but this should not be necessary.
+
+** DONE QUOTE or Here Document support
+Should have some ability to create input files as part of the test
+easily. Could be a ~#+QUOTE filename~ block or support in a the shell
+for here documents; currently here doc will be hard as feeding input
+to shells is hard as the session code also needs to determine
+distinguish prompt input / program output.
+
+** DONE Parsing Bug
+The following format breaks the parsing of org files; the trailing
+comment creates some problems with the given error message
+
+: * scale_from_ports1
+: #+TESTY: program='./test_scale_update scale_from_ports1'
+: 
+: #+BEGIN_SRC sh
+: hello
+: #+END_SRC
+: 
+: # here is some more text
+
+#+BEGIN_SRC sh
+>> ./testy -o md test_scale_update.org 
+test_scale_update.org:13: not enough values to unpack (expected 3, got 1)
+#+END_SRC
 
