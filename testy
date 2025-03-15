@@ -749,11 +749,13 @@ def global_alignment(seqA, seqB,
   between the lines.
 
   Returns a pair of (matches,tot_score). tot_score is the overall
-  score for the alignment.
+  score for the alignment with higher numbers meaning a "better"
+  alignment. In the context of comparing expected/actual output, the
+  number means very little and is not used.
 
   matches is a list of the form [(ai, bj, tag, score)...] where the
   ai,bj are the index of elements in seqA,seqB that match at that
-  position, score is the score contritubed by that part of hte match,
+  position, score is the score contritubed by that part of the match,
   and tag describes the alignment action, one of
   - "equal": seqA(ai) and seqB(bj) lines were equal and matched
   - "replace": seqA(ai) and seqB(bj) where matched with some
@@ -763,15 +765,15 @@ def global_alignment(seqA, seqB,
   - "insert": seqB(bj) doesn't match, should be inserted to transform
     from seqB
 
-  scorefunc: The default options use a fast comparision of lines
-  (SequenceMather.real_quick_ration(None,lineA,lineB)) but by adjsting
+  scorefunc: The default options use a fast comparison of lines
+  (SequenceMather.real_quick_ratio(None,lineA,lineB)) but by adjsting
   from RQR to QR or R the comparisons get more accurate at comparing
   lines at the cost of increasing the comutation time. For standard
   diff-like behavior, RQR with the other default parameters is pretty
   close.
 
   score_min and score_max scale the scoring of matches
-  (equal/replace). The ratio()-based function used are normalied to
+  (equal/replace). The ratio()-based function used are normalized to
   0.0-1.0 but are scaled to between score_min and score_max so that
   badly mismatched lines can be penalized in favor of gaps
   (insert/delete).
@@ -782,6 +784,7 @@ def global_alignment(seqA, seqB,
   The defaults for score_min, score_max, are set so that if lineA and
   lineB have no characters in common, the alignment will favor an
   insert/delete over a replace.
+
   """
   scorefuncs = {                                              # compare seq elements for scoring
     "RQR": lambda seqmatcher: seqmatcher.real_quick_ratio(),  # fastest with least accuracy
