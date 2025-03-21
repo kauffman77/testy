@@ -14,22 +14,6 @@ would be better to show the short output at the top
 Example: Segmentation Fault should show in the first line of output
 rather than be plopped midway through
 
-** TODO Python Rigorously Excise Valgrind Messages
-- Feedback from TAs indicates that students who forget to print
-  newlines in their output end up with Valgrind messages in the same
-  line 
-- This creates confusion and it would be better to excise these
-  valgrind stuff from the output to separate it completely; handling
-  this will be a little tricky
-- Option 1: look for the pattern ==PID== and extract everything from
-  there to end of line and add to the valgrind output; can likely
-  eliminate the newline as well so that it's obvious that students
-  forgot to put a newline in
-- Option 2: Utilize Valgrind's ability to direct its output elsewhere;
-  used to direct it into a file and then bring it back in; if it is
-  possible set up a pipe for this that'd be preferable as it'd be much
-  faster and avoid the headache of temporary files
-
 ** TODO Python MPI Program Compatibility
 Test python version on mpi programs MPI especially with
 Valgrind, see 5451 examples from S2023
@@ -1150,4 +1134,20 @@ comment creates some problems with the given error message
 >> ./testy -o md test_scale_update.org 
 test_scale_update.org:13: not enough values to unpack (expected 3, got 1)
 #+END_SRC
+
+** DONE Python Rigorously Excise Valgrind Messages
+- Feedback from TAs indicates that students who forget to print
+  newlines in their output end up with Valgrind messages in the same
+  line 
+- This creates confusion and it would be better to excise these
+  valgrind stuff from the output to separate it completely; handling
+  this will be a little tricky
+- Option 1: look for the pattern ==PID== and extract everything from
+  there to end of line and add to the valgrind output; can likely
+  eliminate the newline as well so that it's obvious that students
+  forgot to put a newline in
+- Option 2: Utilize Valgrind's ability to direct its output elsewhere;
+  used to direct it into a file and then bring it back in; if it is
+  possible set up a pipe for this that'd be preferable as it'd be much
+  faster and avoid the headache of temporary files
 
