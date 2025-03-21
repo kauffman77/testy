@@ -782,6 +782,9 @@ def global_alignment(seqA, seqB,
   gap_cost adjusts the cost of adding gaps (insert/delete) in the
   alignment.
 
+  blank_func is function which determines when a line is blank; blank
+  lines are treated specially and have 0 cost in insertion/deletion.
+
   The defaults for score_min, score_max, are set so that if lineA and
   lineB have no characters in common, the alignment will favor an
   insert/delete over a replace.
