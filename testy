@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Release: Thu Jan 23 06:11:01 PM EST 2025
+# Release: ???
 """Testy: run test cases on command line programs"""
 
 ### Imports
@@ -607,18 +607,19 @@ class Segment:
       self.messages.append("Output Differenes: Expected/Actual do not match, check Diff Sections for details")
 
   def separate_valgrind_output(self):
-    """Separate valgrind output from output_actual"""
+    """Separate valgrind output from output_actual.
+
+    Populates the output_valgrind field with the lines that look like
+    they are output from Valgrind.
+    """
     if not self.use_valgrind:
       return
-    val_prefix = f"=={self.pid}=="
-    with StringIO() as out_lines, StringIO() as val_lines:
-      for line in self.output_actual.splitlines():
-        if line.startswith(val_prefix):
-          writeline(val_lines,line)
-        else:
-          writeline(out_lines,line)
-      self.output_actual =   out_lines.getvalue()
-      self.output_valgrind = val_lines.getvalue()
+    val_re = re.compile(f"=={self.pid}==" + r".*?\n")
+    # matches valgrind output lines, technically should not need the ?
+    # for non-greedy matching as Python REs do not match \n by default
+    # but an leaving this in to try to express intent
+    self.output_valgrind = "".join(re.findall(val_re,self.output_actual))
+    self.output_actual = re.sub(val_re,"",self.output_actual,count=0)
 
   def run_post_filter(self):
     """Run output_actual through a specified filter to modify it"""
@@ -982,7 +983,7 @@ def testy_waitstatus_to_exitcode(ws):
     raise ValueError(f"process stopped by delivery of signal {os.WSTOPSIG(ws)}")
   else:
     raise ValueError(f"invalid wait status: {ws}")
-  
+
 
 ################################################################################
 ### Parsing classes and hierarchy
@@ -1162,11 +1163,11 @@ class OrgSuiteParser:
     seg_regexs = r"(^#\+(?:BEGIN_SRC|BEGIN_QUOTE).*\n)"  # split content into premable/session;
     seg_regex = re.compile(seg_regexs,                   # retain the SRC/QUOTE as it is
                            re.MULTILINE|re.IGNORECASE)
-    
-    if re.search(seg_regex, content) == None:    
+
+    if re.search(seg_regex, content) == None:
       (preamble,token1,session) = (content,"COMMENT","") # handle cases where text trails session
     else:                                                # preamble followed by session token and body
-      (preamble,token1,session) = re.split(seg_regex, content)  
+      (preamble,token1,session) = re.split(seg_regex, content)
 
     segment.preamble = preamble
     with StringIO() as desc:                             # handle the preamble, comments and

@@ -6,3 +6,4 @@ test-results/
 /xxx
 /yyy
 /junk/
+/__pycache__/
