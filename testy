@@ -244,6 +244,7 @@ class Test:
     self.make_result_file = True       # True produces individual test result files
     self.prefix = "test"               # file prefix for result output files if any are created
     self.results_dir = "test-results"  # base directory for test results files
+    self.results_dir_early = False     # whether to create results_dir before running the test
     self.save_rawfiles = False         # whether to retain any raw input/output files in the raw/ directory
     self.raw_dir = "raw"               # location of raw output files such as Valgrind logs, relative to results_dir (e.g. test-results/raw)
     self.regen = False                 # whether or not the test result is being regenerated; True means run all segmenets
@@ -265,6 +266,8 @@ class Test:
   def run(self):
     """Run this test to see if it it passes"""
     log.debug(f"running test number {self.testnum} : {self.title}")
+    if self.results_dir_early:                  # create results directory early if requested
+      subprocess.run(['mkdir','-p',self.results_dir],check=True)
     self.passed = True
     workdir = os.getcwd()
     if self.test_directory:
@@ -638,6 +641,17 @@ class Segment:
                             # text=True,                  # ADDED: python 3.6 (text only)
                             check=True)                 # exception if filter fails
     self.output_actual = result.stdout.decode('utf-8')  # return a normal string
+
+  def set_bash_opts(self):
+    """Reset segmeent to run as a default bash program"""
+    self.program = "bash -v"           # program to run for the session; special behavior for QUOTE and COMMENT
+    self.prompt  = ">>"                # prompt string used by the program being run
+    self.echoing = "input"             # style of echoing done by the program, "input" echoes input, "both" for prompt+input echoing
+    self.use_valgrind = False          # whether to run program under valgrind
+    self.valgrind_opts = ""            # additional options to pass to valgrind such as suppression
+    self.post_filter = None            # filter to run on output after test completes, before verifying output
+    self.test_directory = None         # directory to use for this test or None if run in the working directory
+
 ################################################################################
 ## End Segment class
 
@@ -1182,6 +1196,9 @@ class OrgSuiteParser:
           first = first.upper()                          # upper case for case insensitive matching
         if first=="#+TESTY:" and rest[0]=="!":           # shell command as in [#+TESTY: !rm file.txt]
           segment.shell_precommands.append(rest[1:])     # peel off the ! at the start
+        elif first == "#+TESTY:" and rest=='set_bash_opts':  # reset to bash options
+          log.debug(f"Setting segment to bash options")
+          segment.set_bash_opts()
         elif first == "#+TESTY:":
           (key,val) = get_keyval(rest,locals())          # raises exception if badly formatted
           segment.__dict__[key] = val
