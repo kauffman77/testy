@@ -3,6 +3,18 @@
 #+SEQ_TODO: TODO | DONE FORWARDED CANCELLED
 
 * Additional Features / Testing for Python Version
+** TODO Documentation Updates
+- ~#+BEGIN_QUOTE filename~ in org input files
+- ~results_dir_early=True~ option
+- ~POST_FILTER="./test_standardize_pids"~ option
+- ~show / showfail / single_show_fail~ options: consider making this a
+  single display ~show=[none|single_fail|fail|all]~ or something along
+  those lines
+- ~save_rawfiles=1~ option
+
+** TODO QUOTE files and save_rawfiles
+- Bad interaction which causes failure on these
+
 ** TODO Segment section names
 In parsing segments in org files, capture the segment names
 

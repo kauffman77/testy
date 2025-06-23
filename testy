@@ -1397,9 +1397,11 @@ class ResultFormatter:
                   "output_original", "input_str"]
     for (segi,seg) in enumerate(test.segments):
       for field in raw_fields:
-        fname = f"{test.prefix}-{test.testnum:02d}-s{segi:02d}-{field}.txt"
-        with open(os.path.join(raw_dir,fname),"w") as out:
-          out.write(seg.__dict__[field])
+        fieldstr = seg.__dict__[field]  # fields like QUOTE files may be empty
+        if fieldstr:                    # so filter those out
+          fname = f"{test.prefix}-{test.testnum:02d}-s{segi:02d}-{field}.txt"
+          with open(os.path.join(raw_dir,fname),"w") as out:
+            out.write(fieldstr)
       if not seg.passed:
         break
 
