@@ -1,0 +1,9 @@
+This directory contains some tests for a multi-program executable
+using the TESTY_MULTI feature that was present in the old bash version
+of testy (called ~testyb~) in the main directory. This feature has not
+been ported to the main Python version yet so these tests won't work
+with but likely still work with ~testyb~ via
+#+BEGIN_SRC sh
+>> testyb banter_tests.org
+#+END_SRC
+
