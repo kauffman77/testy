@@ -4,6 +4,9 @@
 :stuff: this is cool
 :END:
 
+Testing file that has a properties drawer. Not yet supported but
+planned for a future iteration.
+
 Comment D
 
 #+BEGIN_SRC sh

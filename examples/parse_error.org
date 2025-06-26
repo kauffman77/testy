@@ -1,5 +1,5 @@
 #+title: Example for Parsing and Format
-# a file which will generate a parse error at line 38
+# a file which will generate a parse error at line 38 to check line counting
 
 * Test One
 Comment A

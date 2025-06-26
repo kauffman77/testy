@@ -1153,7 +1153,7 @@ class OrgSuiteParser:
     if segstart:
       preamble = content[:segstart.start(0)]                 # extract the preamble and parse it
       self.parse_test_preamble(test,preamble, filepos)       #
-      content = content[segstart.start(0):-1]                # remove preamble from test body content
+      content = content[segstart.start(0):]                  # remove preamble from test body content
 
     seg_regex = re.compile(r"^#\+(?:END_SRC|END_QUOTE).*\n", # split on ending tokens for
                            re.MULTILINE | re.IGNORECASE)     # segments; note that a line
