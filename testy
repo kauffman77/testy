@@ -68,9 +68,7 @@ SIGNAL_DESCRIPTIONS = {                         # may wish to use the sys.SIGxx 
 """Dict of signal numbers to descriptions"""
 
 ENVVARS_HONORED = {
-  "show",
-  "showfail",
-  "single_show_fail",
+  "show",                                      # merged all of show, showfail, single_show_fail to this
   "overall_result_file",
   "results_dir",
   "save_rawfiles",
@@ -103,9 +101,7 @@ class Suite:
     self.use_points = False            # True if points should be used
     self.points_possible = 0           # total possible points if points are in use, set during parsing
     self.points_scale = 1.0            # Set to a float scaling factor points should be scaled (e.t. 0.5 to halve everything)
-    self.show = False                  # True means print all results on from all tests on the command line
-    self.showfail = False              # True means print all failing results on the command line
-    self.single_show_fail = True       # True means print test results when a single test is run and fails
+    self.show = "singlefail"           # Whether to print failures in the terminal, ["all","fail","singlefail" ,"none"="False"=*]
     self.filename = None               # filename from which the suite came from or None if not from a file
     self.overall_result_file = False   # True produce an overall result file
     self.parallel = False              # Set to int to use multiple procs or True/auto for max procs
@@ -216,10 +212,11 @@ class Suite:
       var = var.lower()
       if var in env:
         val = env[var]
-        try:                                 # try converting to internal python
-          val = eval(val)
-        except Exception:
-          pass                               # if it fails, leave as a string
+        if val != "all":                       # hack to avoid a built-in used for show
+          try:                                 # try converting to internal python
+            val = eval(val)
+          except Exception:
+            pass                               # if it fails, leave as a string
         log.debug(f"{var}={val} option set from environment")
         if var in self.__dict__:
           self.__dict__[var] = val           # override suite option
@@ -1939,11 +1936,11 @@ def main(cmd_args):
     print("testy received a keyboard interrupt; Exiting")
     sys.exit(1)
 
-  if suite.show:                                       # Should this be part of progress reporter?
+  if suite.show=="all": # show everything, accept "1" for backwards compat
     print()
     print("---- Showing All Test Results -----")
     print(suite.result)
-  elif suite.showfail:
+  elif suite.show=="fail":      # show only failures
     failed_tests = [t for t in suite.tests_torun if t.passed == False]
     if failed_tests:
       print()
@@ -1951,12 +1948,14 @@ def main(cmd_args):
       for test in failed_tests:
         print(test.result)
         print()
-  elif suite.single_show_fail and len(suite.tests_torun)==1:
-    test = suite.tests_torun[0]
+  elif suite.show=="singlefail" and len(suite.tests_torun)==1:
+    test = suite.tests_torun[0] # on single tests, show failures (default)
     if not test.passed:
       print()
-      print("---- Showing Testing Results -----")
+      print("---- Single Test Failed -----")
       print(test.result)
+  else:
+    pass                        # show nothing
 
 if __name__ == '__main__':
   main(sys.argv[1:])            # remove script name from args
