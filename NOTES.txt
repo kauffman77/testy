@@ -1163,3 +1163,6 @@ test_scale_update.org:13: not enough values to unpack (expected 3, got 1)
   possible set up a pipe for this that'd be preferable as it'd be much
   faster and avoid the headache of temporary files
 
+** DONE Merged behavior of show
+All into a single show variable
+
