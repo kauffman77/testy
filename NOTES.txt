@@ -12,6 +12,9 @@
   those lines
 - ~save_rawfiles=1~ option
 
+** TODO publish to PyPI
+after completing doc updates
+
 ** TODO QUOTE files and save_rawfiles
 - Bad interaction which causes failure on these
 
