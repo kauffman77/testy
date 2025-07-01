@@ -1,0 +1,29 @@
+#+title: Big Output Fails
+* show bytes
+- Fails due to maximum output bytes exceeded.
+- Should show bytes in error message.
+- Also fails due to output mismatch (intentional)
+
+#+TESTY: max_out_bytes=2*2**10
+#+BEGIN_SRC sh
+>> seq 100000
+#+END_SRC
+
+* show kilobytes
+- Fails due to maximum output bytes exceeded.
+- Should show kilobytes in error message.
+- Also fails due to output mismatch (intentional)
+
+#+TESTY: max_out_bytes=10*2**10
+#+BEGIN_SRC sh
+>> seq 100000
+#+END_SRC
+
+* show megabytes
+- Fails due to maximum output bytes exceeded.
+- Should show megabytes in error message.
+- Also fails due to output mismatch (intentional)
+#+TESTY: max_out_bytes=1*2**20
+#+BEGIN_SRC sh
+>> seq 2000000
+#+END_SRC

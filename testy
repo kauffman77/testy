@@ -300,8 +300,8 @@ class Segment:
     self.linenum = None                # line number on which segment starts
     self.description = ""              # description of segment absent # comments
     self.preamble = ""                 # includes # comments, #+TESTY: directives, blank lines
-    self.shell_precommands = []        # list of shell commands to be run prior to running the session
-    self.program = "bash -v"           # program to run for the session; special behavior for QUOTE and COMMENT
+    self.shell_precommands = []        # list of shell commands to be run prior to running the segment
+    self.program = "bash -v"           # program to run for the segment; special behavior for QUOTE and COMMENT
     self.prompt  = ">>"                # prompt string used by the program being run
     self.echoing = "input"             # style of echoing done by the program, "input" echoes input, "both" for prompt+input echoing
     self.session = ""                  # string with lines of the session of input/output to be used
@@ -592,7 +592,13 @@ class Segment:
       self.messages.append(f"Timed Out: execution exceeded {self.timeout} seconds. Check for Infinite loops")
     if self.maxed_out:
       self.passed = False
-      limit = f"{self.max_out_bytes / 2**20} megabyte(s)"
+      limit = None
+      if self.max_out_bytes <= 8*2**10 :      # <= 8K show bytes
+        limit = f"{self.max_out_bytes} bytes"
+      elif self.max_out_bytes <= 256*2**10:   # <= 256K show kilobytes
+        limit = f"{self.max_out_bytes / 2**10:.2f} kilobytes"
+      else:                                   # show megabytes; don't expect gigabyte output
+        limit = f"{self.max_out_bytes / 2**20:.2f} megabyte(s)"
       self.messages.append(f"Max Output Exceeded: execution produced more than {limit} of output. Check for Infinite loops")
     if self.exitcode < 0:
       self.passed = False
