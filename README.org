@@ -1,320 +1,446 @@
-* Testy
+#+title: Testy: A Testing Script for Command-line Programs
+
+* Testy Synopsis
 A script to run tests for interactive terminal programs. Tests are
 specified in Emacs Org-like files.
 
-* Usage
-Usage is best described by the help message shown via ~testy --help~
-(which is the text at the top of the ~testy~ source:
-# xxxxxx
-: usage:    testy <testfile.org> [test# test# ...]
-:           testy --help
-: 
-: examples: testy test_prob1.org          # runs all tests in file
-:           testy test_prob1.org 3 5 7    # runs tests 3,5,7 in file
-:           testy test_prob1.org 5        # runs only test 5 and shows failures to stdout
-:           SHOW=1 testy test_prob1.org   # runs tests and prints all failures to stdout
-:           DEBUG=1 testy test_prob1.org  # runs printing LOTS of debug messages
-: 
-: Run tests for a shell program specified in an org-like file and report
-: the results.
-: 
-: 
-: ----------------------------------------
-: --- RUNNING TESTS ---
-: ----------------------------------------
-: 
-: Running a test is done from the command line and will default to
-: running all tests in a provided test file. Output shows each test with
-: a pass/fail and failures have results files indicating what went
-: wrong. Below is an example from the examples/ directory:
-: 
-: >> cd examples/
-: >> ../testy bash_tests.org
-: ============================================================
-: == testy bash_tests.org
-: == Running 2 / 2 tests
-: 1)  Output Tests         : ok
-: 2)  Failure Demo         : FAIL -> results in file 'test-results/test-02-result.tmp'
-: ============================================================
-: RESULTS: 1 / 2 tests passed
-: 
-: Inspecting the failure file indicated (always under freshly created
-: directory 'test-results/' ) shows the following output (plain text but
-: easier easier to read in org-mode):
-: 
-: ----------------------------------------
-: >> cat test-results/test-02-result.tmp
-: * (TEST 2) Failure Demo
-: COMMENTS:
+** Rationale
+I teach a university courses which do a fair bit of C programming (and
+some assembly). There isn't a standard testing infrastructure for C
+programs that is suitable for education so ~testy~ is my attempt to do
+so. It is fairly general purpose and strives for the following.
+- Write tests in plain text files that focus on input/output behavior
+  and provide a place document the intent and purpose of individual
+  tests.
+- Specify program tests that require interactive input in a fashion
+  similar to how an interactive session would appear.
+- Make it easy to use Valgrind to check for memory errors as the
+  program runs and trigger a failure if things go wrong.
+- Present test results in an accessible fashion showing output
+  differences and Valgrind traces to speed debugging.
+- Provide some flexibility on tests such as specifying timeout
+  options, assigning varying points to tests, and running tests in
+  parallel to speed up the results.
+- The testing infrastructure is self-contained in a single file so can
+  be "installed" by copying the ~testy~ script where it is
+  needed. Rely primarily on the Python standard library, not on 3rd
+  party packages that require elaborate installs.
+
+** Basic Usage
+Below is the basic usage on the command line when a file called
+~testsfile.org~ is available.
+#+BEGIN_SRC sh
+usage:    testy <testfile.org> [test# test# ...]
+          testy --help
+
+>> testy testsfile.org              # runs all tests in file
+>> testy testsfile.org 3 5 7        # runs tests 3,5,7 in file
+>> testy testsfile.org 5            # runs only test 5 and shows failures to stdout
+>> testy -o md testsfile.org        # generate the results in Markdown format instead of Org
+>> SHOW=fail testy testsfile.org    # runs tests and prints all failures to stdout
+#+END_SRC
+
+** Example Run
+Running a test is done from the command line and will default to
+running all tests in a provided test file. Output shows each test with
+a pass/fail and failures have results files indicating what went
+wrong. Below is an example from the examples/ directory:
+
+#+BEGIN_SRC sh
+>> cd examples/
+>> ../testy bash_tests.org
+=================
+== bash_tests.org
+== Running 2 / 2 tests
+1) Output Tests : ok
+2) Failure Demo : FAIL -> see test-results/test-02-result.org
+=================
+RESULTS: 1 / 2 tests passed
+#+END_SRC
+Inspecting the failure file indicated (always under freshly created
+directory ~test-results/~ ) shows the following output (plain text but
+easier easier to read in emacs org-mode):
+
+: >> cat test-results/test-02-result.org 
+: * (TEST 2) Failure Demo : FAIL
+: ** COMMENTS
 : This test will fail and produce output associated to show the
 : side-by-side diff that primarily reports failures.
 : 
-: ** program: bash -v
+: ** PROGRAM: bash -v
 : To run this individual test in GDB use the command:
 :   gdb --args bash -v
 : but any input to the program must be typed within the debugger
 : 
-: ** --- Failure messages ---
-: - FAILURE: Output Mismatch at lines marked
+: ** FAILURE MESSAGES
+: - Output Differenes: Expected/Actual do not match, check Diff Sections for details
 : 
-: ** --- Side by Side Differences ---
-: - Expect output in: test-results/raw/test-02-expect.tmp
-: - Actual output in: test-results/raw/test-02-actual.tmp
-: - Differing lines have a character like '|' '>' or '<' in the middle
-: #+BEGIN_SRC sbs-diff
-: ==== EXPECT ====                        ==== ACTUAL ====
-: >> echo "Matching Line"                 >> echo "Matching Line"
-: Matching Line                           Matching Line
-: >> echo "Mismatching Line"              >> echo "Mismatching Line"
-: Misma____ Li__                        | Mismatching Line
-: >> echo "Extra line in ACTUAL"          >> echo "Extra line in ACTUAL"
-:                                       > Extra line in ACTUAL
-: >> echo "Extra line in EXPECT"          >> echo "Extra line in EXPECT"
-: This is the extra line                <
-: Extra line in EXPECT                    Extra line in EXPECT
-: >> printf "Matches fine\nAnd again\n"   >> printf "Matches fine\nAnd again\n"
-: Matches fine                            Matches fine
-: And again                               And again
+: ** SIDE-BY-SIDE DIFF of Expected vs Actual
+: . lines match; | lines differ; < expected line missing; > extra line in actual
+: 
+: #+BEGIN_SRC sdiff
+: ===EXPECT===                            ===ACTUAL===
+: >> echo "Matching Line"               . >> echo "Matching Line"
+: Matching Line                         . Matching Line
+: >> echo "Mismatching Line"            . >> echo "Mismatching Line"
+: Misma______ Li__                      | Mismatching Line
+: >> echo "Extra line in ACTUAL"        . >> echo "Extra line in ACTUAL"
+: >> echo "Extra line in EXPECT"        | Extra line in ACTUAL
+: This is the extra line                | >> echo "Extra line in EXPECT"
+: Extra line in EXPECT                  . Extra line in EXPECT
+: >> printf "Matches fine\nAnd again\n" . >> printf "Matches fine\nAnd again\n"
+: Matches fine                          . Matches fine
+: And again                             . And again
+: 
 : #+END_SRC
 : 
-: ** --- Line Differences ---
-: EXPECT:   4) Misma____ Li__
-: ACTUAL:   4) Mismatching Line
-: ACTUAL:   6) Extra line in ACTUAL
-: EXPECT:   7) This is the extra line
-: ----------------------------------------
+: ** LINE-BY-LINE DIFF of Expected vs Actual
+: #+BEGIN_SRC text
+: EXPECT   4) Misma______ Li__
+: ACTUAL   4) Mismatching Line
 : 
-: The main section in the middle of the file is a side-by-side diff of
-: expected and actual output with the center column indicating what
-: differences were detected.  Generally whitespace differences are
-: ignored.
+: EXPECT   6) >> echo "Extra line in EXPECT"
+: ACTUAL   6) Extra line in ACTUAL
 : 
+: EXPECT   7) This is the extra line
+: ACTUAL   7) >> echo "Extra line in EXPECT"
 : 
-: ----------------------------------------
-: --- TEST FILE FORMAT ---
-: ----------------------------------------
-: 
-: Tests are specified in org-like files. Each top-level section starts
-: with a * with a test title, followed by comments and test sessions of
-: input/output. Each test can have multiple sessions. As a session is
-: found it is run. If the session fails, subsequent sessions for that
-: test are not run.
-: 
-: Sample input file (sample_tests.org):
-: ----------------------------------------
-: #+TITLE: Sample Tests
-: 
-: * Test echo
-: Check that the 'echo' command in bash is working.
-: 
-: The org-mode 'sh' param is not honored in testy; it is for easy
-: editing/formatting in Emacs but does not reflect what program will
-: actually run the and can be replaced with whatever.
-: 
-: #+BEGIN_SRC sh
-: >> echo 'hello'
-: hello
-: >> echo 'Hi there!'
-: Hi there!
 : #+END_SRC
 : 
-: * Test printf, will fail
-: Tests whether printf works.
+: ** VALGRIND Not in Use
+: ** SUMMARY
+: Test FAILED for the following reasons
+: - Output Differenes: Expected/Actual do not match, check Diff Sections for details
+
+* User Guide
+** Terminology
+I'm no expert on software testing theory so I don't expect these terms
+to be universal but they are the ones I settled on for ~testy~. The
+source code has a class hierarchy that reflects theses terms.
+
+|---------+--------------+-----------------------------------------------------------------------------------------|
+| TERM    | HAS          | Meaning                                                                                 |
+|---------+--------------+-----------------------------------------------------------------------------------------|
+| Session | input/output | a run of a program with input/output                                                    |
+|         |              | appear in ~.org~ test files as ~#+BEGIN_SRC: / #+END_SRC:~                              |
+|---------+--------------+-----------------------------------------------------------------------------------------|
+| Segment | description  | combination of some description, options, and a single session                          |
+|         | one session  | appear in ~.org~ files as some descriptive text, ~#+TESTY:~ directives, then a session  |
+|         |              | some segments are separated using sub headings like ~** Segment Title~                  |
+|---------+--------------+-----------------------------------------------------------------------------------------|
+| Test    | one or more  | a sequence of segments (possibly only 1) run in order up to the first failure           |
+|         | segments     | appear in ~.org~ files as top-level headings like ~** Test Title~                       |
+|---------+--------------+-----------------------------------------------------------------------------------------|
+| Suite   | one or more  | a collection of tests specified in a single file; may have global options for all tests |
+|         | tests        | appear as ~.org~ files with global options specified at the top of the file             |
+|---------+--------------+-----------------------------------------------------------------------------------------|
+
+** Tests File Format
+Tests are specified in org-like files. This is to make the
+test-writing experience akin to writing a text file and encourage
+documenting the intent and purpose of the tests.
+
+Org files are similar to Markdown but have a wider set of uses and
+much more deep support in Emacs than Markdown.  The basic structure is
+an outline.
+- Headings start with a line that looks like
+  : * Test Title Here
+  with the ~*~ character denoting a top-level heading
+- Text that appears after the title line is commentary on the test
+- Tags in org-mode start with ~#+~ and the most important tag in the
+  format is the ~#+BEGIN_SRC~ and ~#+END_SRC~ pair which denote a test
+  *session*, which shows prompts with input and expected output
+  together. 
+- The other common tag is the ~#+TESTY:~ tag which specifies options
+  for tests like the program invocation to run (global or local to a
+  test), the prompt used, timeouts, whether to use Valgrind to check
+  for memory problems, how to name test results files, etc.
+- Comments in org files look like
+  : # this is a comment line
+  which is a "hash space" at the beginning of the line. Comments will
+  not affect tests nor appear in any results files.
+
+A good example of this structure is in the
+file:examples_bc_tests_small.org file which has two tests and more
+
+: #+TITLE: Tests of the bc program
+: # the title to display when running the tests
 : 
-: #+BEGIN_SRC sh
-: >> printf "Hello world\n"
-: Hello world
-: >> printf "Multi-line\noutput is expected\nhere\n"
-: Multi-line
-: output is expected
-: here
-: >> printf "%s\n" "substitute me"
-: substitute me
-: #+END_SRC
+: # the lines below set some global options for all tests which may be
+: # overridden in invididual tests.
 : 
-: This second session below will fail (intentionally) as the output of
-: the printf will not match the expected output. The results of the
-: failure will be in a file which is listed by testy as the tests run.
-: #+BEGIN_SRC sh
-: >> echo 'hi'
-: hi
-: >> printf 'INTENTIONAL fail\n'
-: INTENTIONALly fails
-: #+END_SRC
+: #+TESTY: PREFIX="bctests" 
+: # a prefix for the results files that will appear in the test-results/
+: # directory; the default prefix is "test" but when multiple test files
+: # are present such as for multiple problems, it's handy to distinguis
+: # them. 
 : 
-: * Test bc
-: This test uses a different interpreter than the standard 'bash'. The
-: 'bc' program interprets standard mathematical expressions. Note the
-: use of #+TESTY expression to change the program for this test.
+: #+TESTY: PROGRAM="bc -iq" 
+: # the default program to run, in this case the standard interactive
+: # calculator program "bc"; the -iq options force an interactive
+: # setting (-i) and silence the welcome message copyright when starting
+: # the program (-q).
 : 
-: #+TESTY: program="bc -iq"
-: #+BEGIN_SRC sh
+: * (FIRST TEST) Addition and Multiplication 
+: # The above line indicates the start of a test with its title.
+: 
+: Some add/multiply tests
+: # This line is a comment on the intent of the test.
+: 
+: # Below is a "session" which will run the program `bc -iq` and feed in
+: # the input given on ">>" lines and check that the output matches the
+: # other lines. The "text" designator has no effect in testy and can be
+: # left off or chosen to make Emacs Org-Mode display code blocks with
+: # syntax highlighting.
+: 
+: #+BEGIN_SRC text
 : >> 1+1
 : 2
-: >> 3*5+12
-: 27
+: >> 3+4
+: 7
+: >> 9*2+3
+: 21
 : #+END_SRC
-: ----------------------------------------
 : 
-: Running the command './testy sample_tests.org' will produce output like the following:
+: # Below is a second test with similar features to the first.
 : 
-: ----------------------------------------
-: > ./testy sample_tests.org 
-: ============================================================
-: == sample_tests.org : Sample Tests
-: == Running 3 / 3 tests
-: 1)  Test echo              : ok
-: 2)  Test printf, will fail : FAIL -> results in file 'test-results/test-02-result.tmp'
-: 3)  Test bc                : ok
-: ============================================================
-: RESULTS: 2 / 3 tests passed
-: ----------------------------------------
+: * (SECOND TEST) No -q option; likely fail
+: # test title above and comments below
 : 
-: The file listed will will contain information on the failure.
+: The 'program' for this test is changed to ~bc -i~; since the ~-q~
+: option is omitted, the startup is not "quiet" and so the tests output
+: should include the startup message for ~bc~. This test will fail
+: unless you just happen to have the exact version of bc reported below.
 : 
+: #+TESTY: program="bc -i"
+: # This line overrides the program to run; instead of `bc -iq`, the
+: # above program will run which shows the welcome message. The test
+: # session is below.
 : 
+: #+BEGIN_SRC sh
+: bc 1.07.1
+: Copyright 1991-1994, 1997, 1998, 2000, 2004, 2006, 2008, 2012-2017 Free Software Foundation, Inc.
+: This is free software with ABSOLUTELY NO WARRANTY.
+: For details type `warranty'. 
+: >> 1-1
+: 0
+: >> 6-3
+: 3
+: >> 9-3
+: 6
+: >> 10-8
+: 2
+: #+END_SRC
 : 
-: ----------------------------------------
-: --- BEHAVIOR / ENVIRONMENT VARIABLES ---
-: ----------------------------------------
+
+** Specifying Which tests to Run
+
+** Test Running Order and Parallel Runs
+By default tests are run sequentially in the order that they appear on
+the command line (if numbers are indicated) or in the order they
+appear in the test file.
+
+Tests can be run in parallel via specifying an environment variable.
+#+BEGIN_SRC sh
+>> PARALLEL=False testy tests.org  # run serially, single core
+>> PARALLEL=True  testy tests.org  # run with max cores reported by OS
+>> PARALLEL=max   testy tests.org  # same as above
+>> PARALLEL=2     testy tests.org  # run with 2 cores
+>> export PARALLEL=4               # set environment variable in bash
+>> testy tests.org                 # run with 4 cores as per environment variable
+#+END_SRC
+
+Internally, ~testy~ uses the standard Python ~multiproc~ library to
+run tests in parallel for true parallelism of test runs (not that
+green, faux parallelism of the ~threads~ package).
+
+*When writing tests, it's best practice NOT to have dependencies
+between then that require a specific order of tests.* If functionality
+requires several steps, write it as a single test possibly employing
+[[*Multi-Segment Tests]] as way to get the sequencing. This will prevent
+problems when running in parallel. The segments of a test are always
+run in sequence from beginning to end.
+
+** Multi-Segment Tests
+Each test can have multiple segments; each segment is a description,
+some options, and a test session for a program run. Segments are run
+in order and if a segment fails, the test terminates in failure and
+subsequent segments for that test are not run.
+
+The best example for this is the example file
+file:examples/multi-segment-tests.org which shows several examples of
+how each test can be a sequence. The first test is shown below and
+shows how to include multiple segments that will be run in sequence in
+the test.
+: * Two Segment Test, Passing
 : 
-: The following variables can be specified in test files via lines like
-:   #+TESTY: var="value"
-: or via an environment variable during a program run as in
-:   > VAR="value" testy testfile.org
-: or via exporting an environment variable as in
-:   > export VAR="value"
-:   > testy testfile.org
+: This is the FIRST SEGMENT which uses BASH to create some files.
 : 
-: They will change the behavior of how the test data is interpreted.
+: #+BEGIN_SRC sh
+: >> echo 'Creating fileA'
+: Creating fileA
+: >> echo 'Hello world' >  test-results/fileA.txt
+: >> echo 'Goodbye now' >> test-results/fileA.txt
+: >> echo 'Creating fileB'
+: Creating fileB
+: >> seq 10 > test-results/fileB.txt
+: >> echo 'Done'
+: Done
+: #+END_SRC
 : 
-: GLOBAL VARIABLES that are usually specified at the beginning of a test
-: file before any other tests.
+: This is the SECOND SEGMENT which uses BASH to counts words in the
+: files created in the first segment. If for some reason the first
+: segment fails, the subsequent segment won't run. This test should have
+: all segments complete and thus the test will pass.
 : 
-: PROGRAM="bash -v"         : program to run/test; input is fed to this program
-: PROMPT=">>"               : prompt that indicates input to the program
-: ECHOING="input"           : {input, both} for program input echoing style,
-:                             "input" means the program echoes only input provided by testy, testy will add back in prompts
-:                             "both" echoes both prompt and input so testy won't add back anything
-:                              NOTE: testy does not support mocked interaction tests for programs that don't echo input
-:                              as this is generally hard to do
-: PREFIX="test"             : prefix for test output files, often changed to reflect program name like 'myprog'
-: RESULTDIR="test-results"  : directory where the results will be written
-: RESULTRAW="RESULTDIR/raw" : directory where actual / expect / valgrind results are stored
-: TIMEOUT="5s"              : maximum time to complete test before it is failed due to timeout; passed to the 'timeout' utility
-: POST_FILTER=""            : program to adjust output from test before evaluating, run as 'cat output | post_filter > actual.tmp'
-: USE_VALGRIND="0"          : set to 1 to run programs under Valgrind which checks for memory errors; useful for C programs especially
-: VALGRIND_REACHABLE="1"    : under valgrind, report errors if memory is still reachable at the end of the program
-: VALGRIND_OPTS=""          : pass additional options to valgrind such as '--suppressions=test_valgrind.supp' to use a suppression file
-: SKIPDIFF="0"              : skip diffing results, useful if checking only valgrind with actual output varying between runs
-: USE_POINTS="0"            : set to 1 to assign points to tests and report the total rather than a count of passed tests
-: POINTS="1"                : number of points assigned to each tests; only integer values are supported
-: 
-: Each of the above Global variables can be set Locally during a single
-: test by setting their lower-case version. For example:
-: 
-:   * Test 5: A test of bc
-:   #+TESTY: points="3"
-:   #+TESTY: program="bc -i"
-: 
-: will send input to the program "bc -i" and check output rather than
-: the default PROGRAM. The lower case options are reset during each test
-: run but NOT in between sessions in single test.
-: 
-: Finally, these variables control some global behavior of the testy.
-: SHOW=0            : set to 1 to print test error results after completing
-: DEBUG=0           : set to 1 to print LOTS of debugging messages
-: REPORT_FRACTION=0 : report the fraction of tests passed rather than the count
-: SCALE_POINTS=0    : set to non-zero / fractional value to scale the total points earned / available (e.g. SCALE_POINTS=0.5)
-: 
-: 
-: ----------------------------------------
-: --- TESTY MULTI ---
-: ----------------------------------------
-: 
-: Standard tests are for a single program running at a time. If several
-: programs need to run concurrently and coordinated during a test, one
-: can use the special program line
-:   #+TESTY: PROGRAM='TESTY_MULTI'
-: for all tests or
-:   #+TESTY: program='TESTY_MULTI'
-: for a single test.
-: 
-: The test itself then takes as input a series of commands which dictate
-: when to start programs, feed them input, sned them signals, and wait
-: for them to shut down.
-: 
-: --- TESTY_MULTI Commands are (briefly) ---
-: - START <key> <program> [args]
-:   >> START server ./banter_server gotham      # runs program 'banter_server gotham' and refers to it via key 'server'
-:   >> START bruce ./banter_client gotham bruce # runs program 'banter_client gotham bruce' and refers to it via key 'bruce'
-: 
-: - SIGNAL <key> <sigspec>
-:   >> SIGNAL server -15                        # sends program w/ key 'server' signal 15 (TERM)
-:   >> SIGNAL bruce -INT                        # sends program w/ key 'server' a keyboard interrupt signal (15)
-: 
-: - INPUT <key> text text text
-:   >> INPUT bruce Robin? Barbara?              # sends text input to program w/ key 'bruce'
-:   >> INPUT clark <EOF>                        # sends End of Input to program w/ key 'clark'
-: 
-: - WAIT <key>
-:   >> WAIT server                              # causes testy to wait for program w/ key 'server' to complete
-: 
-: - WAIT_ALL
-:   >> WAIT_ALL                                 # waits for all programs to complete
-: 
-: - OUTPUT <key> <filter>
-:   >> OUTPUT server cat                        # testy prints the output for program w/ key 'server' passing to through filter 'cat'
-:   >> OUTPUT bruce ./test_filter_client_output # ditto but passes through the specified filter program
-: 
-: - OUTPUT_ALL
-:   >> OUTPUT_ALL cat                           # testy prints output for all programs for comparison in the test results; filtered through 'cat'
-:   >> OUTPUT_ALL ./test_filter_client_output   # ditto but passes through the specified filter program
-: 
-: - CHECK_FAILURES <key> <filter>
-:   >> CHECK_FAILURES server cat                # for 'server', prints any failures like timeout, non-zero return, valgrind problems, etc. 
-:                                               # prints nothing if no failures detected
-: 
-: - CHECK_ALL <filter>
-:   >> CHECK_ALL cat                            # checks failures in all programs that are part of test passing through 'cat' as a filter
-: 
-: - SHELL cmd cmd cmd
-:   >> SHELL rm some-file.txt                   # runs a shell command in the middle of the test in this case removing a file
-: ----------------------------------------
-: 
-: An example of a TESTY_MULTI testing file is in
-: 
-:   testy/examples/banter_tests.org
-: 
-: which tests a tiny chat server/client written in bash. A server is
-: started and several clients 'join' the server and exchange messages.
-: 
-: TESTY_MULTI has a few more control global variables to dictate
-: behaviors specific to it.
-: 
-: TICKTIME="0.1"            # amount of time to wait in between test commands during a TESTY_MULTI session
-: VALGRIND_START_TICKS="8"  # number of ticks to wait during TESTY_MULTI when starting a program under valgrind
-:                           # valgrind slows things down so it takes more time for programs to start up
-: 
-: Depending on system speed, one may wish to lengthen these parameters
-: through setting them globally at the top of the testy file as in:
-:   #+TESTY: TICKTIME=0.1
-:   #+TESTY: VALGRIND_START_TICKS=8
-: 
-: 
-: ----------------------------------------
-: --- CAVEATS ---
-: ----------------------------------------
-: 
-: testy is in ALPHA stage and actively being developed. For that reason
-: no guarantees are made about its reliability. Especially TESTY_MULTI
-: sessions have some known failings not to mention the fact that relying
-: on a tick time to coordinate programs is doomed to fail at some point.
-: 
-: All the same, enjoy!
-: - Chris
-: 
-# xxxxxx
+: #+BEGIN_SRC sh
+: >> echo 'Counting fileA'
+: Counting fileA
+: >> wc test-results/fileA.txt
+:  2 4 24 test-results/fileA.txt
+: >> echo 'Counting fileB'
+: Counting fileB
+: >> wc test-results/fileB.txt
+: 10 10 21 test-results/fileB.txt
+: >> echo 'Counting both files'
+: Counting both files
+: >> wc test-results/file[AB].txt
+:  2  4 24 test-results/fileA.txt
+: 10 10 21 test-results/fileB.txt
+: 12 14 45 total
+: #+END_SRC
+
+The [[file:examples/multi-session-tests.org][multi-segment example file]] has additional details in it including:
+- demo of a multi-segment test which fails midway
+- organization of test segments via org sub-headings
+- using different programs in different segments
+
+** Markdown Output Format
+Many folks are more inclined towards the (lesser) Markdown format for
+output rather than the default Org format. Markdown output is enabled
+via the ~-o md~ command line switch.
+
+#+BEGIN_SRC sh
+>> ../testy -o md bash_tests.org                # run tests with md-formatted results files
+=================
+== bash_tests.org
+== Running 2 / 2 tests
+1) Output Tests : ok
+2) Failure Demo : FAIL -> see test-results/test-02-result.md
+=================
+RESULTS: 1 / 2 tests passed
+
+>> cat test-results/test-02-result.md           # show the results file which is in markdown format
+(TEST 2) Failure Demo : FAIL
+============================
+
+COMMENTS
+--------
+This test will fail and produce output associated to show the
+side-by-side diff that primarily reports failures.
+
+PROGRAM: bash -v
+----------------
+To run this individual test in GDB use the command:
+  gdb --args bash -v
+but any input to the program must be typed within the debugger
+
+FAILURE MESSAGES
+----------------
+- Output Differenes: Expected/Actual do not match, check Diff Sections for details
+
+SIDE-BY-SIDE DIFF of Expected vs Actual
+---------------------------------------
+. lines match; | lines differ; < expected line missing; > extra line in actual
+
+```sdiff
+===EXPECT===                            ===ACTUAL===
+>> echo "Matching Line"               . >> echo "Matching Line"
+Matching Line                         . Matching Line
+>> echo "Mismatching Line"            . >> echo "Mismatching Line"
+Misma______ Li__                      | Mismatching Line
+>> echo "Extra line in ACTUAL"        . >> echo "Extra line in ACTUAL"
+>> echo "Extra line in EXPECT"        | Extra line in ACTUAL
+This is the extra line                | >> echo "Extra line in EXPECT"
+Extra line in EXPECT                  . Extra line in EXPECT
+>> printf "Matches fine\nAnd again\n" . >> printf "Matches fine\nAnd again\n"
+Matches fine                          . Matches fine
+And again                             . And again
+
+```
+
+LINE-BY-LINE DIFF of Expected vs Actual
+---------------------------------------
+```
+EXPECT   4) Misma______ Li__
+ACTUAL   4) Mismatching Line
+
+EXPECT   6) >> echo "Extra line in EXPECT"
+ACTUAL   6) Extra line in ACTUAL
+
+EXPECT   7) This is the extra line
+ACTUAL   7) >> echo "Extra line in EXPECT"
+
+```
+
+VALGRIND Not in Use
+-------------------
+SUMMARY
+-------
+Test FAILED for the following reasons
+- Output Differenes: Expected/Actual do not match, check Diff Sections for details
+#+END_SRC
+
+** Options for Tests
+There are variety of options that can be placed in test files that set
+the default for the entire suite or for an individual test or
+segment. The table below surveys these. There are others that are
+possible and the general philosophy is to make most internal parts of
+the Suite, Test, and Segment available as tweak able options through
+~#+TESTY:~ directives.
+
+|----------------------------------------+----------------------------------------------------------------+--------------------|
+| SYNTAX / DEFAULT                       | EFFECT                                                         | SCOPE              |
+|----------------------------------------+----------------------------------------------------------------+--------------------|
+| GENERAL OPTIONS                        | see file:examples/options.org                                  |                    |
+| ~#+TESTY: program='bash -v'~           | set the program to run in a session                            | Suite,Test,Segment |
+| ~#+TESTY: prompt  = ">>"~              | set the prompt for interactive programs                        | Suite,Test,Segment |
+| ~#+TESTY: timeout=5.0~                 | set maximum seconds before a session fails                     | Suite,Test,Segment |
+| ~#+TESTY: max_out_bytes=2**20~         | set maximum bytes of output before session fails               | Suite,Test,Segment |
+| ~#+TESTY: exitcode_expect=0~           | change the expected exit code for sessions                     | Suite,Test,Segment |
+| ~#+TESTY: skip_exitcode=False~         | skip checking the exit code / accept any exit code             | Suite,Test,Segment |
+| ~#+TESTY: skip_diff=False~             | skip checking that output matches some expectation             | Suite,Test,Segment |
+| ~#+TESTY: !rm somefile.txt~            | run precommands (shell one-liners) to do setup for a Segment   | Segment            |
+| ~+#BEGIN_QUOTE filename.txt~           | creating files with content to be used during testing          | Suite,Test,Segment |
+| ~#+TESTY: use_valgrind=1~              | Use Valgrind to check for memory problems                      | Suite,Test,Segment |
+| ~#+TESTY: valgrind_opts="--option"~    | set additional Valgrind options                                | Suite,Test,Segment |
+| ~#+TESTY: post_filter='filtprog'~      | filter/transform session output before checking it             | Suite,Test,Segment |
+| ~SAVE_RAWFILES=1 testy tests.org~      | save raw input/output in the ~test-results/raw~ directory      | Suite              |
+| ~#+TESTY: skip_diff=1~                 | skip diffing the output; test succeeds irrespective of output  | Suite,Test,Segment |
+| ~#+TESTY: diff_ignore_blanklines=True~ | ignore blank lines when diffing output                         | Suite,Test,Segment |
+| ~#+TESTY: diff_ignore_whitespace=True~ | treat one space the same as many spaces in a line during diffs | Suite,Test,Segment |
+| ~#+TESTY: diff_ignore_trail_ws=True~   | ignore trailing spaces in output                               | Suite,Test,Segment |
+| ~* COMMENT This test won't count~      | tests that have ~COMMENT~ are ignored and don't count          | Test               |
+|----------------------------------------+----------------------------------------------------------------+--------------------|
+| POINTS SYSTEM                          | see file:examples/points.org                                   |                    |
+| ~#+TESTY: use_points=False~            | report points earned instead of tests passed when True         | Suite              |
+| ~#+TESTY: points_scale=1.0~            | multiply total points / earned points by this factor           | Suite              |
+| ~#+TESTY: points=1.0~                  | raw points for passing an individual test                      | Test               |
+|----------------------------------------+----------------------------------------------------------------+--------------------|
+
+# | xxx | feature not complete | creating/setting a directory for a test |   |
+
+** Other Test File Formats
+Org-format test files are the only ones supported at the
+moment. However, in the not-to-distant future the following formats
+are likely to be added for support.
+- Markdown test files as input
+- JSON test files as input
+- Other light, structured input like YAML or TOML
+If you want to advocate for work on one of these, let me know. While
+Org files are convenient to write, parsing them is a bear as they are
+less structured. Markdown will be similar as it is fairly
+free-form. The structured inpu but JSON likely has an easy
 
 * License
 ~testy~ is released under the terms of the *GNU General Public License
@@ -324,7 +450,7 @@ included in the file ~LICENSE~ in the source repository.
 * Planned and Completed Additions
 See file:NOTES.txt which contains notes on planned and completed additions 
 
-* Install macOS Requirements
+* COMMENT Install macOS Requirements
 Note: ~testy~ is primarily supported for Linux/GNU.
 
 The installation script of ~testy~ dependencies for macOS

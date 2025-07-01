@@ -2,6 +2,19 @@
 #+title: Development Notes / Tasks for Testy
 #+SEQ_TODO: TODO | DONE FORWARDED CANCELLED
 
+* Internals
+Some descriptions of the internal implementation will be placed here
+at some point. The comments in the code do a reasonably good job of
+explaining most of this but summaries are always nice.
+
+** Class Structure
+** Transfer of Options between Suite, Test, Segment
+** Use of eval() in parsing options 
+** Alignment Algorithm
+** Parsing Input
+** Reporting and Formatting Output
+** Subprocess Communication
+
 * Additional Features / Testing for Python Version
 ** TODO Documentation Updates
 - ~#+BEGIN_QUOTE filename~ in org input files
@@ -12,8 +25,38 @@
   those lines
 - ~save_rawfiles=1~ option
 
+** TODO Remove go_to_testdir
+Empty function which should be excised
+
 ** TODO publish to PyPI
 after completing doc updates
+
+** TODO Duplicate code for test directory in Test and Segment
+- This makes me a little nervous as it might 
+- Want to allow tests to create a directory where all segments run
+- Also want to allow segments to have their own directory; may need to
+  split this to a segment_directory instead
+- Tricky interaction of when test vs segment setup gets done
+
+** TODO Merge skip_exitcode and exitcode_expect
+Becomes exitcode_expect=None or Any to skip the check; one fewer
+option to check
+
+** TODO Fix up individual points on tests
+currently getting absorbed into segments and conveyed back through a
+hack; look for a better way to do this.
+
+** TODO Echoing options beyond "input"
+Try to look for the prompt in the output and re-assemble the input
+from that.
+
+** TODO Mechanism to run a program through testy
+Option that will run a single test and show the command line that is
+used for it in the terminal; helpful for students that are learning
+
+** TODO Consider command line option for save_rawfiles
+not sure if this is necessary but would help for symmetry AND make it
+easier to remember as it would be accessible via ~testy --help~
 
 ** TODO QUOTE files and save_rawfiles
 - Bad interaction which causes failure on these
@@ -43,40 +86,6 @@ a little simpler
 ** TODO Python Signal support within tests for testyp
 May wish to send signals but add as needed
 
-* Comparing Length of Bash vs Python version
-Line comparison at v0.7
-
-#+BEGIN_SRC sh
-val (master) [testy]% cat testy | grep -c -v '^ *$\|^ *#'
-1495   # 326 lines for usage / todo, 197 deprecated lines
-val (master) [testy]% cat testyp | grep -v '^ *$\|^ *#' | awk '/^ *"""/{S=1} !S{print} /"""$/{S=0}'|wc -l
-994    # 14 lines for short/long usage
-#+END_SRC
-|----------+----------+------------------------------------------------|
-|      <r> |      <r> | <l>                                            |
-|    testy |   testyp |                                                |
-|     BASH |   PYTHON | METRIC                                         |
-|----------+----------+------------------------------------------------|
-|     2131 |     1444 | Total Lines                                    |
-|     1298 |      994 | Remove comments, blank Lines, deprecated funcs |
-|      326 |       14 | Usage Lines                                    |
-|      972 |      980 | *Functional Lines*                             |
-|----------+----------+------------------------------------------------|
-|          |          | DIFFERING FEATURES                             |
-|      Yes |       No | testy_multi                                    |
-|      Yes |       No | Signals in input                               |
-|       No |      Yes | Parallel Processing                            |
-|        1 |        2 | Progress Formats                               |
-| External | Internal | Diffing Functionality                          |
-| External | Internal | Timeout Functionality                          |
-|----------+----------+------------------------------------------------|
-#+TBLFM: @7$1=@5-@6::@7$2=@5-@6
-- It's interesting that the expressive power is similar as
-  approximately the same though it spent in different places; 
-- Python has more expressive power as it includes several internal
-  implementations and has a similar line count
-- Readability and extensibility are vastly better in the Python
-  version
 
 * Completed
 ** DONE Completed General Improvements for Bash testy
@@ -1168,4 +1177,65 @@ test_scale_update.org:13: not enough values to unpack (expected 3, got 1)
 
 ** DONE Merged behavior of show
 All into a single show variable
+
+* Comparing Length of Bash vs Python version
+The first version of testy was written only in Bash as the aim was to
+make it as portable as possible. Python is reasonably portable BUT the
+first thing I discovered on porting to Python is that the varying
+Python versions out there have different standard functions present
+and since I can't always install an up-to-date Python on some systems,
+I had to very conscious of using "older" Python features: a critical
+system at UMD only has Python 3.8 installed so that was the baseline
+for features to be used. That said 
+
+Below is a comparison of the lengths of the code between the fresh
+Python version and the bash version. Line comparison was done at v0.7,
+right around the time BASH ~testy~ became ~testyb~ and Python ~testyp~
+became the mainline ~testy~. It's interesting to see that for the
+features at that time, the line comparisons were on par, especially
+discounting the long Usage in BASH. 
+
+HOWEVER I'm definitely of the opinion that the Python version is WAY
+nicer to develop in as it allows for better decomposition,
+orthogonality, and sanity. The python code has grown substantially
+beyond the one used in this comparison but supports a wealth features
+that would be murderous to implement in BASH like running tests in
+multiple processes to get parallelism, better support for parsing
+input, a custom alignment/diff algorithm, markdown output, and (this
+is a killer) easy debugging via Python's ~pdb~ module. The existing
+version of ~testyb~ skirted the the edge of what I think is sane to do
+with Bash scripts though a trusted colleague argued it's way over the
+edge into insanity.
+
+#+BEGIN_SRC sh
+val (master) [testy]% cat testy | grep -c -v '^ *$\|^ *#'
+1495   # 326 lines for usage / todo, 197 deprecated lines
+val (master) [testy]% cat testyp | grep -v '^ *$\|^ *#' | awk '/^ *"""/{S=1} !S{print} /"""$/{S=0}'|wc -l
+994    # 14 lines for short/long usage
+#+END_SRC
+|----------+----------+------------------------------------------------|
+|      <r> |      <r> | <l>                                            |
+|    testy |   testyp |                                                |
+|     BASH |   PYTHON | METRIC                                         |
+|----------+----------+------------------------------------------------|
+|     2131 |     1444 | Total Lines                                    |
+|     1298 |      994 | Remove comments, blank Lines, deprecated funcs |
+|      326 |       14 | Usage Lines                                    |
+|      972 |      980 | *Functional Lines*                             |
+|----------+----------+------------------------------------------------|
+|          |          | DIFFERING FEATURES                             |
+|      Yes |       No | testy_multi                                    |
+|      Yes |       No | Signals in input                               |
+|       No |      Yes | Parallel Processing                            |
+|        1 |        2 | Progress Formats                               |
+| External | Internal | Diffing Functionality                          |
+| External | Internal | Timeout Functionality                          |
+|----------+----------+------------------------------------------------|
+#+TBLFM: @7$1=@5-@6::@7$2=@5-@6
+- It's interesting that the expressive power is similar as
+  approximately the same though it spent in different places; 
+- Python has more expressive power as it includes several internal
+  implementations and has a similar line count
+- Readability and extensibility are vastly better in the Python
+  version
 

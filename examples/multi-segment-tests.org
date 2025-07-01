@@ -1,0 +1,226 @@
+#+title: Multi-Segment Tests
+# default program is 'bash -v' so there is no need for
+#   #+TESTY: program='...'
+# directives unless overriding that.
+
+* Two Segment Test, Passing
+
+This is the FIRST SEGMENT which uses BASH to create some files. 
+
+#+BEGIN_SRC sh
+>> echo 'Creating fileA'
+Creating fileA
+>> echo 'Hello world' >  test-results/fileA.txt
+>> echo 'Goodbye now' >> test-results/fileA.txt
+>> echo 'Creating fileB'
+Creating fileB
+>> seq 10 > test-results/fileB.txt
+>> echo 'Done'
+Done
+#+END_SRC
+
+This is the SECOND SEGMENT which uses BASH to counts words in the
+files created in the first segment. If for some reason the first
+segment fails, the subsequent segment won't run. This test should have
+all segments complete and thus the test will pass.
+
+#+BEGIN_SRC sh
+>> echo 'Counting fileA'
+Counting fileA
+>> wc test-results/fileA.txt
+ 2 4 24 test-results/fileA.txt
+>> echo 'Counting fileB'
+Counting fileB
+>> wc test-results/fileB.txt
+10 10 21 test-results/fileB.txt
+>> echo 'Counting both files'
+Counting both files
+>> wc test-results/file[AB].txt
+ 2  4 24 test-results/fileA.txt
+10 10 21 test-results/fileB.txt
+12 14 45 total
+#+END_SRC
+
+* Three Segment Test, 2nd Segment Fails 
+This test has 3 segments
+1. The first segment succeeds
+2. The second fails
+3. The third does not run due to the failure in the 2nd.
+
+Segment 1: create 3 files of differing contents and count their
+lines.
+#+BEGIN_SRC sh
+>> rm test-results/t2*.txt
+>> for i in $(seq 3); do seq 1 $i 10 > test-results/t2_${i}.txt; done
+>> wc test-results/t2_[123].txt
+10 10 21 test-results/t2_1.txt
+ 5  5 10 test-results/t2_2.txt
+ 4  4  9 test-results/t2_3.txt
+19 19 40 total
+#+END_SRC
+
+Segment 2: check for the existence of a 4th file which is not
+present. This will cause the segment to fail which is intentional and
+terminates the entire test in failure so that the 3rd segment will NOT
+be run. Note: changing the range from 3 to 4 above will cause this
+segment to pass and the test will proceed to the 3rd segment below.
+#+BEGIN_SRC sh
+>> ls test-results/t2_4.txt
+test-results/t2_4.txt
+>> wc test-results/t2_4.txt
+3 3 6 test-results/t2_4.txt
+#+END_SRC
+
+Segment 3: show the contents of each file using head and sum them up
+using a shell pipeline.
+#+BEGIN_SRC sh
+>> head test-results/t2_*.txt
+==> test-results/t2_1.txt <==
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+
+==> test-results/t2_2.txt <==
+1
+3
+5
+7
+9
+
+==> test-results/t2_3.txt <==
+1
+4
+7
+10
+
+==> test-results/t2_4.txt <==
+1
+5
+9
+
+>> cat test-results/t2_*.txt | tr '\n' '+' | sed 's/$/0\n/g' | bc
+117
+#+END_SRC
+
+* Three Segment Test with Subheadings, All Passing 
+This test is like the one above with 3 segments but has two
+differences.
+1. The test passes as the first test is altered to produce a 4th file.
+2. It uses sub-headings like
+   : ** Sub-heading title
+   to organize the test segments in an org-mode like fashion.
+Subheadings (currently) don't have any major effect within ~testy~ but
+they are nice for organizing. In the future it may be required that
+multiple segments be divided using subheadings with 1 segment per
+heading. 
+
+** Create Files
+Segment 1: creates 4 files (not 3) of differing contents and count
+their lines.
+#+BEGIN_SRC sh
+>> rm test-results/t2*.txt
+>> for i in $(seq 4); do seq 1 $i 10 > test-results/t2_${i}.txt; done
+>> wc test-results/t2_[123].txt
+10 10 21 test-results/t2_1.txt
+ 5  5 10 test-results/t2_2.txt
+ 4  4  9 test-results/t2_3.txt
+19 19 40 total
+#+END_SRC
+
+** Check the 4th File
+Segment 2: check for the existence of a 4th file which is not
+present. This will cause the segment to fail which is intentional and
+terminates the entire test in failure so that the 3rd segment will NOT
+be run. Note: changing the range from 3 to 4 above will cause this
+segment to pass and the test will proceed to the 3rd segment below.
+#+BEGIN_SRC sh
+>> ls test-results/t2_4.txt
+test-results/t2_4.txt
+>> wc test-results/t2_4.txt
+3 3 6 test-results/t2_4.txt
+#+END_SRC
+
+** Show File Contents and Sum
+Segment 3: show the contents of each file using head and sum them up
+using a shell pipeline.
+#+BEGIN_SRC sh
+>> head test-results/t2_*.txt
+==> test-results/t2_1.txt <==
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+
+==> test-results/t2_2.txt <==
+1
+3
+5
+7
+9
+
+==> test-results/t2_3.txt <==
+1
+4
+7
+10
+
+==> test-results/t2_4.txt <==
+1
+5
+9
+
+>> cat test-results/t2_*.txt | tr '\n' '+' | sed 's/$/0\n/g' | bc
+117
+#+END_SRC
+
+* Different Programs per Segment, Passing
+This test demonstrates two segments that use two different
+programs. Both are not the default BASH so a directive is used to
+indicate the program to be used.
+
+** awk Segment
+This segment runs AWK and produces output. It is not an interactive
+segment so there are no >> prompts for user input. The program to run
+and its options are specified with the ~#+TESTY: program=...~
+directive.
+
+#+TESTY: program="awk 'BEGIN{for(i=1; i<=10; i++){print i}}'"
+#+BEGIN_SRC text
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+#+END_SRC
+
+** bc Segment
+This segment runs bc to do a bit of arithmetic. The program is again
+specified with a ~#+TESTY: program=...~ directive and some input is
+expected so prompts appear.
+
+#+TESTY: program="bc -iq" 
+#+BEGIN_SRC text
+>> 5*9
+45
+>> 11*11+1
+122
+#+END_SRC
+

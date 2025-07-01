@@ -1,0 +1,69 @@
+#+TITLE: Tests of the bc program
+# the title to display when running the tests
+
+# the lines below set some global options for all tests which may be
+# overridden in invididual tests.
+
+#+TESTY: PREFIX="bctests" 
+# a prefix for the results files that will appear in the test-results/
+# directory; the default prefix is "test" but when multiple test files
+# are present such as for multiple problems, it's handy to distinguis
+# them. 
+
+#+TESTY: PROGRAM="bc -iq" 
+# the default program to run, in this case the standard interactive
+# calculator program "bc"; the -iq options force an interactive
+# setting (-i) and silence the welcome message copyright when starting
+# the program (-q).
+
+* (FIRST TEST) Addition and Multiplication 
+# The above line indicates the start of a test with its title.
+
+Some add/multiply tests
+# This line is a comment on the intent of the test.
+
+# Below is a "session" which will run the program `bc -iq` and feed in
+# the input given on ">>" lines and check that the output matches the
+# other lines. The "text" designator has no effect in testy and can be
+# left off or chosen to make Emacs Org-Mode display code blocks with
+# syntax highlighting.
+
+#+BEGIN_SRC text
+>> 1+1
+2
+>> 3+4
+7
+>> 9*2+3
+21
+#+END_SRC
+
+# Below is a second test with similar features to the first.
+
+* (SECOND TEST) No -q option; likely fail
+# test title above and comments below
+
+The 'program' for this test is changed to ~bc -i~; since the ~-q~
+option is omitted, the startup is not "quiet" and so the tests output
+should include the startup message for ~bc~. This test will fail
+unless you just happen to have the exact version of bc reported below.
+
+#+TESTY: program="bc -i"
+# This line overrides the program to run; instead of `bc -iq`, the
+# above program will run which shows the welcome message. The test
+# session is below.
+
+#+BEGIN_SRC sh
+bc 1.07.1
+Copyright 1991-1994, 1997, 1998, 2000, 2004, 2006, 2008, 2012-2017 Free Software Foundation, Inc.
+This is free software with ABSOLUTELY NO WARRANTY.
+For details type `warranty'. 
+>> 1-1
+0
+>> 6-3
+3
+>> 9-3
+6
+>> 10-8
+2
+#+END_SRC
+

@@ -1,0 +1,410 @@
+#+title: Examples of Options for Tests
+
+* Awk as Program
+The directive below changes the program to use to AWK rather than the
+default BASH (~bash -v~) program for sessions..
+
+#+TESTY: program="awk 'BEGIN{for(i=1; i<=10; i++){print i}}'"
+#+BEGIN_SRC text
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+#+END_SRC
+
+
+* bc as Program
+The directive below uses bc as the program rather than the default
+bash.
+
+#+TESTY: program="bc -iq"
+#+BEGIN_SRC text
+>> 5*9
+45
+>> 11*11+1
+122
+#+END_SRC
+
+* Interactive Program Prompts
+The default prompt that is used to detect and feed input to
+interactive programs is >> but this can be changed with the prompt
+directive. 
+
+#+TESTY: program='./doctor.sh -echo'
+#+TESTY: prompt='DOCTOR>'
+
+#+BEGIN_SRC sh
+What brings you to the socratic therapist today?
+DOCTOR> I've got feelings of guilt
+Tell me more about that
+DOCTOR> I don't think I'm giving my all at work
+Tell me more about that
+DOCTOR> I just don't feel motivated
+Tell me more about that
+DOCTOR> quit
+
+Oh, that's time. We'll pick up on that next week.
+#+END_SRC
+
+If you examine the ~doctor.sh~ program that is used in this example,
+it exposes one weakness of testy for interactive programs: the
+programs MUST echo back the input in order to have a
+fighting chance to re-assemble the session. Having students implement
+an ~-echo~ command line option is how I've always handled
+this. Generally it's intractable to handle all cases of input/output
+pairing right but perhaps in the future I'll implement a more
+sophisticated approach that spares the need for echoing.
+
+* Timeouts (fail)
+The directive below sets the timeout to 0.25 seconds rather than the
+default 5.0 seconds. This will cause the test to fail as the session
+sleeps for 1.0 seconds before printing so that the timeout is
+hit. Timeouts are great to prevent infinite loops in student code from
+stopping the tests from completing.
+
+#+TESTY: timeout=0.25
+#+BEGIN_SRC sh
+>> sleep 1 && echo 'All done now'
+All done now
+#+END_SRC
+
+* Too much output, show bytes (fail)
+- Fails due to maximum output bytes exceeded.
+- Should show bytes in error message.
+- Also fails due to output mismatch (intentional)
+
+#+TESTY: max_out_bytes=2*2**10
+#+BEGIN_SRC sh
+>> seq 100000
+#+END_SRC
+
+* Too much output, show kilobytes (fail)
+- Fails due to maximum output bytes exceeded.
+- Should show kilobytes in error message.
+- Also fails due to output mismatch (intentional)
+
+#+TESTY: max_out_bytes=10*2**10
+#+BEGIN_SRC sh
+>> seq 100000
+#+END_SRC
+
+* Too much output, show megabytes (fail)
+- Fails due to maximum output bytes exceeded.
+- Should show megabytes in error message.
+- Also fails due to output mismatch (intentional)
+#+TESTY: max_out_bytes=1*2**20
+#+BEGIN_SRC sh
+>> seq 2000000
+#+END_SRC
+
+* Non-zero exit code
+The default is to expect an exit code of 0 from a program runin a
+session as this is the UNIX standard for success (e.g. ~return 0;~ or
+~exit(0)~ in a C program). Sessions that end in a non-zero exit code
+fail by default.
+
+If the test is checking that a program properly detects and error and
+returns a non-zero exit code, the expected exit code can be changed
+using the below directive.
+
+#+TESTY: exitcode_expect=2
+#+TESTY: program='ls no-such-file.txt'
+#+BEGIN_SRC sh
+ls: cannot access 'no-such-file.txt': No such file or directory
+#+END_SRC
+
+* Skipping Exit Code Check
+If the exit code is no concern for the test (may be 0, 1, 2, etc.;
+doesn't matter) then exit code checks can be skipped.
+
+# normally attempting to compile a non-existent program leads to
+# non-zero exit code and failure but the exit code check is skipped
+# due to this directive
+#+TESTY: skip_exitcode=True
+#+TESTY: program='gcc no-such-file.c'
+#+BEGIN_SRC sh
+cc1: fatal error: no-such-file.c: No such file or directory
+compilation terminated.
+#+END_SRC
+
+* Shell Precommands
+Commands can be done to set up a test if needed. One could use a
+Segment with a shell session to do this but sometimes a single command
+or two is better placed outside of a session. Copying a file, removing
+artifacts, and checking for presence of data are common uses. If a
+precommand fails (returns a nonzero exit code), the test fails.
+
+# run the below command to generate a file
+#+TESTY: !seq 5 > test-results/one-to-five.txt
+#+BEGIN_SRC sh
+>> cat test-results/one-to-five.txt
+1
+2
+3
+4
+5
+#+END_SRC
+
+* Skipping Output Diffs
+Checking that the output matches an expectation can be skipped for
+programs that are run solely the check their exit codes or other
+side-effects. The below directive accomplishes this which means that
+the test will pass.
+
+#+TESTY: skip_diff=True
+#+BEGIN_SRC sh
+>> ls
+No directory contents will be checked
+as the diff is disabled
+>> echo All done
+Also not checked
+#+END_SRC
+
+* Quoting Files
+The below syntax creates the file ~test-results/gettysburg.txt~ as the
+first session of the test. It's handy for creating modest sized input
+files that will be used in tests.
+
+#+BEGIN_QUOTE test-results/gettysburg.txt
+Four score and seven years ago our fathers brought forth on
+this continent, a new nation, conceived in Liberty, and
+dedicated to the proposition that all men are created
+equal.
+#+END_QUOTE
+
+The remaining session will perform various operations on the contents
+of the ~gettysburg.txt~ file that is created via quoting.
+#+BEGIN_SRC sh
+>> file=test-results/gettysburg.txt
+>> wc $file
+  4  30 177 test-results/gettysburg.txt
+>> sed 's/F/P/g; s/f/p/g;' $file
+Pour score and seven years ago our pathers brought porth on
+this continent, a new nation, conceived in Liberty, and
+dedicated to the proposition that all men are created
+equal.
+#+END_SRC
+
+* Valgrind Enabled for Leaks (fails)
+Using the directive below will run the program under the Valgrind
+memory checker. This helps determine if there are memory leaks as is
+the case in the following simple example.
+
+In the program results, Normal output and Valgrind error messages are
+separated into their own sections. The raw file output, if kept,
+intermingles these and can be useful. See the options for retaining
+raw files below.
+
+Create the following C file
+#+BEGIN_QUOTE test-results/leak.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+int main(){
+  char *msg = malloc(sizeof(char)*10);
+  strcpy(msg,"hello!");
+  printf("%s\n",msg);
+  // free(msg);
+  return 0;
+}
+#+END_QUOTE
+
+Compile the program.
+#+TESTY: !gcc -g -o test-results/leak test-results/leak.c
+
+Then run the generated ~leak~ program under Valgrind which will fail
+as there is a memory leak.
+#+TESTY: program='./test-results/leak'
+#+TESTY: use_valgrind=1
+# alternatively use_valgrind=True
+#+BEGIN_SRC sh
+hello!
+#+END_SRC
+
+* Valgrind Enabled for Segfaults (fails)
+Using the directive below will run the program under the Valgrind
+memory checker. This helps provide more information when a
+Segmentation Fault (segfault) or other memory error occurs as the
+stack trace at the time the program is signaled is included in the
+failed test result.
+
+Create the following C file
+#+BEGIN_QUOTE test-results/segfault.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// copies to a destination (as long as it's
+// not NULL...)
+void create_message(char *dest){
+  char *msg = "hello!";
+  while(*msg != '\0'){
+    *dest = *msg;
+    msg++;
+    dest++;
+  }
+  return;
+}
+
+int main(){
+  char *str = NULL;
+  create_message(str);
+  printf("%s\n",str);
+  return 0;
+}
+#+END_QUOTE
+
+Compile the program.
+#+TESTY: !gcc -g -o test-results/segfault test-results/segfault.c
+
+Then run the generated ~segfault~ program under Valgrind which will fail
+as there is a segfault.
+#+TESTY: program='./test-results/segfault'
+#+TESTY: use_valgrind=1
+# alternatively use_valgrind=True
+#+BEGIN_SRC sh
+hello!
+#+END_SRC
+
+* Additional Valgrind Options
+If Valgrind needs to be passed additional options, the below directive
+allows for this. The normal options are suited for single programs and
+give the maximum visibility of information for memory problems. The
+directive shown provides a general mechanism to pass more options to
+Valgrind.
+
+One common use I have for this is when testing multi-process programs
+that use fork() calls which may see their child processes leak memory
+causing test failures. This can be suppressed with additional Valgrind
+options as shown below. The program would normally cause a test
+failure as the forked child leaks memory but the additional Valgrind
+option alters this.
+
+The below C program
+#+BEGIN_QUOTE test-results/fork_child.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/wait.h>
+
+int main(){
+  printf("starting child process\n");
+  int pid = fork();
+  if(pid == 0){
+    int *lost = malloc(20);     // intetionally leak
+    printf("child encountered an error, leaking\n");
+    exit(1);                    // and exit
+  }
+  int status;
+  wait(&status);
+  printf("child completed, exit code %d\n",
+         WEXITSTATUS(status));
+  return 0;
+}
+#+END_QUOTE
+
+Compile the program
+#+TESTY: !gcc -g -o test-results/fork_child test-results/fork_child.c
+
+Pass an additional option to valgrind so that it does not check forked
+children; a common paradigm in a child process is that if it
+encounters some error condition, just exit right away with freeing
+memory; this additional option suppresses the test failure that would
+results from that.
+#+TESTY: use_valgrind=1
+#+TESTY: valgrind_opts="--child-silent-after-fork=yes"
+#+TESTY: program='./test-results/fork_child'
+#+BEGIN_SRC sh
+starting child process
+child encountered an error, leaking
+child completed, exit code 1
+#+END_SRC
+
+* Skipping the Output Diff
+If the output of a program is not important, use the below directive
+to skip diffing the output with an expectation.  The session can be
+left blank or contain arbitrary information that won't be checked.
+
+#+TESTY: skip_diff=1
+# alternatively skip_diff=True
+
+#+BEGIN_SRC sh
+>> echo This output is ignored
+It need not match this line
+>> echo The test will still pass
+Because the diff is skipped
+#+END_SRC
+
+* Filtering Output
+Program output can be run through a filtering program to perform
+operations before checking is output for correctness. This is helpful
+for instances like the following
+- Some parts of the program are unimportant and vary
+- Output like PIDs vary and need to be "fixed" somehow
+- Output appears in a varying order and needs to be sorted
+- Sensitive information should be obscured
+
+The below program run simulates this
+- Bash is used to start 5 child processes each assigned a number 1-5
+- Each process sleeps a random length up to 0.5 seconds then prints
+  its number
+- The output ordering will be random which makes it hard to test
+- However, if correct behavior only comprises "Done 1" to "Done 5"
+  appearing in the output, that output can be sorted via a filter
+- Here the standard UNIX filter ~sort~ is used sorting on the 2nd
+  field as a number. This leads to reliably ordered output for the
+  test.
+If one wants to see the original output before filtering, save the raw
+files by running with ~SAVE_RAWFILES testy tests.org~.
+
+#+TESTY: post_filter='sort -k 2n'
+#+TESTY: program="bash -c 'for i in $(seq 5); do sleep 0.4${RANDOM} && echo Done $i & done && sleep 1'"
+
+#+BEGIN_SRC sh
+Done 1
+Done 2
+Done 3
+Done 4
+Done 5
+#+END_SRC
+
+* Whitespace in Diffs (fails)
+By default, whitespace in program output is handled as follows.
+- Blank lines are ignored; one or more differences of blank lines
+  between expected and actual output will not cause a test failure.
+- Single whitespace characters and multiple whitespace characters are
+  treated as equivalent on a line; one space is the same as 5
+- Trailing whitespace at the end of a line is ignored and removed
+  during diffing
+While generally good for student projects where the program writers
+are still learning and not yet adept at formatting well, each of these
+items can be adjusted using the directives below. All together, they
+allow exact checking of expected and actual output.
+
+#+TESTY: diff_ignore_blanklines=False
+#+TESTY: diff_ignore_whitespace=False
+#+TESTY: diff_ignore_trail_ws=False
+#+BEGIN_SRC sh
+>> echo 'Two spaces here | | please'
+Two spaces here |  | please
+>> printf 'Need an extra line\n\n'
+Need an extra line
+>> echo 'Trailing whitespace is horrid  '
+Trailing whitespace is horrid
+#+END_SRC
+
+* COMMENT Commented tests are ignored
+
+#+BEGIN_SRC sh
+>> echo "Not gonna run"
+Not gonna run
+>> echo "due to being commented"
+due to being commented
+#+END_SRC
+

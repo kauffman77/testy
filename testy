@@ -313,7 +313,7 @@ class Segment:
     self.skip_exitcode = False         # True if the expected exit code should be checked (e.g. not trigger a failure)
     self.exitcode_expect = 0           # expected exit code from program
     self.force_ascii_output = True     # translate non-ascii characters in test results to ascii
-    self.timeout = 5                   # timeout in (fractional) second to be used before segment is killed
+    self.timeout = 5.0                 # timeout in (fractional) second to be used before segment is killed
     self.max_out_bytes = 2**20         # maximum size of output from tested program, kill if this is exceeded
     self.infinite_diff_limit = 100     # limit diff output to this many entries on a timeout / maxout
     self.post_filter = None            # filter to run on output after test completes, before verifying output
@@ -1167,6 +1167,8 @@ class OrgSuiteParser:
         filepos.linenum += segc.count("\n")                  # add line count and
         continue                                             # advance
       segment = self.parse_segment(segc,opts,filepos)
+      if hasattr(segment,"points"):                          # hack to convey points into test
+        test.points = segment.points
       test.segments.append(segment)
       filepos.linenum += 1                                   # add excised line
 

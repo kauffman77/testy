@@ -1,0 +1,49 @@
+#+title: Demonstrate Points System for Tests
+
+#+TESTY: use_points=True
+# use points instead of passed tests
+
+#+TESTY: points_scale=0.5
+# scale the available/earned points; there are 4 tests but the total
+# points across them is 10.0 points so the scale makes the total
+# points available 5.0 points
+
+* Single Point Test
+Tests default to 1.0 points for passing which is the case
+here. However, the points_scale factor will reduce this to 0.5 points.
+
+#+BEGIN_SRC sh
+>> echo hello
+hello
+#+END_SRC
+
+* Two Point Test
+#+TESTY: points=2.0
+
+This test is worth 2.0 points (scaled down to 1.0 points).
+
+#+BEGIN_SRC sh
+>> echo two point conversion
+two point conversion
+#+END_SRC
+
+* Three Point Test (fails)
+As the name implies, this is worth three points but fails. Due to the
+points scale, the penalty is losing 1.5 points.
+#+TESTY: points=3.0
+
+#+TESTY: program='bc -iq'
+#+BEGIN_SRC sh
+>> 1+1+1
+2
+#+END_SRC
+
+* Four Point Test
+#+TESTY: points=4.0
+
+Hopefully the pattern is obvious now
+#+TESTY: program='bc -iq'
+#+BEGIN_SRC sh
+>> 1+2+3+4
+10
+#+END_SRC
