@@ -1,3 +1,5 @@
+#+title: Example Tests for the Bash Shell
+
 * Output Tests
 By default, program is "bash -v" so prompt lines are fed to the shell
 and executed

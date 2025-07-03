@@ -57,11 +57,10 @@ wrong. Below is an example from the examples/ directory:
 =================
 RESULTS: 1 / 2 tests passed
 #+END_SRC
-Inspecting the failure file indicated (always under freshly created
-directory ~test-results/~ ) shows the following output (plain text but
+Inspecting the failure file indicated under the freshly created
+directory ~test-results/~ shows the following output (plain text but
 easier easier to read in emacs org-mode):
 
-: >> cat test-results/test-02-result.org 
 : * (TEST 2) Failure Demo : FAIL
 : ** COMMENTS
 : This test will fail and produce output associated to show the
@@ -118,24 +117,24 @@ I'm no expert on software testing theory so I don't expect these terms
 to be universal but they are the ones I settled on for ~testy~. The
 source code has a class hierarchy that reflects theses terms.
 
-|---------+--------------+-----------------------------------------------------------------------------------------|
-| TERM    | HAS          | Meaning                                                                                 |
-|---------+--------------+-----------------------------------------------------------------------------------------|
-| Session | input/output | a run of a program with input/output                                                    |
-|         |              | appear in ~.org~ test files as ~#+BEGIN_SRC: / #+END_SRC:~                              |
-|---------+--------------+-----------------------------------------------------------------------------------------|
-| Segment | description  | combination of some description, options, and a single session                          |
-|         | one session  | appear in ~.org~ files as some descriptive text, ~#+TESTY:~ directives, then a session  |
-|         |              | some segments are separated using sub headings like ~** Segment Title~                  |
-|---------+--------------+-----------------------------------------------------------------------------------------|
-| Test    | one or more  | a sequence of segments (possibly only 1) run in order up to the first failure           |
-|         | segments     | appear in ~.org~ files as top-level headings like ~** Test Title~                       |
-|---------+--------------+-----------------------------------------------------------------------------------------|
-| Suite   | one or more  | a collection of tests specified in a single file; may have global options for all tests |
-|         | tests        | appear as ~.org~ files with global options specified at the top of the file             |
-|---------+--------------+-----------------------------------------------------------------------------------------|
+|---------+-------------------------+-----------------------------------------------------------------------------------------|
+| TERM    | HAS                     | Meaning                                                                                 |
+|---------+-------------------------+-----------------------------------------------------------------------------------------|
+| Session | program input/output    | a run of a program with input/output                                                    |
+|         |                         | appear in ~.org~ test files as ~#+BEGIN_SRC: / #+END_SRC:~                              |
+|---------+-------------------------+-----------------------------------------------------------------------------------------|
+| Segment | a single session and    | combination of some description, options, and a single session                          |
+|         | options/description     | appear in ~.org~ files as some descriptive text, ~#+TESTY:~ directives, then a session  |
+|         |                         | some segments are separated using sub headings like ~** Segment Title~                  |
+|---------+-------------------------+-----------------------------------------------------------------------------------------|
+| Test    | one or more segments    | a sequence of segments (possibly only 1) run in order up to the first failure           |
+|         | and options/description | appear in ~.org~ files as top-level headings like ~** Test Title~                       |
+|---------+-------------------------+-----------------------------------------------------------------------------------------|
+| Suite   | one or more tests and   | a collection of tests specified in a single file; may have global options for all tests |
+|         | global options          | appear as ~.org~ files with global options specified at the top of the file             |
+|---------+-------------------------+-----------------------------------------------------------------------------------------|
 
-** Tests File Format
+** Test File Format
 Tests are specified in org-like files. This is to make the
 test-writing experience akin to writing a text file and encourage
 documenting the intent and purpose of the tests.
@@ -161,7 +160,8 @@ an outline.
   not affect tests nor appear in any results files.
 
 A good example of this structure is in the
-file:examples_bc_tests_small.org file which has two tests and more
+file:examples_bc_tests_small.org file which has two tests along with
+descriptive comments in it. Below are the contents of that file.
 
 : #+TITLE: Tests of the bc program
 : # the title to display when running the tests
@@ -233,7 +233,113 @@ file:examples_bc_tests_small.org file which has two tests and more
 : #+END_SRC
 : 
 
-** Specifying Which tests to Run
+Below is how that code renders in Emacs with my selection of
+fonts/colors for syntax highlighting. *NOTE*: When viewing on Github,
+keep in mind that the site will render ~.org~ files as HTML so
+headings will stand out and comments may be omitted. Looking at the
+*raw* version gives the full picture for the sample test files.
+
+file:sample-test-in-emacs.png
+
+** Specifying Tests to Run and Output of Failures
+If only a subset of tests is to be run, these can be passed by number as
+additional command line arguments.
+
+#+BEGIN_SRC sh
+>> ../testy bc_tests_full.org                   # run all tests
+==============================================
+== bc_tests_full.org : Tests of the bc program
+== Running 6 / 6 tests
+1) Addition and Multiplication           : ok
+2) Subtraction, will fail                : FAIL -> see test-results/bc-02-result.org
+3) Combined                              : ok
+4) No -q option                          : FAIL -> see test-results/bc-04-result.org
+5) Test output includes input, will fail : FAIL -> see test-results/bc-05-result.org
+6) bash tests for bc                     : ok
+==============================================
+RESULTS: 3 / 6 tests passed
+
+>> ../testy bc_tests_full.org 2 4 6             # run only tests 2 4 6
+==============================================
+== bc_tests_full.org : Tests of the bc program
+== Running 3 / 6 tests
+2) Subtraction, will fail : FAIL -> see test-results/bc-02-result.org
+4) No -q option           : FAIL -> see test-results/bc-04-result.org
+6) bash tests for bc      : ok
+==============================================
+RESULTS: 1 / 3 tests passed
+#+END_SRC
+
+A common activity is to just run a single test due to trying resolve a
+failure. The default when running a single test is to print out 
+the failure results in the console. This can be disabled by running
+with ~show=none~.
+
+: >> ../testy bc_tests_full.org 1                 # run a single test which passes
+: ==============================================
+: == bc_tests_full.org : Tests of the bc program
+: == Running 1 / 6 tests
+: 1) Addition and Multiplication : ok
+: ==============================================
+: RESULTS: 1 / 1 tests passed
+: 
+: >> ../testy bc_tests_full.org 2                 # run a single test which fails
+: ==============================================
+: == bc_tests_full.org : Tests of the bc program
+: == Running 1 / 6 tests
+: 2) Subtraction, will fail : FAIL -> see test-results/bc-02-result.org
+: ==============================================
+: RESULTS: 0 / 1 tests passed
+: 
+: ---- Single Test Failed -----                   # info on the failed test is shown
+: * (TEST 2) Subtraction, will fail : FAIL
+: ** COMMENTS
+: Some subtraction tests.  This test will fail due to a typo in the
+: expected output where ~9-3~ is reported as 5.
+: 
+: ** PROGRAM: bc -iq
+: To run this individual test in GDB use the command:
+:   gdb --args bc -iq
+: but any input to the program must be typed within the debugger
+: 
+: ** FAILURE MESSAGES
+: - Output Differenes: Expected/Actual do not match, check Diff Sections for details
+: 
+: ** SIDE-BY-SIDE DIFF of Expected vs Actual
+: . lines match; | lines differ; < expected line missing; > extra line in actual
+: 
+: #+BEGIN_SRC sdiff
+: ===EXPECT===   ===ACTUAL===
+: >> 1-1       . >> 1-1
+: 0            . 0
+: >> 6-3       . >> 6-3
+: 3            . 3
+: >> 9-3       . >> 9-3
+: 5            | 6
+: >> 10-8      . >> 10-8
+: 2            . 2
+: 
+: #+END_SRC
+: 
+: ** LINE-BY-LINE DIFF of Expected vs Actual
+: #+BEGIN_SRC text
+: EXPECT   6) 5
+: ACTUAL   6) 6
+: 
+: #+END_SRC
+: 
+: ** VALGRIND Not in Use
+: ** SUMMARY
+: Test FAILED for the following reasons
+: - Output Differenes: Expected/Actual do not match, check Diff Sections for details
+: 
+: >> show=none ../testy bc_tests_full.org 2       # run a single test without showing the results
+: ==============================================
+: == bc_tests_full.org : Tests of the bc program
+: == Running 1 / 6 tests
+: 2) Subtraction, will fail : FAIL -> see test-results/bc-02-result.org
+: ==============================================
+: RESULTS: 0 / 1 tests passed
 
 ** Test Running Order and Parallel Runs
 By default tests are run sequentially in the order that they appear on
@@ -267,11 +373,11 @@ some options, and a test session for a program run. Segments are run
 in order and if a segment fails, the test terminates in failure and
 subsequent segments for that test are not run.
 
-The best example for this is the example file
+A demonstrative example for this is the file
 file:examples/multi-segment-tests.org which shows several examples of
-how each test can be a sequence. The first test is shown below and
-shows how to include multiple segments that will be run in sequence in
-the test.
+how each test can be a sequence of segments each with its own program
+session. The first test is shown below and shows how to include
+multiple segments that will be run in sequence in the test.
 : * Two Segment Test, Passing
 : 
 : This is the FIRST SEGMENT which uses BASH to create some files.
@@ -313,12 +419,13 @@ the test.
 The [[file:examples/multi-session-tests.org][multi-segment example file]] has additional details in it including:
 - demo of a multi-segment test which fails midway
 - organization of test segments via org sub-headings
-- using different programs in different segments
+- using different programs in different segments via directives
 
 ** Markdown Output Format
 Many folks are more inclined towards the (lesser) Markdown format for
 output rather than the default Org format. Markdown output is enabled
-via the ~-o md~ command line switch.
+via ~-o md~ on the  command line and will generate ~.md~ files rather
+than ~.org~ files.
 
 #+BEGIN_SRC sh
 >> ../testy -o md bash_tests.org                # run tests with md-formatted results files
@@ -415,12 +522,13 @@ the Suite, Test, and Segment available as tweak able options through
 | ~#+TESTY: use_valgrind=1~              | Use Valgrind to check for memory problems                      | Suite,Test,Segment |
 | ~#+TESTY: valgrind_opts="--option"~    | set additional Valgrind options                                | Suite,Test,Segment |
 | ~#+TESTY: post_filter='filtprog'~      | filter/transform session output before checking it             | Suite,Test,Segment |
-| ~SAVE_RAWFILES=1 testy tests.org~      | save raw input/output in the ~test-results/raw~ directory      | Suite              |
 | ~#+TESTY: skip_diff=1~                 | skip diffing the output; test succeeds irrespective of output  | Suite,Test,Segment |
 | ~#+TESTY: diff_ignore_blanklines=True~ | ignore blank lines when diffing output                         | Suite,Test,Segment |
 | ~#+TESTY: diff_ignore_whitespace=True~ | treat one space the same as many spaces in a line during diffs | Suite,Test,Segment |
 | ~#+TESTY: diff_ignore_trail_ws=True~   | ignore trailing spaces in output                               | Suite,Test,Segment |
 | ~* COMMENT This test won't count~      | tests that have ~COMMENT~ are ignored and don't count          | Test               |
+| ~SAVE_RAWFILES=1 testy tests.org~      | save raw input/output in the ~test-results/raw~ directory      | Suite              |
+| ~#+TESTY: results_dir="test-results"~  | specify the directory suite results are in                     | Suite              |
 |----------------------------------------+----------------------------------------------------------------+--------------------|
 | POINTS SYSTEM                          | see file:examples/points.org                                   |                    |
 | ~#+TESTY: use_points=False~            | report points earned instead of tests passed when True         | Suite              |
@@ -441,6 +549,108 @@ If you want to advocate for work on one of these, let me know. While
 Org files are convenient to write, parsing them is a bear as they are
 less structured. Markdown will be similar as it is fairly
 free-form. The structured inpu but JSON likely has an easy
+
+** Generating Expected Test Output from Programs
+A common occurrence for me as a programming teacher is that I'll want
+to base the expected results for tests on the output produced by a
+solution program I've written. This is not fool proof as any bugs in
+my code will become the expectation BUT it's a lot faster than
+hand-writing expected output and bugs in tests ca be mitigated by
+patching the tests. AND tests can then be generated from the solution
+program in a fairly automated fashion.
+
+1. Start with some test stubs which contain the program invocation for
+   sessions and any input the session requires. An example of this is
+   in file:examples/test-stubs.org which is used below
+2. Run the tests with ~--regen file.org~ as a command line option to
+   generate ~file.org~. The test structure, options, and description
+   will be taken from the original file but the session output will be
+   drawn from the actual output of the program.
+3. The freshly created ~file.org~ will have all the tests in it with
+   the expected output generated from the program and therefore pass.
+
+Here is a full example with commentary.
+: >> cd examples/
+: >> cat test-stubs.org                                          # examples/test-stubs.org leaves session
+: #+title: Test Stubs for Regeneration                           # output blank for its two tests
+: 
+: * Seq Test
+: Below is a program invocation of the standard ~seq~ program but with
+: an empty session. In the regenerated test, the output will be filled
+: in.
+: #+TESTY: program='seq 5 5 25'
+: #+BEGIN_SRC sh
+:                                                                 # no output here, will be filled in
+: #+END_SRC
+: 
+: 
+: * Doctor Test
+: Below is only the input for the ~doctor.sh~ program. Regenerating this
+: test will fill in the expected output in the generated test.
+: 
+: #+TESTY: program='./doctor.sh -echo'
+: #+TESTY: prompt='DOCTOR>'
+: #+BEGIN_SRC sh
+: DOCTOR> I've got feelings of guilt                             # input only here, no output from program
+: DOCTOR> I don't think I'm giving my all at work
+: DOCTOR> I just don't feel motivated
+: DOCTOR> quit
+: #+END_SRC
+: 
+: 
+: >> ../testy --regen test-complete.org test-stubs.org           # regenerate into test-complete.org
+: ===============================================
+: == test-stubs.org : Test Stubs for Regeneration
+: == Running 2 / 2 tests
+: 1) Seq Test    : FAIL -> see test-results/test-01-result.org
+: 2) Doctor Test : FAIL -> see test-results/test-02-result.org
+: ===============================================
+: RESULTS: 0 / 2 tests passed
+: Regenerating test suite in file test-complete.org
+: 
+: >> cat test-complete.org                                       # show contents of test-complete.org
+: #+title: Test Stubs for Regeneration
+: 
+: * Seq Test
+: Below is a program invocation of the standard ~seq~ program but with
+: an empty session. In the regenerated test, the output will be filled
+: in.
+: #+TESTY: program='seq 5 5 25'
+: #+BEGIN_SRC sh
+: 5                                                              # test results have been filled in
+: 10                                                             # with the output of the program
+: 15
+: 20
+: 25
+: #+END_SRC
+: 
+: * Doctor Test
+: Below is only the input for the ~doctor.sh~ program. Regenerating this
+: test will fill in the expected output in the generated test.
+: 
+: #+TESTY: program='./doctor.sh -echo'
+: #+TESTY: prompt='DOCTOR>'
+: #+BEGIN_SRC sh
+: What brings you to the socratic therapist today?               # output from the actual program
+: DOCTOR> I've got feelings of guilt                             # original input
+: Tell me more about that
+: DOCTOR> I don't think I'm giving my all at work
+: Tell me more about that
+: DOCTOR> I just don't feel motivated
+: Tell me more about that
+: DOCTOR> quit
+: 
+: Oh, that's time. We'll pick up on that next week.
+: #+END_SRC
+: 
+: >> ../testy test-complete.org                                  # testing the regenerated tests passes
+: ==================================================
+: == test-complete.org : Test Stubs for Regeneration
+: == Running 2 / 2 tests
+: 1) Seq Test    : ok
+: 2) Doctor Test : ok
+: ==================================================
+: RESULTS: 2 / 2 tests passed
 
 * License
 ~testy~ is released under the terms of the *GNU General Public License

@@ -1,0 +1,24 @@
+#+title: Test Stubs for Regeneration
+
+* Seq Test
+Below is a program invocation of the standard ~seq~ program but with
+an empty session. In the regenerated test, the output will be filled
+in.
+#+TESTY: program='seq 5 5 25'
+#+BEGIN_SRC sh
+
+#+END_SRC
+
+
+* Doctor Test
+Below is only the input for the ~doctor.sh~ program. Regenerating this
+test will fill in the expected output in the generated test.
+
+#+TESTY: program='./doctor.sh -echo'
+#+TESTY: prompt='DOCTOR>'
+#+BEGIN_SRC sh
+DOCTOR> I've got feelings of guilt
+DOCTOR> I don't think I'm giving my all at work
+DOCTOR> I just don't feel motivated
+DOCTOR> quit
+#+END_SRC
