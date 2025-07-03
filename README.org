@@ -117,22 +117,61 @@ I'm no expert on software testing theory so I don't expect these terms
 to be universal but they are the ones I settled on for ~testy~. The
 source code has a class hierarchy that reflects theses terms.
 
-|---------+-------------------------+-----------------------------------------------------------------------------------------|
-| TERM    | HAS                     | Meaning                                                                                 |
-|---------+-------------------------+-----------------------------------------------------------------------------------------|
-| Session | program input/output    | a run of a program with input/output                                                    |
-|         |                         | appear in ~.org~ test files as ~#+BEGIN_SRC: / #+END_SRC:~                              |
-|---------+-------------------------+-----------------------------------------------------------------------------------------|
-| Segment | a single session and    | combination of some description, options, and a single session                          |
-|         | options/description     | appear in ~.org~ files as some descriptive text, ~#+TESTY:~ directives, then a session  |
-|         |                         | some segments are separated using sub headings like ~** Segment Title~                  |
-|---------+-------------------------+-----------------------------------------------------------------------------------------|
-| Test    | one or more segments    | a sequence of segments (possibly only 1) run in order up to the first failure           |
-|         | and options/description | appear in ~.org~ files as top-level headings like ~** Test Title~                       |
-|---------+-------------------------+-----------------------------------------------------------------------------------------|
-| Suite   | one or more tests and   | a collection of tests specified in a single file; may have global options for all tests |
-|         | global options          | appear as ~.org~ files with global options specified at the top of the file             |
-|---------+-------------------------+-----------------------------------------------------------------------------------------|
+|---------+----------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| TERM    | HAS                                          | Meaning                                                                                                                                                                                                                        |
+|---------+----------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Session | program input/output                         | a run of a program with input and expected output, appear in ~.org~ test files as ~#+BEGIN_SRC: / #+END_SRC:~                                                                                                                  |
+|---------+----------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Segment | a single session and options/description     | combination of some description, options, and a single session, appear in ~.org~ files as some descriptive text, ~#+TESTY:~ directives, then a session, some segments are separated using sub headings like ~** Segment Title~ |
+|---------+----------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Test    | one or more segments and options/description | a sequence of segments (possibly only 1) run in order up to the first failure, appear in ~.org~ files as top-level headings like ~** Test Title~                                                                               |
+|---------+----------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Suite   | one or more tests and global options         | a collection of tests specified in a single file; may have global options for all tests, appear as ~.org~ files with global options specified at the top of the file                                                           |
+|---------+----------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+** Terminology
+I'm no expert on software testing theory so I don't expect these terms
+to be universal but they are the ones I settled on for ~testy~. The
+source code has a class hierarchy that reflects theses terms.
+
+|---------+------------------------------------------+-----------------------------------------------------------------------------------------|
+| TERM    | HAS                                      | Meaning                                                                                 |
+|---------+------------------------------------------+-----------------------------------------------------------------------------------------|
+| Session | program input/output                     | a run of a program with input and expected output                                       |
+|         |                                          | appear in ~.org~ test files as ~#+BEGIN_SRC: / #+END_SRC:~                              |
+|---------+------------------------------------------+-----------------------------------------------------------------------------------------|
+| Segment | a single session and options/description | combination of some description, options, and a single session                          |
+|         |                                          | appear in ~.org~ files as some descriptive text, ~#+TESTY:~ directives, then a session  |
+|         |                                          | some segments are separated using sub headings like ~** Segment Title~                  |
+|---------+------------------------------------------+-----------------------------------------------------------------------------------------|
+| Test    | one or more segments                     | a sequence of segments (possibly only 1) run in order up to the first failure           |
+|         | and options/description                  | appear in ~.org~ files as top-level headings like ~** Test Title~                       |
+|---------+------------------------------------------+-----------------------------------------------------------------------------------------|
+| Suite   | one or more tests and                    | a collection of tests specified in a single file; may have global options for all tests |
+|         | global options                           | appear as ~.org~ files with global options specified at the top of the file             |
+|---------+------------------------------------------+-----------------------------------------------------------------------------------------|
+
+
+** Terminology
+I'm no expert on software testing theory so I don't expect these terms
+to be universal but they are the ones I settled on for ~testy~. The
+source code has a class hierarchy that reflects theses terms.
+
+- Session :: program input/output
+  - a run of a program with input and expected output
+  - appear in ~.org~ test files as ~#+BEGIN_SRC: / #+END_SRC:~ 
+- Segment :: a single session and options/description
+  - combination of some description, options, and a single session
+  - appear in ~.org~ files as some descriptive text, ~#+TESTY:~ directives, then a session
+  - some segments are separated using sub headings like ~** Segment Title~
+- Test ::  one or more segments and options/description
+  - a sequence of segments (possibly only 1) run in order up to the first failure
+  - appear in ~.org~ files as top-level headings like ~** Test Title~
+- Suite :: one or more tests and global options
+  - a collection of tests specified in a single file; may have global options for all tests
+  - appear as ~.org~ files with global options specified at the top of the file
+
+
 
 ** Test File Format
 Tests are specified in org-like files. This is to make the
