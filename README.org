@@ -8,7 +8,7 @@ specified in Emacs Org-like files.
 I teach a university courses which do a fair bit of C programming (and
 some assembly). There isn't a standard testing infrastructure for C
 programs that is suitable for education so ~testy~ is my attempt to do
-so. It is fairly general purpose and strives for the following.
+so. The program strives for the following goals:
 - Write tests in plain text files that focus on input/output behavior
   and provide a place document the intent and purpose of individual
   tests.
@@ -25,6 +25,29 @@ so. It is fairly general purpose and strives for the following.
   be "installed" by copying the ~testy~ script where it is
   needed. Rely primarily on the Python standard library, not on 3rd
   party packages that require elaborate installs.
+It is general purpose and I've used it to help test C, Assembly,
+Rust, Makefiles, and even some MPI programs at various stages.
+
+** Non-Features
+Testy aims to provide a convenient wrapper/infrastructure around some
+sort of Unit testing framework. It tests whole program runs and allows
+easy checking of the program output against expected errors and
+detection of memory problems in programs. For those in education
+settings it also provides a means to assign points to passing tests.
+
+The following are not goals for it Testy so are not features.
+- It does not make writing unit or integration tests easier. To test
+  individual C functions, I typically write a separate C files that is
+  compiled with the code it will test and use Testy as a way to run
+  the individual or batches of those tests. Using testy to wrap around
+  a framework like JUnit for Java, OUnit for OCaml, etc. is
+  straight-forward BUT you can also just write some simple
+  input/output tests and use Testy to more cleanly document and
+  summarize results.
+- It is not a build system. While one could compile and run programs
+  with the Testy, I use Makefiles extensively to first build and then
+  run tests. Usually a ~make test~ will first compile code and then
+  invoke ~testy testfile.org~; if the build fails, no tests are run.
 
 ** Basic Usage
 Below is the basic usage on the command line when a file called
@@ -172,7 +195,6 @@ source code has a class hierarchy that reflects theses terms.
 # |         | global options                           | appear as ~.org~ files with global options specified at the top of the file             |
 # |---------+------------------------------------------+-----------------------------------------------------------------------------------------|
 
-
 ** Test File Format
 Tests are specified in org-like files. This is to make the
 test-writing experience akin to writing a text file and encourage
@@ -180,19 +202,20 @@ documenting the intent and purpose of the tests.
 
 Org files are similar to Markdown but have a wider set of uses and
 deep support in Emacs (this document is also written as a Org file).
-The basic structure of Org files is an outline.
+The basic structure of Org files is an outline with each heading
+denoting a test.
 - Headings start with a line that looks like
   : * Test Title Here
   with the ~*~ character denoting a top-level heading
 - Text that appears after the title line is commentary on the test
-- Tags or "directives" in org-mode start with ~#+~ and the most
-  important tag in the format is the ~#+BEGIN_SRC~ and ~#+END_SRC~
-  pair which denote a test *session*, which shows prompts with input
-  and expected output together.
-- The other common tag is the ~#+TESTY:~ tag which specifies options
-  for tests like the program invocation to run (global or local to a
-  test), the prompt used, timeouts, whether to use Valgrind to check
-  for memory problems, how to name test results files, etc.
+- Tags or "directives" in org-mode start with ~#+~. The most important
+  tag in the format is the ~#+BEGIN_SRC~ and ~#+END_SRC~ pair which
+  denote a test *session* that shows prompts with input and expected
+  output together.
+- The other common tag is the ~#+TESTY:~ tag which specifies options /
+  directives for tests like the program invocation to run (global or
+  local to a test), the prompt used, timeouts, whether to use Valgrind
+  to check for memory problems, how to name test results files, etc.
 - Comments in org files look like
   : # this is a comment line
   which is a "hash space" at the beginning of the line. Comments will
@@ -270,7 +293,6 @@ descriptive comments in it. Below are the contents of that file.
 : >> 10-8
 : 2
 : #+END_SRC
-: 
 
 Below is how that code renders in Emacs with my selection of
 fonts/colors for syntax highlighting. *NOTE*: When viewing on Github,
@@ -380,12 +402,14 @@ with ~show=none~.
 : ==============================================
 : RESULTS: 0 / 1 tests passed
 
-** Test Running Order and Parallel Runs
+** Running Tests Sequentially and in Parallel
 By default tests are run sequentially in the order that they appear on
 the command line (if numbers are indicated) or in the order they
-appear in the test file.
+appear in the test file. The default behavior is to run "serially"
+using a single processor/core.
 
-Tests can be run in parallel via specifying an environment variable.
+Tests can be run in parallel on multiple cores by setting the
+~PARALLEL~ environment variable to an appropriate value..
 #+BEGIN_SRC sh
 >> PARALLEL=False testy tests.org  # run serially, single core
 >> PARALLEL=True  testy tests.org  # run with max cores reported by OS
@@ -397,14 +421,18 @@ Tests can be run in parallel via specifying an environment variable.
 
 Internally, ~testy~ uses the standard Python ~multiproc~ library to
 run tests in parallel for true parallelism of test runs (not that
-green, faux parallelism of the ~threads~ package).
+green, faux parallelism of the ~threads~ package). This means running
+tests in parallel should speed up considerably and benefit from
+multiple cores though there might be slightly higher memory
+utilization as the python process is ~fork()~'d to get the
+parallelism. 
 
 *When writing tests, it's best practice NOT to have dependencies
-between then that require a specific order of tests.* If functionality
-requires several steps, write it as a single test possibly employing
-[[*Multi-Segment Tests]] as way to get the sequencing. This will prevent
-problems when running in parallel. The segments of a test are always
-run in sequence from beginning to end.
+between then that require a specific order of tests.* If a test
+requires several steps with distinct runs/sessions, write it as a
+single test possibly employing [[*Multi-Segment Tests]] as way to get the
+sequencing. This will prevent problems when running in parallel. The
+segments of a test are always run in sequence from beginning to end.
 
 ** Multi-Segment Tests
 Each test can have multiple segments; each segment is a description,
