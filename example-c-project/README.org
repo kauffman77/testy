@@ -19,7 +19,7 @@ couple Testy testing files can be used to test the project.
 
 * Demo Session
 By default, there are bugs built into the stack implementation to
-demonstrate failed tests and show how they look (see the [[* Compiling the "Correct" Version of the Stack Application ][section on
+demonstrate failed tests and show how they look (see the [[correct-version][section on
 compiling the correct version]] if you are interested in that).
 
 : >> make                                                # build the project
@@ -28,7 +28,7 @@ compiling the correct version]] if you are interested in that).
 : gcc -Wall -Werror -g  -o stack_main stack_main.o stack_funcs.o
 : gcc -Wall -Werror -g  -c test_stack_funcs.c
 : gcc -Wall -Werror -g  -o test_stack_funcs test_stack_funcs.o stack_funcs.o
-:
+: 
 : >> ./stack_main                                        # run th emain application to demo it
 : Stack Manager
 : Commands:
@@ -61,8 +61,8 @@ compiling the correct version]] if you are interested in that).
 : STACK>> count                                          # buggy: missing command
 : unknown command 'count'
 : STACK>> exit                                           # back the shell
-:
-:
+: 
+: 
 : >> make test-funcs                                     # run the "unit" tests of the service functions
 : ./testy test_stack_funcs.org
 : =================================================
@@ -80,24 +80,24 @@ compiling the correct version]] if you are interested in that).
 : 10) stack_expansion_2      : FAIL -> see test-results/stack-funcs-10-result.org
 : =================================================
 : RESULTS: 3 / 10 tests passed
-:
+: 
 : >> cat test-results/stack-funcs-04-result.org          # show some of the results
 : * (TEST 4) stack_add_top_2 : FAIL
 : ** COMMENTS
-:
-:
+: 
+: 
 : ** PROGRAM: ./test_stack_funcs "stack_add_top_2"
 : To run this individual test in GDB use the command:
 :   gdb --args ./test_stack_funcs "stack_add_top_2"
 : but any input to the program must be typed within the debugger
-:
+: 
 : ** FAILURE MESSAGES
 : - Valgrind Errors: Check Valgrind section for details  # ERRORS are not due to output but due to memory problems
 : - Program had exit code 13 when 0 is expected
-:
+: 
 : ** SIDE-BY-SIDE DIFF of Expected vs Actual
 : . lines match; | lines differ; < expected line missing; > extra line in actual
-:
+: 
 : #+BEGIN_SRC sdiff                                       # these are all matching fine
 : ===EXPECT===                                                             ===ACTUAL===
 : IF_TEST("stack_add_top_2") {                                           . IF_TEST("stack_add_top_2") {
@@ -142,17 +142,17 @@ compiling the correct version]] if you are interested in that).
 : count: 3                                                               . count: 3
 : ret: S                                                                 . ret: S
 : top_item: 60                                                           . top_item: 60
-:
+: 
 : #+END_SRC
-:
+: 
 : ** LINE-BY-LINE DIFF of Expected vs Actual
 : No differences found
-:
+: 
 : ** VALGRIND REPORT
 : The program is run on under valgrind as
 :   stdbuf -i 0 -o 0 -e 0 valgrind --error-exitcode=13 --leak-check=full --show-leak-kinds=all --track-origins=yes ./test_stack_funcs stack_add_top_2
 : which may be pasted onto a command line to run it.
-:
+: 
 : #+BEGIN_SRC text
 : ==151174== Memcheck, a memory error detector
 : ==151174== Copyright (C) 2002-2024, and GNU GPL'd, by Julian Seward et al.
@@ -169,13 +169,13 @@ compiling the correct version]] if you are interested in that).
 : ==151174==
 : ...
 : #+END_SRC
-:
+: 
 : ** SUMMARY
 : Test FAILED for the following reasons
 : - Valgrind Errors: Check Valgrind section for details
 : - Program had exit code 13 when 0 is expected
-:
-:
+: 
+: 
 : >> make test-main                                      # run tests for the main application
 : ./testy test_stack_main.org
 : ===============================================
@@ -193,25 +193,25 @@ compiling the correct version]] if you are interested in that).
 : 10) Reset 2                              : FAIL -> see test-results/stack-main-10-result.org
 : ===============================================
 : RESULTS: 2 / 10 tests passed
-:
+: 
 : >> head -20 test-results/stack-main-04-result.org      # show part of a failure for a test
 : * (TEST 4) Add and Top 1 : FAIL
 : ** COMMENTS
 : Checks that the `add` and `op` commands are present and function
 : correctly for a small number of adds.
-:
+: 
 : ** PROGRAM: ./stack_main -echo
 : To run this individual test in GDB use the command:
 :   gdb --args ./stack_main -echo
 : but any input to the program must be typed within the debugger
-:
+: 
 : ** FAILURE MESSAGES                                    # failure due to memory problems AND output differences
 : - Valgrind Errors: Check Valgrind section for details
 : - Program had exit code 13 when 0 is expected
 : - Output Differenes: Expected/Actual do not match, check Diff Sections for details
-:
+: 
 : ...
-:
+: 
 : >> make help                                           # show supported targets in the Makefile
 : Typical usage is:
 :   > make                          # build all programs, buggy version by default
@@ -221,17 +221,17 @@ compiling the correct version]] if you are interested in that).
 :   > make test-funcs               # run tests for stack_funcs.c
 :   > make test-funcs testnum=5     # run test #5 of stack_funcs.c only
 :   > make test-main                # run tests for stack_main.c
-:
+: 
 : >> make clean                                          # remove compiled artifacts
 : rm -f stack_main test_stack_funcs  *.o
-:
+: 
 : >> make FLAGS=-DCORRECT                                # Recompile with the "correct" code active
 : gcc -Wall -Werror -g -DCORRECT -c stack_main.c
 : gcc -Wall -Werror -g -DCORRECT -c stack_funcs.c
 : gcc -Wall -Werror -g -DCORRECT -o stack_main stack_main.o stack_funcs.o
 : gcc -Wall -Werror -g -DCORRECT -c test_stack_funcs.c
 : gcc -Wall -Werror -g -DCORRECT -o test_stack_funcs test_stack_funcs.o stack_funcs.o
-:
+: 
 : >> make test                                           # run all tests (functions and main) on the correct program
 : ./testy test_stack_funcs.org
 : =================================================
@@ -266,7 +266,7 @@ compiling the correct version]] if you are interested in that).
 : ===============================================
 : RESULTS: 10 / 10 tests passed
 
-* Compiling the "Correct" Version of the Stack Application
+* <<correct-version>> Compiling the "Correct" Version of the Stack Application
 The provided Stack application is intentionally buggy by default so that some
 test failures result. The correct version sits alongside the incorrect
 version in the C source code using C's preprocessor macro facility
