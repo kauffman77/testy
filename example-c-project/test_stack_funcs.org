@@ -1,0 +1,265 @@
+#+title: Tests for stack_funcs.c
+
+# These are tests for the stack_funcs.c file. Most of the work is done
+# in the C source file test_stack_funcs.c but this file has the
+# expected output in it which testy uses to check for correct
+# behavior. After writing the unit tests, this file was oroginally
+# filled with stubs with empty #+BEGIN_SRC sh / #+END_SRC sessions;
+# the expected output was filled in by running
+#   testy -r complete.org test_stack_funcs.incomplete.org
+# which regenerated the test with expected output from the correct
+# program.
+
+#+TESTY: prefix='stack-funcs'
+#+TESTY: use_valgrind=True
+
+* stack_new / stack_free
+#+TESTY: program='./test_stack_funcs "stack_new / stack_free"'
+#+BEGIN_SRC sh
+IF_TEST("stack_new / stack_free") {
+    // checks that the new/free functions are present, the new
+    // function at least returns non-NULL, and that freening it will
+    // lead to no memory leaks.
+    stack_t *stack = stack_new(5);
+    if(stack == NULL){
+      printf("the stack was NULL unexpectedly\n");
+    }
+    stack_free(stack);
+  }
+}
+---OUTPUT---
+#+END_SRC
+
+* stack_count on empty
+#+TESTY: program='./test_stack_funcs "stack_count on empty"'
+#+BEGIN_SRC sh
+IF_TEST("stack_count on empty") {
+    // checks that stack_count on an empty stack returns 0
+    stack_t *stack = stack_new(5);
+    int count = stack_count(stack);
+    printf("count: %d\n",count);
+    stack_free(stack);
+  }
+}
+---OUTPUT---
+count: 0
+#+END_SRC
+
+* stack_add_top_1
+#+TESTY: program='./test_stack_funcs "stack_add_top_1"'
+#+BEGIN_SRC sh
+IF_TEST("stack_add_top_1") {
+    // checks that stack_add() and stack_top() seems to work correctly
+    // for a single element
+    stack_t *stack = stack_new(5);
+    char ret = stack_add(stack, 20);
+    int count = stack_count(stack);
+    printf("ret: %c\ncount: %d\n",ret,count);
+    int top_item;
+    ret = stack_top(stack, &top_item);
+    printf("ret: %c\ntop_item: %d\n",ret,top_item);
+    stack_free(stack);
+  }
+}
+---OUTPUT---
+ret: A
+count: 1
+ret: S
+top_item: 20
+#+END_SRC
+
+* stack_add_top_2
+#+TESTY: program='./test_stack_funcs "stack_add_top_2"'
+#+BEGIN_SRC sh
+IF_TEST("stack_add_top_2") {
+    // checks that stack_add() and stack_top() seems to work correctly
+    // for several elements
+    stack_t *stack = stack_new(5);
+    char ret; int count, top_item;
+    printf("FIRST ADD\n");
+    ret = stack_add(stack, 20);
+    count = stack_count(stack);
+    printf("ret: %c\ncount: %d\n",ret,count);
+    ret = stack_top(stack, &top_item);
+    printf("ret: %c\ntop_item: %d\n",ret,top_item);
+    printf("SECOND ADD\n");
+    ret = stack_add(stack, 40);
+    count = stack_count(stack);
+    printf("ret: %c\ncount: %d\n",ret,count);
+    ret = stack_top(stack, &top_item);
+    printf("ret: %c\ntop_item: %d\n",ret,top_item);
+    printf("THIRD ADD\n");
+    ret = stack_add(stack, 60);
+    count = stack_count(stack);
+    printf("ret: %c\ncount: %d\n",ret,count);
+    ret = stack_top(stack, &top_item);
+    printf("ret: %c\ntop_item: %d\n",ret,top_item);
+    stack_free(stack);
+  }
+}
+---OUTPUT---
+FIRST ADD
+ret: A
+count: 1
+ret: S
+top_item: 20
+SECOND ADD
+ret: A
+count: 2
+ret: S
+top_item: 40
+THIRD ADD
+ret: A
+count: 3
+ret: S
+top_item: 60
+#+END_SRC
+
+* stack_add_print_1
+#+TESTY: program='./test_stack_funcs "stack_add_print_1"'
+#+BEGIN_SRC sh
+IF_TEST("stack_add_print_1") {
+    // checks that stack_add() followed by stack_print() behaves correctly
+    stack_t *stack = stack_new(16);
+    stack_add(stack, 20);
+    stack_add(stack, 40);
+    stack_add(stack, 60);
+    stack_print(stack);
+    stack_free(stack);
+  }
+}
+---OUTPUT---
+[2]: 60
+[1]: 40
+[0]: 20
+#+END_SRC
+
+* stack_add_print_2
+#+TESTY: program='./test_stack_funcs "stack_add_print_2"'
+#+BEGIN_SRC sh
+IF_TEST("stack_add_print_2") {
+    // checks that stack_add() followed by stack_print() behaves correctly
+    stack_t *stack = stack_new(16);
+    stack_add(stack, 100);
+    stack_add(stack, 200);
+    stack_add(stack, 300);
+    stack_add(stack, 400);
+    stack_add(stack, 500);
+    stack_print(stack);
+    stack_free(stack);
+  }
+}
+---OUTPUT---
+[4]: 500
+[3]: 400
+[2]: 300
+[1]: 200
+[0]: 100
+#+END_SRC
+
+* stack_remove_1
+#+TESTY: program='./test_stack_funcs "stack_remove_1"'
+#+BEGIN_SRC sh
+IF_TEST("stack_remove_1") {
+    // checks that stack_add() followed by stack_remove() behaves correctly
+    stack_t *stack = stack_new(5);
+    char ret; int count, removed_item;
+    ret = stack_add(stack, 100);
+    ret = stack_remove(stack, &removed_item);
+    count = stack_count(stack);
+    printf("ret: %c\nremoved_item: %d\n",
+           ret, removed_item);
+    printf("count: %d\n",count);
+    stack_free(stack);
+  }
+}
+---OUTPUT---
+ret: S
+removed_item: 100
+count: 0
+#+END_SRC
+
+* stack_remove_2
+#+TESTY: program='./test_stack_funcs "stack_remove_2"'
+#+BEGIN_SRC sh
+IF_TEST("stack_remove_2") {
+    // checks that stack_add() followed by stack_remove() behaves correctly
+    stack_t *stack = stack_new(5);
+    char ret; int count, removed_item;
+    ret = stack_add(stack, 100);
+    ret = stack_add(stack, 200);
+    ret = stack_add(stack, 300);
+    ret = stack_remove(stack, &removed_item);
+    count = stack_count(stack);
+    printf("ret: %c\nremoved_item: %d\n",
+           ret, removed_item);
+    printf("count: %d\n",count);
+    ret = stack_remove(stack, &removed_item);
+    count = stack_count(stack);
+    printf("ret: %c\nremoved_item: %d\n",
+           ret, removed_item);
+    printf("count: %d\n",count);
+    stack_free(stack);
+  }
+}
+---OUTPUT---
+ret: S
+removed_item: 300
+count: 2
+ret: S
+removed_item: 200
+count: 1
+#+END_SRC
+
+* stack_expansion_1
+#+TESTY: program='./test_stack_funcs "stack_expansion_1"'
+#+BEGIN_SRC sh
+IF_TEST("stack_expansion_1") {
+    // checks that stack_add() will expand the stack when needed
+    stack_t *stack = stack_new(2);
+    char ret;
+    ret = stack_add(stack, 100);
+    printf("ret: %c\n",ret);
+    ret = stack_add(stack, 200);
+    printf("ret: %c\n",ret);
+    ret = stack_add(stack, 300); // should trigger expansion
+    printf("ret: %c\n",ret);
+    ret = stack_add(stack, 400);
+    printf("ret: %c\n",ret);
+    stack_free(stack);
+  }
+}
+---OUTPUT---
+ret: A
+ret: A
+ret: E
+ret: A
+#+END_SRC
+
+* stack_expansion_2
+#+TESTY: program='./test_stack_funcs "stack_expansion_2"'
+#+BEGIN_SRC sh
+IF_TEST("stack_expansion_2") {
+    // checks that stack_add() will expand the stack when needed
+    stack_t *stack = stack_new(1);
+    char ret;
+    ret = stack_add(stack, 100);
+    printf("ret: %c\n",ret);
+    ret = stack_add(stack, 200); // should trigger expansion
+    printf("ret: %c\n",ret);
+    ret = stack_add(stack, 300); // should trigger expansion
+    printf("ret: %c\n",ret);
+    ret = stack_add(stack, 400);
+    printf("ret: %c\n",ret);
+    ret = stack_add(stack, 500); // should trigger expansion
+    printf("ret: %c\n",ret);
+    stack_free(stack);
+  }
+}
+---OUTPUT---
+ret: A
+ret: E
+ret: E
+ret: A
+ret: E
+#+END_SRC

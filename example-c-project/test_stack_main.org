@@ -1,0 +1,400 @@
+#+title: Tests for stack_main.c
+
+# These are tests for the behavior of the interactive main program in
+# stack_main.c. The input and expected output are encoded in the tests
+# below.
+
+#+TESTY: prefix='stack-main'
+#+TESTY: use_valgrind=True
+
+# set the default program for all tests to be stack_main and set the
+# prompt to reflect the prompt used in that program
+#+TESTY: program='./stack_main -echo'
+#+TESTY: prompt='STACK>>'
+
+* Start and Exit
+Ensures the application starts and exits properly with no memory
+leaks. Requires the `exit` command to be available.
+
+#+BEGIN_SRC sh
+Stack Manager
+Commands:
+  count:          shows the count of elements in the stack
+  add <N>:        add the given integer to the top of the stack
+  top:            shows the current top element of the stack
+  remove:         eliminate the top element in the stack
+  print:          print all elements in the stack top to bottom
+  reset <CAP>:    discard the old stack and create a new one with the given capacity
+  exit:           exit the program
+STACK>> exit
+#+END_SRC
+
+* Count on Empty
+Ensures that the `count` command is available and works for the
+initially empty stack.
+
+#+BEGIN_SRC sh
+Stack Manager
+Commands:
+  count:          shows the count of elements in the stack
+  add <N>:        add the given integer to the top of the stack
+  top:            shows the current top element of the stack
+  remove:         eliminate the top element in the stack
+  print:          print all elements in the stack top to bottom
+  reset <CAP>:    discard the old stack and create a new one with the given capacity
+  exit:           exit the program
+STACK>> count
+count is 0
+STACK>> exit
+#+END_SRC
+
+* Differences between normal and -echo
+Uses a bit of bash to ensure that the behavior of the program run with
+and without the `-echo` option differs. This is not terribly rigorous
+as it just looks for differing output rather than specific output for
+the non-echoing case. However, it catches the case where an
+implementation might always echo input which is not acceptable.
+
+# resets to use bash for this test: program='bash -v' and no valgrind
+#+TESTY: set_bash_opts
+#+BEGIN_SRC sh
+>> input=''
+>> input+='count\n'
+>> input+='top\n'
+>> input+='count\n'
+>> input+='exit\n'
+>> out_noecho=$(printf '%b' "$input" | ./stack_main)
+>> out_echo=$(printf '%b' "$input" | ./stack_main -echo)
+>> cmp -s  <(printf "%b" "$out_noecho") <(printf "%b" "$out_echo")
+>> if [[ "$?" != "1" ]]; then printf "Same output for -echo as for normal run\n"; fi
+#+END_SRC
+
+* Add and Top 1
+Checks that the `add` and `op` commands are present and function
+correctly for a small number of adds.
+
+#+BEGIN_SRC sh
+Stack Manager
+Commands:
+  count:          shows the count of elements in the stack
+  add <N>:        add the given integer to the top of the stack
+  top:            shows the current top element of the stack
+  remove:         eliminate the top element in the stack
+  print:          print all elements in the stack top to bottom
+  reset <CAP>:    discard the old stack and create a new one with the given capacity
+  exit:           exit the program
+STACK>> add 5
+return: A
+STACK>> top
+5
+STACK>> add 10
+return: A
+STACK>> top
+10
+STACK>> count
+count is 2
+STACK>> exit
+#+END_SRC
+
+* Add and Top 2
+Adds slightly more elements to the stack but does not trigger
+expansion of the underlying array. Ensures add/top work in these
+cases.
+
+#+BEGIN_SRC sh
+Stack Manager
+Commands:
+  count:          shows the count of elements in the stack
+  add <N>:        add the given integer to the top of the stack
+  top:            shows the current top element of the stack
+  remove:         eliminate the top element in the stack
+  print:          print all elements in the stack top to bottom
+  reset <CAP>:    discard the old stack and create a new one with the given capacity
+  exit:           exit the program
+STACK>> add 5
+return: A
+STACK>> add 10
+return: A
+STACK>> add 15
+return: A
+STACK>> add 20
+return: A
+STACK>> print
+[3]: 20
+[2]: 15
+[1]: 10
+[0]: 5
+STACK>> top
+20
+STACK>> exit
+#+END_SRC
+
+* Add and Remove 1
+Checks that a single add remove gives the expected behavior: on
+removing the stack becomes empty.
+
+#+BEGIN_SRC sh
+Stack Manager
+Commands:
+  count:          shows the count of elements in the stack
+  add <N>:        add the given integer to the top of the stack
+  top:            shows the current top element of the stack
+  remove:         eliminate the top element in the stack
+  print:          print all elements in the stack top to bottom
+  reset <CAP>:    discard the old stack and create a new one with the given capacity
+  exit:           exit the program
+STACK>> add 100
+return: A
+STACK>> count
+count is 1
+STACK>> print
+[0]: 100
+STACK>> top
+100
+STACK>> remove
+removed 100
+STACK>> count
+count is 0
+STACK>> print
+STACK>> top
+Empyt stack!
+STACK>> exit
+#+END_SRC
+
+* Add and Remove 2
+Checks that repeated adds and removes give the expected behavior.
+
+#+BEGIN_SRC sh
+Stack Manager
+Commands:
+  count:          shows the count of elements in the stack
+  add <N>:        add the given integer to the top of the stack
+  top:            shows the current top element of the stack
+  remove:         eliminate the top element in the stack
+  print:          print all elements in the stack top to bottom
+  reset <CAP>:    discard the old stack and create a new one with the given capacity
+  exit:           exit the program
+STACK>> add 100
+return: A
+STACK>> add 200
+return: A
+STACK>> add 300
+return: A
+STACK>> add 400
+return: A
+STACK>> top
+400
+STACK>> count
+count is 4
+STACK>> print
+[3]: 400
+[2]: 300
+[1]: 200
+[0]: 100
+STACK>> remove
+removed 400
+STACK>> top
+300
+STACK>> print
+[2]: 300
+[1]: 200
+[0]: 100
+STACK>> count
+count is 3
+STACK>> remove
+removed 300
+STACK>> count
+count is 2
+STACK>> print
+[1]: 200
+[0]: 100
+STACK>> top
+200
+STACK>> add 500
+return: A
+STACK>> count
+count is 3
+STACK>> print
+[2]: 500
+[1]: 200
+[0]: 100
+STACK>> exit
+#+END_SRC
+
+* Add with Expansion 1
+Checks that repeated adds work and expand the stack when needed to
+accommodate new elements.
+#+BEGIN_SRC sh
+Stack Manager
+Commands:
+  count:          shows the count of elements in the stack
+  add <N>:        add the given integer to the top of the stack
+  top:            shows the current top element of the stack
+  remove:         eliminate the top element in the stack
+  print:          print all elements in the stack top to bottom
+  reset <CAP>:    discard the old stack and create a new one with the given capacity
+  exit:           exit the program
+STACK>> add 100
+return: A
+STACK>> add 200
+return: A
+STACK>> add 300
+return: A
+STACK>> add 400
+return: A
+STACK>> add 500
+return: E
+STACK>> add 600
+return: A
+STACK>> add 700
+return: A
+STACK>> add 800
+return: A
+STACK>> add 900
+return: E
+STACK>> print
+[8]: 900
+[7]: 800
+[6]: 700
+[5]: 600
+[4]: 500
+[3]: 400
+[2]: 300
+[1]: 200
+[0]: 100
+STACK>> exit
+#+END_SRC
+
+
+* Reset 1
+Uses the reset command to deallocate and reallocate the stack to
+determine if memory leaks occur due to the operation.
+
+#+BEGIN_SRC sh
+Stack Manager
+Commands:
+  count:          shows the count of elements in the stack
+  add <N>:        add the given integer to the top of the stack
+  top:            shows the current top element of the stack
+  remove:         eliminate the top element in the stack
+  print:          print all elements in the stack top to bottom
+  reset <CAP>:    discard the old stack and create a new one with the given capacity
+  exit:           exit the program
+STACK>> add 10
+return: A
+STACK>> add 20
+return: A
+STACK>> print
+[1]: 20
+[0]: 10
+STACK>> reset 4
+reset to new size 4
+STACK>> count
+count is 0
+STACK>> print
+STACK>> top
+Empyt stack!
+STACK>> add 100
+return: A
+STACK>> add 200
+return: A
+STACK>> add 300
+return: A
+STACK>> print
+[2]: 300
+[1]: 200
+[0]: 100
+STACK>> count
+count is 3
+STACK>> remove
+removed 300
+STACK>> remove
+removed 200
+STACK>> print
+[0]: 100
+STACK>> count
+count is 1
+STACK>> exit
+#+END_SRC
+
+* Reset 2
+Adds items to the stack and the resets several times to reinitialize
+the stack to a new capacity. Adding triggers expansion in several
+cases. Checks that no memory leaks occur due to these allocations and
+de-allocations.
+
+#+BEGIN_SRC sh
+Stack Manager
+Commands:
+  count:          shows the count of elements in the stack
+  add <N>:        add the given integer to the top of the stack
+  top:            shows the current top element of the stack
+  remove:         eliminate the top element in the stack
+  print:          print all elements in the stack top to bottom
+  reset <CAP>:    discard the old stack and create a new one with the given capacity
+  exit:           exit the program
+STACK>> add 100
+return: A
+STACK>> add 200
+return: A
+STACK>> print
+[1]: 200
+[0]: 100
+STACK>> reset 3
+reset to new size 3
+STACK>> count
+count is 0
+STACK>> top
+Empyt stack!
+STACK>> add 10
+return: A
+STACK>> add 20
+return: A
+STACK>> add 30
+return: A
+STACK>> print
+[2]: 30
+[1]: 20
+[0]: 10
+STACK>> add 40
+return: E
+STACK>> add 50
+return: A
+STACK>> add 60
+return: A
+STACK>> print
+[5]: 60
+[4]: 50
+[3]: 40
+[2]: 30
+[1]: 20
+[0]: 10
+STACK>> add 70
+return: E
+STACK>> count
+count is 7
+STACK>> print
+[6]: 70
+[5]: 60
+[4]: 50
+[3]: 40
+[2]: 30
+[1]: 20
+[0]: 10
+STACK>> reset 2
+reset to new size 2
+STACK>> count
+count is 0
+STACK>> print
+STACK>> add 1
+return: A
+STACK>> add 2
+return: A
+STACK>> add 3
+return: E
+STACK>> print
+[2]: 3
+[1]: 2
+[0]: 1
+STACK>> exit
+#+END_SRC

@@ -1,0 +1,30 @@
+* Overview of Example C Project
+This directory contains a small C project implementing an array-based
+stack to show how a combination of Unit tests written in C and a
+couple Testy testing files can be used to test the project.
+
+|------------------------+-----------------------------------------------------------------------------|
+| FILE                   | DESCRIPTION                                                                 |
+|------------------------+-----------------------------------------------------------------------------|
+| ~Makefile~             | allows compilation and testing                                              |
+| ~testy~                | symbolic link to Testy                                                      |
+|                        |                                                                             |
+| ~stack_funcs.c~        | service functions for the stack data type                                   |
+| ~test_stack_funcs.c~   | unit tests written in C for the service functions                           |
+| ~test_stack_funcs.org~ | testy testing file unit tests; eases running tests and interpreting results |
+|                        |                                                                             |
+| ~stack_main.c~         | a main routine allowing interactive work with a stack                       |
+| ~test_stack_main.org~  | Testy tests for the interactive ~main()~ function; "integration" tests      |
+|------------------------+-----------------------------------------------------------------------------|
+
+* Demo Session
+By default, there are bugs built into the stack implementation to
+demonstrate failed tests and show how they look (see the [[* Compiling the "Correct" Version of the Stack Application ][section on
+compiling the correct version]] if you are interested in that).
+
+#+BEGIN_SRC sh
+
+#+END_SRC
+
+
+* Compiling the "Correct" Version of the Stack Application
