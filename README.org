@@ -5,7 +5,7 @@ A script to run tests for interactive terminal programs. Tests are
 specified in Emacs Org-like files.
 
 ** Rationale
-I teach a university courses which do a fair bit of C programming (and
+I teach university courses which do a fair bit of C programming (and
 some assembly). There isn't a standard testing infrastructure for C
 programs that is suitable for education so ~testy~ is my attempt to do
 so. The program strives for the following goals:
