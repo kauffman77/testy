@@ -19,7 +19,7 @@ couple Testy testing files can be used to test the project.
 
 * Demo Session
 By default, there are bugs built into the stack implementation to
-demonstrate failed tests and show how they look (see the [[correct-version][section on
+demonstrate failed tests and show how they look (see the [[* Compiling the "Correct" Version of the Stack Application ][section on
 compiling the correct version]] if you are interested in that).
 
 : >> make                                                # build the project
@@ -266,7 +266,7 @@ compiling the correct version]] if you are interested in that).
 : ===============================================
 : RESULTS: 10 / 10 tests passed
 
-* <<correct-version>> Compiling the "Correct" Version of the Stack Application
+* Compiling the "Correct" Version of the Stack Application
 The provided Stack application is intentionally buggy by default so that some
 test failures result. The correct version sits alongside the incorrect
 version in the C source code using C's preprocessor macro facility
