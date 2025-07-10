@@ -268,7 +268,8 @@ STACK>> exit
 
 * Reset 1
 Uses the reset command to deallocate and reallocate the stack to
-determine if memory leaks occur due to the operation.
+determine if memory leaks occur due to the operation. Initial version
+has out of bounds reads/writes and a memory leak.
 
 #+BEGIN_SRC sh
 Stack Manager

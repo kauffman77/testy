@@ -26,7 +26,7 @@ stack_t *stack_new(int capacity){
 }
 #endif
 
-// deallocate data associatd with the stack
+// CORRECT version: deallocate data associatd with the stack
 void stack_free(stack_t *stack){
   free(stack->data);
   free(stack);
