@@ -22,9 +22,257 @@ By default, there are bugs built into the stack implementation to
 demonstrate failed tests and show how they look (see the [[* Compiling the "Correct" Version of the Stack Application ][section on
 compiling the correct version]] if you are interested in that).
 
-#+BEGIN_SRC sh
-
-#+END_SRC
-
+: >> make                                                # build the project
+: gcc -Wall -Werror -g  -c stack_main.c
+: gcc -Wall -Werror -g  -c stack_funcs.c
+: gcc -Wall -Werror -g  -o stack_main stack_main.o stack_funcs.o
+: gcc -Wall -Werror -g  -c test_stack_funcs.c
+: gcc -Wall -Werror -g  -o test_stack_funcs test_stack_funcs.o stack_funcs.o
+:
+: >> ./stack_main                                        # run th emain application to demo it
+: Stack Manager
+: Commands:
+:   count:          shows the count of elements in the stack
+:   add <N>:        add the given integer to the top of the stack
+:   top:            shows the current top element of the stack
+:   remove:         eliminate the top element in the stack
+:   print:          print all elements in the stack top to bottom
+:   reset <CAP>:    discard the old stack and create a new one with the given capacity
+:   exit:           exit the program
+: STACK>> add 2
+: return: A
+: STACK>> add 4
+: return: A
+: STACK>> add 6
+: return: A
+: STACK>> add 8
+: return: A
+: STACK>> print                                          # buggy: shoudl print element [0] as well
+: [3]: 8
+: [2]: 6
+: [1]: 4
+: STACK>> remove
+: removed 8
+: STACK>> top
+: 6
+: STACK>> print
+: [2]: 6
+: [1]: 4
+: STACK>> count                                          # buggy: missing command
+: unknown command 'count'
+: STACK>> exit                                           # back the shell
+:
+:
+: >> make test-funcs                                     # run the "unit" tests of the service functions
+: ./testy test_stack_funcs.org
+: =================================================
+: == test_stack_funcs.org : Tests for stack_funcs.c
+: == Running 10 / 10 tests
+:  1) stack_new / stack_free : ok
+:  2) stack_count on empty   : ok
+:  3) stack_add_top_1        : ok
+:  4) stack_add_top_2        : FAIL -> see test-results/stack-funcs-04-result.org
+:  5) stack_add_print_1      : FAIL -> see test-results/stack-funcs-05-result.org
+:  6) stack_add_print_2      : FAIL -> see test-results/stack-funcs-06-result.org
+:  7) stack_remove_1         : FAIL -> see test-results/stack-funcs-07-result.org
+:  8) stack_remove_2         : FAIL -> see test-results/stack-funcs-08-result.org
+:  9) stack_expansion_1      : FAIL -> see test-results/stack-funcs-09-result.org
+: 10) stack_expansion_2      : FAIL -> see test-results/stack-funcs-10-result.org
+: =================================================
+: RESULTS: 3 / 10 tests passed
+:
+: >> cat test-results/stack-funcs-04-result.org          # show some of the results
+: * (TEST 4) stack_add_top_2 : FAIL
+: ** COMMENTS
+:
+:
+: ** PROGRAM: ./test_stack_funcs "stack_add_top_2"
+: To run this individual test in GDB use the command:
+:   gdb --args ./test_stack_funcs "stack_add_top_2"
+: but any input to the program must be typed within the debugger
+:
+: ** FAILURE MESSAGES
+: - Valgrind Errors: Check Valgrind section for details  # ERRORS are not due to output but due to memory problems
+: - Program had exit code 13 when 0 is expected
+:
+: ** SIDE-BY-SIDE DIFF of Expected vs Actual
+: . lines match; | lines differ; < expected line missing; > extra line in actual
+:
+: #+BEGIN_SRC sdiff                                       # these are all matching fine
+: ===EXPECT===                                                             ===ACTUAL===
+: IF_TEST("stack_add_top_2") {                                           . IF_TEST("stack_add_top_2") {
+:     // checks that stack_add() and stack_top() seems to work correctly .     // checks that stack_add() and stack_top() seems to work correctly
+:     // for several elements                                            .     // for several elements
+:     stack_t *stack = stack_new(5);                                     .     stack_t *stack = stack_new(5);
+:     char ret; int count, top_item;                                     .     char ret; int count, top_item;
+:     printf("FIRST ADD\n");                                             .     printf("FIRST ADD\n");
+:     ret = stack_add(stack, 20);                                        .     ret = stack_add(stack, 20);
+:     count = stack_count(stack);                                        .     count = stack_count(stack);
+:     printf("ret: %c\ncount: %d\n",ret,count);                          .     printf("ret: %c\ncount: %d\n",ret,count);
+:     ret = stack_top(stack, &top_item);                                 .     ret = stack_top(stack, &top_item);
+:     printf("ret: %c\ntop_item: %d\n",ret,top_item);                    .     printf("ret: %c\ntop_item: %d\n",ret,top_item);
+:     printf("SECOND ADD\n");                                            .     printf("SECOND ADD\n");
+:     ret = stack_add(stack, 40);                                        .     ret = stack_add(stack, 40);
+:     count = stack_count(stack);                                        .     count = stack_count(stack);
+:     printf("ret: %c\ncount: %d\n",ret,count);                          .     printf("ret: %c\ncount: %d\n",ret,count);
+:     ret = stack_top(stack, &top_item);                                 .     ret = stack_top(stack, &top_item);
+:     printf("ret: %c\ntop_item: %d\n",ret,top_item);                    .     printf("ret: %c\ntop_item: %d\n",ret,top_item);
+:     printf("THIRD ADD\n");                                             .     printf("THIRD ADD\n");
+:     ret = stack_add(stack, 60);                                        .     ret = stack_add(stack, 60);
+:     count = stack_count(stack);                                        .     count = stack_count(stack);
+:     printf("ret: %c\ncount: %d\n",ret,count);                          .     printf("ret: %c\ncount: %d\n",ret,count);
+:     ret = stack_top(stack, &top_item);                                 .     ret = stack_top(stack, &top_item);
+:     printf("ret: %c\ntop_item: %d\n",ret,top_item);                    .     printf("ret: %c\ntop_item: %d\n",ret,top_item);
+:     stack_free(stack);                                                 .     stack_free(stack);
+:   }                                                                    .   }
+: }                                                                      . }
+: ---OUTPUT---                                                           . ---OUTPUT---
+: FIRST ADD                                                              . FIRST ADD
+: ret: A                                                                 . ret: A
+: count: 1                                                               . count: 1
+: ret: S                                                                 . ret: S
+: top_item: 20                                                           . top_item: 20
+: SECOND ADD                                                             . SECOND ADD
+: ret: A                                                                 . ret: A
+: count: 2                                                               . count: 2
+: ret: S                                                                 . ret: S
+: top_item: 40                                                           . top_item: 40
+: THIRD ADD                                                              . THIRD ADD
+: ret: A                                                                 . ret: A
+: count: 3                                                               . count: 3
+: ret: S                                                                 . ret: S
+: top_item: 60                                                           . top_item: 60
+:
+: #+END_SRC
+:
+: ** LINE-BY-LINE DIFF of Expected vs Actual
+: No differences found
+:
+: ** VALGRIND REPORT
+: The program is run on under valgrind as
+:   stdbuf -i 0 -o 0 -e 0 valgrind --error-exitcode=13 --leak-check=full --show-leak-kinds=all --track-origins=yes ./test_stack_funcs stack_add_top_2
+: which may be pasted onto a command line to run it.
+:
+: #+BEGIN_SRC text
+: ==151174== Memcheck, a memory error detector
+: ==151174== Copyright (C) 2002-2024, and GNU GPL'd, by Julian Seward et al.
+: ==151174== Using Valgrind-3.25.1 and LibVEX; rerun with -h for copyright info
+: ==151174== Command: ./test_stack_funcs stack_add_top_2
+: ==151174==
+: ==151174== Invalid write of size 4                                # this is due to an allocation bug
+: ==151174==    at 0x40021EC: stack_add (stack_funcs.c:68)
+: ==151174==    by 0x40016C1: main (test_stack_funcs.c:77)
+: ==151174==  Address 0x4aa4094 is 4 bytes inside a block of size 5 alloc'd
+: ==151174==    at 0x484B7A8: malloc (vg_replace_malloc.c:446)
+: ==151174==    by 0x4002150: stack_new (stack_funcs.c:22)
+: ==151174==    by 0x40015F4: main (test_stack_funcs.c:68)
+: ==151174==
+: ...
+: #+END_SRC
+:
+: ** SUMMARY
+: Test FAILED for the following reasons
+: - Valgrind Errors: Check Valgrind section for details
+: - Program had exit code 13 when 0 is expected
+:
+:
+: >> make test-main                                      # run tests for the main application
+: ./testy test_stack_main.org
+: ===============================================
+: == test_stack_main.org : Tests for stack_main.c
+: == Running 10 / 10 tests
+:  1) Start and Exit                       : ok
+:  2) Count on Empty                       : FAIL -> see test-results/stack-main-02-result.org
+:  3) Differences between normal and -echo : ok
+:  4) Add and Top 1                        : FAIL -> see test-results/stack-main-04-result.org
+:  5) Add and Top 2                        : FAIL -> see test-results/stack-main-05-result.org
+:  6) Add and Remove 1                     : FAIL -> see test-results/stack-main-06-result.org
+:  7) Add and Remove 2                     : FAIL -> see test-results/stack-main-07-result.org
+:  8) Add with Expansion 1                 : FAIL -> see test-results/stack-main-08-result.org
+:  9) Reset 1                              : FAIL -> see test-results/stack-main-09-result.org
+: 10) Reset 2                              : FAIL -> see test-results/stack-main-10-result.org
+: ===============================================
+: RESULTS: 2 / 10 tests passed
+:
+: >> head -20 test-results/stack-main-04-result.org      # show part of a failure for a test
+: * (TEST 4) Add and Top 1 : FAIL
+: ** COMMENTS
+: Checks that the `add` and `op` commands are present and function
+: correctly for a small number of adds.
+:
+: ** PROGRAM: ./stack_main -echo
+: To run this individual test in GDB use the command:
+:   gdb --args ./stack_main -echo
+: but any input to the program must be typed within the debugger
+:
+: ** FAILURE MESSAGES                                    # failure due to memory problems AND output differences
+: - Valgrind Errors: Check Valgrind section for details
+: - Program had exit code 13 when 0 is expected
+: - Output Differenes: Expected/Actual do not match, check Diff Sections for details
+:
+: ...
+:
+: >> make help                                           # show supported targets in the Makefile
+: Typical usage is:
+:   > make                          # build all programs, buggy version by default
+:   > make FLAGS=-DCORRECT          # build all programs, correct version
+:   > make clean                    # remove all compiled items
+:   > make test                     # run all tests
+:   > make test-funcs               # run tests for stack_funcs.c
+:   > make test-funcs testnum=5     # run test #5 of stack_funcs.c only
+:   > make test-main                # run tests for stack_main.c
+:
+: >> make clean                                          # remove compiled artifacts
+: rm -f stack_main test_stack_funcs  *.o
+:
+: >> make FLAGS=-DCORRECT                                # Recompile with the "correct" code active
+: gcc -Wall -Werror -g -DCORRECT -c stack_main.c
+: gcc -Wall -Werror -g -DCORRECT -c stack_funcs.c
+: gcc -Wall -Werror -g -DCORRECT -o stack_main stack_main.o stack_funcs.o
+: gcc -Wall -Werror -g -DCORRECT -c test_stack_funcs.c
+: gcc -Wall -Werror -g -DCORRECT -o test_stack_funcs test_stack_funcs.o stack_funcs.o
+:
+: >> make test                                           # run all tests (functions and main) on the correct program
+: ./testy test_stack_funcs.org
+: =================================================
+: == test_stack_funcs.org : Tests for stack_funcs.c
+: == Running 10 / 10 tests
+:  1) stack_new / stack_free : ok
+:  2) stack_count on empty   : ok
+:  3) stack_add_top_1        : ok
+:  4) stack_add_top_2        : ok
+:  5) stack_add_print_1      : ok
+:  6) stack_add_print_2      : ok
+:  7) stack_remove_1         : ok
+:  8) stack_remove_2         : ok
+:  9) stack_expansion_1      : ok
+: 10) stack_expansion_2      : ok
+: =================================================
+: RESULTS: 10 / 10 tests passed
+: ./testy test_stack_main.org
+: ===============================================
+: == test_stack_main.org : Tests for stack_main.c
+: == Running 10 / 10 tests
+:  1) Start and Exit                       : ok
+:  2) Count on Empty                       : ok
+:  3) Differences between normal and -echo : ok
+:  4) Add and Top 1                        : ok
+:  5) Add and Top 2                        : ok
+:  6) Add and Remove 1                     : ok
+:  7) Add and Remove 2                     : ok
+:  8) Add with Expansion 1                 : ok
+:  9) Reset 1                              : ok
+: 10) Reset 2                              : ok
+: ===============================================
+: RESULTS: 10 / 10 tests passed
 
 * Compiling the "Correct" Version of the Stack Application
+The provided Stack application is intentionally buggy by default so that some
+test failures result. The correct version sits alongside the incorrect
+version in the C source code using C's preprocessor macro facility
+(~#ifdef / #else / #endif)~. As the end of the example shows, if one
+invokes ~make~ with the below option, it will compile the correct
+version of the code which should pass all tests.
+#+BEGIN_SRC sh
+>> make FLAGS=-DCORRECT                                # Recompile with the "correct" code active
+#+END_SRC
