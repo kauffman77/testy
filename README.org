@@ -725,7 +725,7 @@ v3.0-or-later (GPLv3-or-later)*. A copy of the GPLv3-or-later is
 included in the file ~LICENSE~ in the source repository.
   
 * Planned and Completed Additions
-See file:NOTES.txt which contains notes on planned and completed additions 
+See [[file:NOTES.txt]] which contains notes on planned and completed additions 
 
 * COMMENT Install macOS Requirements
 Note: ~testy~ is primarily supported for Linux/GNU.
