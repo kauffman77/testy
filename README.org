@@ -4,6 +4,9 @@
 A script to run tests for interactive terminal programs. Tests are
 specified in Emacs Org-like files.
 
+The project homepage is on Github here:
+https://github.com/kauffman77/testy
+
 ** Rationale
 I teach university courses which do a fair bit of C programming (and
 some assembly). There isn't a standard testing infrastructure for C

@@ -1,0 +1,36 @@
+# build file which indicates which of Python's several package build
+# systems the project uses. This project uses 'setuptools' which comes
+# with python installs by default. There are a bunch of items here
+# which could apparently go in either of 'pyproject.toml' OR in the
+# 'setup.py' file but this file is considered the more modern
+# approach.
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "testy-command-line"
+dynamic = ["version"]      # see tool.setuptools.dynamc section below
+description = 'A Testing Script/Module for Command-line Programs'
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = []
+license = "GPL-3.0-or-later"
+keywords = ["testing"]
+authors = [{ name = "Chris Kauffman", email = "kauffman77@gmail.com" }]
+maintainers = [{ name = "Chris Kauffman", email = "kauffman77@gmail.com" }]
+
+[project.optional-dependencies]
+dev = []
+test = []
+
+[project.urls]
+"Homepage" = "https://github.com/kauffman77/testy"
+
+[project.scripts]
+testy = "testy:main" #install allows running testy as an executable
+
+[tool.setuptools.dynamic]
+# take version from the __version__ field of the module
+version = {attr = "testy.__version__"}

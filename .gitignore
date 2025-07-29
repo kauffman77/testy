@@ -7,3 +7,7 @@ test-results/
 /yyy
 /junk/
 /__pycache__/
+/pypa-package/README.md
+/pypa-package/__pycache__/
+/pypa-package/dist/
+/pypa-package/testy_command_line.egg-info/

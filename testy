@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-# Release: Thu Mar 20 11:52:49 PM EDT 2025
+# Release: Tue Jul 29 04:24:20 PM EDT 2025
 """Testy: run test cases on command line programs"""
+
+__version__ = "0.8.1"
 
 ### Imports
 import sys                                # argv etc
@@ -1869,17 +1871,14 @@ LONG_DESCRIPTION = """\
 Running a test is done from the command line and will default to
 running all tests in a provided test file. Output shows each test with
 a pass/fail and failures have results files indicating what went
-wrong. Below is an example from the examples/ directory:
+wrong.
 """
 
 
 ################################################################################
 ### Main Entry point
-def main(cmd_args):
+def main():
   """main entry point for command line runs of """
-  # cmd_args explicit makes it easier to do debugging sessions in
-  # python interactive loop; must remove script name from the args
-
 
   # set up arg parsing, don't line-wrap descriptions
   argparser = argparse.ArgumentParser(description=SHORT_DESCRIPTION,
@@ -1906,7 +1905,7 @@ def main(cmd_args):
   argparser.add_argument("testnums",metavar="testnum",nargs='*',type=int,
                          help="Optional test numbers to run (default all)")
 
-  args = argparser.parse_args(cmd_args)
+  args = argparser.parse_args()
   if args.debug or "TESTYDEBUG" in os.environ:
     log.basicConfig(format=LOGFORMAT,level=log.DEBUG,encoding='utf-8')
     log.debug("Debugging messages enabled")
@@ -1966,4 +1965,4 @@ def main(cmd_args):
     pass                        # show nothing
 
 if __name__ == '__main__':
-  main(sys.argv[1:])            # remove script name from args
+  main() 

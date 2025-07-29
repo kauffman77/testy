@@ -18,6 +18,10 @@ all : $(PROGRAMS)
 clean :
 	rm -f $(PROGRAMS) *.o
 
+# remove test restuls
+clean-tests :
+	rm -rf test-results
+
 help :
 	@echo 'Typical usage is:'
 	@echo '  > make                          # build all programs, buggy version by default'
