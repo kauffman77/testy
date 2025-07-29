@@ -3,33 +3,164 @@
 #+SEQ_TODO: TODO | DONE FORWARDED CANCELLED
 
 * Internals
-Some descriptions of the internal implementation will be placed here
-at some point. The comments in the code do a reasonably good job of
-explaining most of this but summaries are always nice.
+/Last Updated: Tue Jul 29 02:55:15 PM EDT 2025/
 
-** Class Structure
+Below are some notes on the internal structure of the program for
+intrepid code spelunkers who might be curious or want to modify it.
+
+** Testing Class Structure
+A *session* is the input/expected output for a run of a program and is
+housed in a *segment* which includes description and options. A
+single test can have several segments. 
+
+Internally, tests are housed in the following classes.
+- Segment :: a single session and options/description
+  - Sets up and tears down a program run
+  - Can have individual options that dictate its behavior
+  - Records expected/actual output and pass/fail status
+- Test ::  one or more segments and options/description
+  - Contains options which may be passed to constituent segments
+  - Has an array of segments to run in sequence as part of the test
+- Suite :: one or more tests and global options
+  - Contains an array of tests to run
+  - appear as ~.org~ files with global options specified at the top of the file
+
+** Additional Classes 
+There are a number of other high-level classes that are used for
+ancillary tasks.
+- Parsing :: The base class ~SuiteParser~ provides the interface to
+  read files that contain tests. Its only current descendant is the
+  ~OrgSuiteParser~ which reads tests written in the Org-file style
+  however it's planned to add some other format support soon like JSON
+  / Markdown / YAML. While parsing, the ~FilePos / ParseError~ classes
+  are used to convey locations and problems during parsing
+- Progress Reporting :: By default the progress of tests is reported
+  line-by-line but if less verbosity is desired, a single ~.~ (dot) of
+  ~F~ can be printed for each pass/fail. This functionality descends
+  from the ~ProgressReporter~ class of which ~LineProgressReporter~
+  and ~ShortProgressReporter~ are the descendants. This functionality
+  allows easy changes to the output with further descendants along
+  with adding command line options for the new reporting.
+- Result Reporting :: The ~ResultFormatter~ base class gives an
+  interface for reporting results in various fashions, to the terminal
+  and in files.  It has two descendants, ~OrgResultFormatter~ and
+  ~MarkdownResultFormatter~ which report results according to their
+  namesake. Extending this class and adding command line options would
+  allow additional output formats.
+
 ** Transfer of Options between Suite, Test, Segment
-** Use of eval() in parsing options 
+Some tricks are used to flexibly transfer options that appear in files
+and environment variables to their appropriate locations.
+- Some wide-spread options can be set via Environment Variables; the
+  environment variables honored are in the module-level list
+  ~ENVVARS_HONORED~ and set using the ~Suite.honor_envvars()~ which
+  scans the environment for variables matching and propagates those to
+  the suite fields that match.
+- In ~honor_envvars()~, the Suite object itself uses some "reflection"
+  by examining whether environment variables (lower cased) match any
+  fields of the class and, if so, the value of the environment
+  variable is set to the field of the class. This is one nice feature
+  of a dynamic, typeless language like Python, which would be hard to
+  pull off in stricter languages. It means that new options need only
+  add fields the ~Suite~ and the ~ENVVARS_HONORED~
+- Directives for tests and segments like ~#+TESTY: use_valgrind=False~
+  are handled similarly during parsing. They look at the left-hand
+  variable and find a matching field of Segment / Test / Suite and set
+  it. This means that any field of the these classes can be set during
+  parsing without adding any special handling, a win for the dynamic
+  nature of Python.
+- ~get_keyval(rest,env)~ is used to parse the righ-hand side of
+  expressions during parsing (in most cases) and evaluates to a
+  python-value which is assigned to the left-hand property.
+- Python's ~eval()~ function is used when setting values in directives
+  so directives like ~#+TESTY: points=0.5~ will set the points to a
+  floating point number rather than a string. Local variables are
+  allowed as well. For a bit of flexibility, if ~eval()~ fails, then
+  the right-hand-side is treated as a string instead so that the
+  directives ~#+TESTY: prefix=mytests~ and ~#+TESTY: prefix='mytests'~
+  are the same.
+
 ** Alignment Algorithm
-** Parsing Input
-** Reporting and Formatting Output
+- The original BASH version of testy employed standard ~diff~ with
+  various options like ~-y~ to get a side-by-side output
+- My goal was to make python version as self-contained as possible
+- I experimented with Pytyhon's built-in [[https://docs.python.org/3/library/difflib.html][difflib]] which provides some
+  means to align two sequences. Unfortunately, I did not have good
+  luck with this in getting lists of lines to align to one another as
+  there is not enough control over the underlying algorithms to
+  produce output that made sense the context of comparing expected and
+  actual program output
+- I devolved to coding my own sequence alignment algorithm in
+  ~global_alignment()~ as I have a bit of experience on sequence
+  alignment from my past work in bioinformatics. The Needleman-Wunsch
+  algorithm uses dynamic program to compute and optimal global
+  alignment between two sequences with the linear gap penalty
+  model. In this case, the sequences are of lines of expected and
+  actual program output. The algorithm needs a "score" to award the
+  similarity between two elements in the sequence. For that I employed
+  ~difflib~'s ~SequenceMatcher~ which likely uses a hashing algorithm
+  under the hood to get fast approximations for the similarity between
+  lines. There are a bunch of tweaks and hacks there including setting
+  default values for gap opening/extension and scaling. 
+- Overall the alignment algorithm gives reasonable results in
+  reasonable time with a few caveats
+- *Very long output takes a long time to compute alignment*:
+  Needleman-Wunsch is O(len(seqA)*len(seqB)) so works reasonably for a
+  few hundred lines each but starts drag (especially in Python) for
+  larger output. This could definitely be improved
+- *Very short output can get weird*: in an ideal setting, student
+  programs that segfault after a few lines of output would just appear
+  at the top of the output but due to the global sequence alignment,
+  sometimes the few lines of output are spread through the expected
+  output as this has a slightly better alignment score. This could be
+  improved. 
+
 ** Subprocess Communication
+- When running a session for a program, a subprocess is created and
+  the input/output communication is done either by the main Testy
+  process or a child process when running tests in parallel
+- Python has an gaggle of different functionalities for communicating
+  with sub processes which I tried initially and found to be
+  deficient; the needs for this case are as follows
+  - Must be able to feed output to the program bit-by-bit to allow
+    progression of the session program including checking that sending
+    input will not block the parent process
+  - Must be able to read output from the program in chunks
+  - Must be able to limit the amount of output in the case of an
+    infinite loop that is repeatedly printing
+  - Must be able to time out if the session program stops responding
+    due to an infinite loop
+- Primarily these constraints come from the need to handle potentially
+  badly written student programs that have infinite loops and/or
+  infinite output
+- The common ~communicate()~ functions that python sub-process modules
+  provide do not fulfill all of these requirements primarily missing
+  the "infinite output" part of the requirements
+- I ended up writing my own version of this routine called
+  ~limited_communicate()~ which will report what happens including
+  Time Outs / Max Outs
+- I can't say that this is the best solution for the game but gets the
+  job done and has proven reliable so far
 
 * Additional Features / Testing for Python Version
-** TODO Documentation Updates
-- ~#+BEGIN_QUOTE filename~ in org input files
-- ~results_dir_early=True~ option
-- ~POST_FILTER="./test_standardize_pids"~ option
-- ~show / showfail / single_show_fail~ options: consider making this a
-  single display ~show=[none|single_fail|fail|all]~ or something along
-  those lines
-- ~save_rawfiles=1~ option
+Below is a laundry list of items that could use a few tweaks or be
+improved. If you're looking to contribute, try taking on one of these. 
 
-** TODO Remove go_to_testdir
-Empty function which should be excised
+** TODO add a NEWS file
 
 ** TODO publish to PyPI
-after completing doc updates
+- after completing doc updates
+- will need to add a python packing subdirectory
+
+** TODO Examine handling options and eval
+Have several disparate spots where options are handled, in
+~Suite.honor_envvars()~ and ~get_keyval(rest,locals())~ in some cases;
+see if this can be unified without breaking other things.
+
+** TODO Remove go_to_testdir
+Empty function which should be excised; originally intended to be used
+when a test directory is needed to navigate the process into that
+directory but I *think* this was done other ways.
 
 ** TODO Duplicate code for test directory in Test and Segment
 - This makes me a little nervous as it might 
@@ -88,6 +219,10 @@ May wish to send signals but add as needed
 
 
 * Completed
+This section has completed TODO items along with any relevant notes on
+the outcome. It includes notes on improvements completed all the way
+back the original Bash version.
+
 ** DONE Completed General Improvements for Bash testy
 - Add message on how to run test with interactive input in GDB, now
   possible as input for single tests is in a file
@@ -1177,6 +1312,15 @@ test_scale_update.org:13: not enough values to unpack (expected 3, got 1)
 
 ** DONE Merged behavior of show
 All into a single show variable
+
+** DONE Documentation Updates
+- ~#+BEGIN_QUOTE filename~ in org input files
+- ~results_dir_early=True~ option
+- ~POST_FILTER="./test_standardize_pids"~ option
+- ~show / showfail / single_show_fail~ options: consider making this a
+  single display ~show=[none|single_fail|fail|all]~ or something along
+  those lines
+- ~save_rawfiles=1~ option
 
 * Comparing Length of Bash vs Python version
 The first version of testy was written only in Bash as the aim was to

@@ -149,7 +149,7 @@ source code has a class hierarchy that reflects theses terms.
   - some segments are separated using sub headings like ~** Segment Title~
 - Test ::  one or more segments and options/description
   - a sequence of segments (possibly only 1) run in order up to the first failure
-  - appear in ~.org~ files as top-level headings like ~** Test Title~
+  - appear in ~.org~ files as top-level headings like ~* Test Title~
 - Suite :: one or more tests and global options
   - a collection of tests specified in a single file; may have global options for all tests
   - appear as ~.org~ files with global options specified at the top of the file
