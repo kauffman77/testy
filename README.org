@@ -138,6 +138,48 @@ easier easier to read in emacs org-mode):
 : - Output Differenes: Expected/Actual do not match, check Diff Sections for details
 
 * User Guide
+** Installation
+There are two ways to install ~testy~
+
+*** Copy the File
+Just copy the file ~testy~ to wherever you plan to use it and
+distribute. It works as a stand-alone script and can be included with
+assignments. A direct link to the most recent version published on
+Github is here: [[https://raw.githubusercontent.com/kauffman77/testy/refs/heads/master/testy][direct link to script.]]  Save it, ~wget~ it, do what
+you've gotta do.
+
+If you are a student and want to use it for a project and are
+relatively new to Linux/UNIX, try the commands:
+#+BEGIN_SRC sh
+>> wget https://raw.githubusercontent.com/kauffman77/testy/refs/heads/master/testy
+...
+>> chmod u+x testy
+>> ./testy --help
+#+END_SRC
+If you see a help message, you're in business.
+
+*** Install via pip
+The code is also on [[https://pypi.org/project/testy-command-line][The Python Package Index (PyPI)]]. Try ONE of the
+following commands
+#+BEGIN_SRC sh
+>> sudo pip install testy-command-line    # system-wide install for admins/root user
+
+>> pip install testy-command-line --user  # single-user install for normal users
+#+END_SRC
+
+For folks whose environment doesn't allow installs like this (hello
+Arch Linux users), mess with virtual environments to get things going,
+something along the lines of
+#+BEGIN_SRC sh
+>> python -m venv .venv
+>> source .venv/bin/activate
+(.venv) >> pip install testy-command-line
+#+END_SRC
+Of course you'll have to source the virtual environment when you want
+to use it but I'm betting you're accustomed to such things
+already. You can also just plop the ~testy~ file down in
+~/usr/bin~ and make it executable.
+
 ** Terminology
 I'm no expert on software testing theory so I don't expect these terms
 to be universal but they are the ones I settled on for ~testy~. The
