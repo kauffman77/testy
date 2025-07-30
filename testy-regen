@@ -1,7 +1,11 @@
 #!/usr/bin/bash
+# dated version, prefer current testy version with `testy -r ...` option
 
 if [[ "$#" -lt 1 ]]; then                             # check for presence of at least 1 argument
     printf "usage: testy-regen <testspec>\n"
+    printf 'Regenerate tests for the bash version of testy (testyb); this script\n'
+    printf 'is now quite dated its functionality has been superseded by the\n'
+    printf 'functionality in the newer python version of testy\n'
     exit 1
 fi
 
