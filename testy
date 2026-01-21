@@ -1935,9 +1935,9 @@ def main():
     if args.regen:
       print(f'Regenerating test suite in file {args.regen}')
       suite_parser.regen_file(args.regen,suite)
-  # except ParseError as e:
-  #   print(str(e))
-  #   sys.exit(1)
+  except ParseError as e:
+    print(str(e))
+    sys.exit(1)
   except KeyboardInterrupt:
     print()
     print("testy received a keyboard interrupt; Exiting")
