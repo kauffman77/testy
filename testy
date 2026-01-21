@@ -225,6 +225,20 @@ class Suite:
         else:
           self.test_opts[var] = val          # override test/segment option
 
+  def purge_bash_funcs_envvars(self):
+    """Removes exported bash funcs from environment variables.
+
+    Environment variables matching teh pattern 'BASH_FUNC_...%%' are
+    exported BASH shell functions and are removed from the environment
+    as when they propogate to the a `bash -v` call, they are usually
+    echoed which corrupts test behavior. Often Unix/Linux systems that
+    use the 'module' software system have these.
+
+    """
+    for key in list(os.environ.keys()):
+      if key.startswith("BASH_FUNC_") and key.endswith("%%"):
+        os.environ.pop(key)
+
 class Test:
   """Encapsulates a single test which may have multiple segments"""
 
@@ -1114,6 +1128,7 @@ class OrgSuiteParser:
         elif len(line)>0 and line[0]!="#":      # non org-comments added to description
           writeline(desc,line)
       suite.description = desc.getvalue().strip()
+      suite.purge_bash_funcs_envvars()
       suite.honor_envvars()                     # override premable opts with environment vars
       return suite
 
