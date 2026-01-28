@@ -1904,7 +1904,7 @@ def main():
   argparser.add_argument("-t","--input_type",default="org",action="store",
                          choices=list(PARSER_TYPES.keys()),
                          help="Specify the test input file type")
-  argparser.add_argument("-o","--output_type",default="org",action="store",
+  argparser.add_argument("-o","--output_type",default="md",action="store",
                          choices=list(OUTPUT_TYPES.keys()),
                          help="Specify the test results output file type")
   argparser.add_argument("-p","--progress",action="store",default="line",
