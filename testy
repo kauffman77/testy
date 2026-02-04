@@ -204,10 +204,14 @@ class Suite:
     progress_reporter.report_suite_done(self)
 
   def honor_envvars(self):
-    """Check environment variables to see propagate any values to the suite
+    """Check environment to propagate honored variables to suite/tests
 
-    This method should be called AFTER reading the suite preamble so
-    that environment variables override premable options.
+    This method is called during parsing AFTER reading the suite
+    preamble is processed so that environment variables override
+    premable options in the Suite. Variables that directly match suite
+    field names are set to the indicated value while any others are
+    added to the test_opts[] list to be propogated to tests.
+
     """
     env = {k.lower() : v for k,v in os.environ.items()}  # lowercase environment variables
     for var in ENVVARS_HONORED:
@@ -1915,6 +1919,8 @@ def main():
   argparser.add_argument("-r","--regen",action="store",default=None,
                          metavar="<testfile>",
                          help="Regenerate the given test file using actual results, store in given file ")
+  argparser.add_argument("-S","--save-rawfiles",default=False,action="store_const",const=True,
+                         help="Save raw input/output files for tests in test-results/raw directory")
   argparser.add_argument("testfile",metavar="testfile",
                          help="File containing tests (default org format)")
   argparser.add_argument("testnums",metavar="testnum",nargs='*',type=int,
@@ -1930,7 +1936,8 @@ def main():
     print(f"ERROR: test suite file type {args.input_type} is not supported")
     sys.exit(1)
   suite_parser = PARSER_TYPES[args.input_type]
-
+  if args.save_rawfiles:                                 # if more command line options are added,    
+    os.environ['save_rawfiles'] = "1"                    # move these to a function, likely that would
   try:
     log.debug(f"Parsing file {args.testfile}")
     suite = suite_parser.parse_file(args.testfile)
